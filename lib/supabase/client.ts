@@ -19,26 +19,50 @@ if (!supabaseUrl || !supabaseAnonKey) {
     );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * ── 스키마 캐시 오류(schema cache miss) 방지 ──────────────────────────
+ * `db: { schema: "public" }` 를 명시하면 PostgREST가
+ * 정확히 public 스키마를 바라보도록 강제합니다.
+ * "Could not find the 'label' column of 'strategy_frames' in the schema cache"
+ * 에러는 대부분 테이블이 없거나, 스키마 캐시가 비어 있을 때 발생합니다.
+ * ─────────────────────────────────────────────────────────────────────── */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    db: { schema: "public" },
+    auth: { persistSession: false },
+});
 
 /* ─────────────────────────────────────────────
    DB 타입 정의 (strategy_frames 테이블 스키마 반영)
    ─────────────────────────────────────────────
 
-   Supabase에서 아래 SQL로 테이블을 생성하세요 (대시보드 → SQL Editor):
+   ⚠️  반드시 Supabase 대시보드 → SQL Editor에서 아래 SQL을 실행해야 합니다.
+   테이블이 존재하지 않으면 schema cache 에러가 계속 발생합니다.
 
-   CREATE TABLE strategy_frames (
-     id          BIGSERIAL PRIMARY KEY,
-     label       TEXT        NOT NULL DEFAULT '',
-     placement   JSONB       NOT NULL DEFAULT '{}',
-     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   ── 테이블 생성 (처음 실행 시) ──────────────────────────────────────
+
+   CREATE TABLE IF NOT EXISTS public.strategy_frames (
+     id          BIGSERIAL    PRIMARY KEY,
+     label       TEXT         NOT NULL DEFAULT '',
+     placement   JSONB        NOT NULL DEFAULT '{}',
+     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
    );
 
-   -- 모든 사용자가 읽기 가능 (공개 공략 데이터)
-   ALTER TABLE strategy_frames ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "allow_read"  ON strategy_frames FOR SELECT USING (true);
-   CREATE POLICY "allow_insert" ON strategy_frames FOR INSERT WITH CHECK (true);
-   ───────────────────────────────────────────── */
+   ── Row Level Security ────────────────────────────────────────────────
+
+   ALTER TABLE public.strategy_frames ENABLE ROW LEVEL SECURITY;
+
+   -- 기존 정책이 있으면 삭제 후 재생성
+   DROP POLICY IF EXISTS "allow_read"   ON public.strategy_frames;
+   DROP POLICY IF EXISTS "allow_insert" ON public.strategy_frames;
+
+   CREATE POLICY "allow_read"   ON public.strategy_frames FOR SELECT USING (true);
+   CREATE POLICY "allow_insert" ON public.strategy_frames FOR INSERT WITH CHECK (true);
+
+   ── 스키마 캐시 강제 갱신 (위 SQL 실행 후 이것도 실행) ────────────────
+
+   NOTIFY pgrst, 'reload schema';
+
+   ─────────────────────────────────────────────────────────────────── */
 
 export interface StrategyFrameRow {
     id: number;

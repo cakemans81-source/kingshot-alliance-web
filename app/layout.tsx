@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
 import FloatingWriteButtons from "@/components/FloatingWriteButtons";
+import MusicPlayer from "@/components/MusicPlayer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,9 @@ export default function RootLayout({
       >
         {/* 전체 페이지 최상단 고정 네비게이션 바 */}
         <NavBar />
+
+        {/* BGM 플레이어 — NavBar 바로 아래 우측 고정, 모든 페이지 공통 */}
+        <MusicPlayer />
 
         {/* 네비게이션 바 높이(64px)만큼 상단 여백 확보 */}
         <main className="pt-16">

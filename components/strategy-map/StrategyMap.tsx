@@ -390,14 +390,39 @@ export default function StrategyMap() {
             placement: resolvedPlacement,
         });
 
-        const { error } = await supabase.from("strategy_frames").insert({
-            label: resolvedLabel,
-            placement: resolvedPlacement, // JSONB 컬럼에 객체 그대로 삽입
-        });
+        /**
+         * ── schema cache miss 방지 ─────────────────────────────────────
+         * insert()에 배열 형식을 전달하면 PostgREST가
+         * 컬럼 타입을 더 안정적으로 추론합니다.
+         * 에러 발생 시 Supabase SQL Editor에서:
+         *   1) CREATE TABLE IF NOT EXISTS public.strategy_frames (...) 실행
+         *   2) NOTIFY pgrst, 'reload schema'; 실행으로 캐시 갱신
+         * ──────────────────────────────────────────────────────────────── */
+        const { error } = await supabase
+            .from("strategy_frames")
+            .insert([
+                {
+                    label: resolvedLabel,
+                    placement: resolvedPlacement,
+                },
+            ]);
 
         if (error) {
             console.error("[StrategyMap] INSERT 실패:", error.message);
-            setDbError(`저장 실패: ${error.message}`);
+
+            // schema cache 관련 에러인지 감지
+            const isSchemaErr =
+                error.message.includes("schema cache") ||
+                error.message.includes("column") ||
+                error.message.includes("relation");
+
+            setDbError(
+                isSchemaErr
+                    ? `저장 실패: Supabase 테이블이 존재하지 않거나 스키마 캐시가 오래됐습니다.\n` +
+                    `Supabase SQL Editor에서 strategy_frames 테이블 생성 후 "NOTIFY pgrst, 'reload schema';" 를 실행하세요.\n` +
+                    `(원인: ${error.message})`
+                    : `저장 실패: ${error.message}`
+            );
             // Optimistic Update 롤백
             setPatterns((prev) => prev.filter((p) => p.id !== newPattern.id));
         } else {
