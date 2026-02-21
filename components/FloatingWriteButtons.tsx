@@ -1,109 +1,193 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 
 /* ═══════════════════════════════════════════════
-   개별 플로팅 버튼
+   서브 메뉴 아이템 타입
    ═══════════════════════════════════════════════ */
 
-interface FloatBtnProps {
+interface SubItem {
     href: string;
-    label: string;
     icon: string;
-    title: string;
+    label: string;
     gradient: string;
     glow: string;
     border: string;
-    hoverGlow: string;
-}
-
-function FloatBtn({ href, label, icon, title, gradient, glow, border, hoverGlow }: FloatBtnProps) {
-    return (
-        <motion.div
-            whileHover={{ scale: 1.15, y: -4 }}
-            whileTap={{ scale: 0.92 }}
-            transition={{ type: "spring", stiffness: 320, damping: 20 }}
-        >
-            <Link
-                href={href}
-                title={title}
-                className="flex flex-col items-center justify-center w-14 h-14 rounded-full select-none"
-                style={{
-                    background: gradient,
-                    border: `2px solid ${border}`,
-                    boxShadow: `0 4px 20px ${glow}, inset 0 1px 1px rgba(255,255,255,0.25)`,
-                }}
-                onMouseEnter={(e) =>
-                    (e.currentTarget.style.boxShadow = `${hoverGlow}, inset 0 1px 1px rgba(255,255,255,0.25)`)
-                }
-                onMouseLeave={(e) =>
-                    (e.currentTarget.style.boxShadow = `0 4px 20px ${glow}, inset 0 1px 1px rgba(255,255,255,0.25)`)
-                }
-            >
-                <span className="text-2xl font-black leading-none text-white" style={{ lineHeight: 1, marginTop: "-2px" }}>
-                    {icon}
-                </span>
-                <span className="text-[10px] font-bold text-white/90 mt-0.5 tracking-wide">
-                    {label}
-                </span>
-            </Link>
-        </motion.div>
-    );
 }
 
 /* ═══════════════════════════════════════════════
-   메인 컴포넌트
-   글쓰기 전용 경로: /notice/write, /free-board/write
+   통합 확장형 FAB
+   클릭 → 서브버튼 2개 위로 슬라이드업 + 배경 오버레이
    ═══════════════════════════════════════════════ */
 
 export default function FloatingWriteButtons() {
     const { t } = useLocale();
+    const [open, setOpen] = useState(false);
+    const fabRef = useRef<HTMLDivElement>(null);
 
-    const FLOAT_BUTTONS: FloatBtnProps[] = [
+    /* 외부 클릭 시 닫기 */
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (fabRef.current && !fabRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    /* ESC 키 닫기 */
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setOpen(false);
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, []);
+
+    const SUB_ITEMS: SubItem[] = [
         {
             href: "/free-board/write",
+            icon: "💬",
             label: t.fab.freeBoard,
-            icon: "+",
-            title: t.fab.freeBoardTitle,
-            gradient: "linear-gradient(135deg, #059669, #10b981)",
-            glow: "rgba(16,185,129,0.55)",
-            border: "rgba(16,185,129,0.6)",
-            hoverGlow: "0 8px 32px rgba(16,185,129,0.6)",
+            gradient: "linear-gradient(135deg, #0891b2, #06b6d4)",
+            glow: "rgba(6,182,212,0.55)",
+            border: "rgba(6,182,212,0.6)",
         },
         {
             href: "/notice/write",
+            icon: "📢",
             label: t.fab.notice,
-            icon: "+",
-            title: t.fab.noticeTitle,
-            gradient: "linear-gradient(135deg, #d97706, #fbbf24)",
-            glow: "rgba(251,191,36,0.55)",
-            border: "rgba(251,136,36,0.6)",
-            hoverGlow: "0 8px 32px rgba(251,191,36,0.6)",
+            gradient: "linear-gradient(135deg, #7c3aed, #8b5cf6)",
+            glow: "rgba(139,92,246,0.55)",
+            border: "rgba(139,92,246,0.6)",
         },
     ];
 
     return (
-        <div
-            className="fixed bottom-6 right-4 sm:right-6 z-50 flex items-center gap-3"
-            aria-label={t.fab.quickWrite}
-        >
-            {/* 좌측 tooltip 힌트 */}
-            <motion.p
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 0 }}
-                whileHover={{ opacity: 1, x: 0 }}
-                className="hidden sm:block text-[11px] text-slate-400 bg-slate-800/80 backdrop-blur-sm
-                   border border-slate-700/50 rounded-lg px-2.5 py-1.5 pointer-events-none
-                   whitespace-nowrap"
-            >
-                {t.fab.quickWrite}
-            </motion.p>
+        <>
+            {/* ── 배경 오버레이 (메뉴 열릴 때) ── */}
+            <AnimatePresence>
+                {open && (
+                    <motion.div
+                        key="overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
+                        onClick={() => setOpen(false)}
+                    />
+                )}
+            </AnimatePresence>
 
-            {FLOAT_BUTTONS.map((btn) => (
-                <FloatBtn key={btn.href} {...btn} />
-            ))}
-        </div>
+            {/* ── FAB 컨테이너 ── */}
+            <div
+                ref={fabRef}
+                className="fixed bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end gap-3"
+            >
+                {/* ── 서브 버튼 목록 (위쪽으로 펼쳐짐) ── */}
+                <AnimatePresence>
+                    {open && (
+                        <motion.div
+                            key="submenu"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex flex-col items-end gap-2.5"
+                        >
+                            {SUB_ITEMS.map((item, i) => (
+                                <motion.div
+                                    key={item.href}
+                                    initial={{ opacity: 0, y: 20, scale: 0.85 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 12, scale: 0.9 }}
+                                    transition={{
+                                        type: "spring",
+                                        stiffness: 380,
+                                        damping: 24,
+                                        delay: i * 0.07,
+                                    }}
+                                    className="flex items-center gap-2.5"
+                                >
+                                    {/* 텍스트 라벨 */}
+                                    <span
+                                        className="text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap select-none"
+                                        style={{
+                                            background: "rgba(15,23,42,0.92)",
+                                            border: "1px solid rgba(51,65,85,0.7)",
+                                            color: "#e2e8f0",
+                                            backdropFilter: "blur(8px)",
+                                            boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
+                                        }}
+                                    >
+                                        {item.icon} {item.label}
+                                    </span>
+
+                                    {/* 동그란 아이콘 버튼 */}
+                                    <Link
+                                        href={item.href}
+                                        title={item.label}
+                                        onClick={() => setOpen(false)}
+                                        className="flex items-center justify-center w-12 h-12 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 select-none"
+                                        style={{
+                                            background: item.gradient,
+                                            border: `2px solid ${item.border}`,
+                                            boxShadow: `0 4px 20px ${item.glow}, inset 0 1px 1px rgba(255,255,255,0.2)`,
+                                        }}
+                                    >
+                                        <span className="text-xl">{item.icon}</span>
+                                    </Link>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* ── 메인 [+] FAB 버튼 ── */}
+                <motion.button
+                    onClick={() => setOpen((v) => !v)}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.92 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                    className="relative w-14 h-14 rounded-full flex items-center justify-center select-none focus:outline-none"
+                    style={{
+                        background: open
+                            ? "linear-gradient(135deg, #1e293b, #334155)"
+                            : "linear-gradient(135deg, #0891b2 0%, #7c3aed 100%)",
+                        border: open
+                            ? "2px solid rgba(100,116,139,0.7)"
+                            : "2px solid rgba(6,182,212,0.6)",
+                        boxShadow: open
+                            ? "0 4px 20px rgba(0,0,0,0.4)"
+                            : "0 4px 24px rgba(6,182,212,0.45), 0 0 0 4px rgba(6,182,212,0.12)",
+                    }}
+                    aria-label={open ? "메뉴 닫기" : "글쓰기"}
+                    aria-expanded={open}
+                >
+                    {/* [+] 아이콘 — 열리면 [×] 로 전환 */}
+                    <motion.span
+                        animate={{ rotate: open ? 45 : 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 22 }}
+                        className="text-2xl font-black text-white leading-none"
+                        style={{ display: "inline-block" }}
+                    >
+                        ✚
+                    </motion.span>
+
+                    {/* 닫힌 상태일 때 펄스 링 */}
+                    {!open && (
+                        <span
+                            className="absolute inset-0 rounded-full animate-ping"
+                            style={{ background: "rgba(6,182,212,0.2)" }}
+                        />
+                    )}
+                </motion.button>
+            </div>
+        </>
     );
 }
