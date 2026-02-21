@@ -236,11 +236,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
         },
     ];
 
-    const FEATURES = [
-        { value: t.features.strategy, label: t.features.strategyLabel, icon: "🗺️" },
-        { value: t.features.realtime, label: t.features.realtimeLabel, icon: "📡" },
-        { value: t.features.multilang, label: t.features.multilangLabel, icon: "🌐" },
-    ];
+
 
     return (
         <section className="relative z-10 mx-auto max-w-2xl px-4 pt-8 pb-24 sm:px-6">
@@ -402,7 +398,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             />
 
             {/* ── [5] 퀵 링크 (성검 + 자유게시판) ── */}
-            <div className="flex gap-3 mb-5">
+            <div className="flex gap-3 mb-6">
                 {QUICK_LINKS.map((link) => (
                     <Link
                         key={link.href}
@@ -437,32 +433,20 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 ))}
             </div>
 
-            {/* ── [6] 기능 소개 카드 ── */}
-            <div
-                className="w-full rounded-2xl border"
-                style={{
-                    background: "rgba(15,23,42,0.6)",
-                    borderColor: "rgba(51,65,85,0.45)",
-                    backdropFilter: "blur(8px)",
-                }}
-            >
-                <div className="flex flex-col md:flex-row">
-                    {FEATURES.map((stat, i) => (
-                        <div
-                            key={i}
-                            className={[
-                                "flex flex-1 items-center gap-3 px-5 py-3.5",
-                                i > 0 ? "border-t border-slate-700/40 md:border-t-0 md:border-l md:border-slate-700/40" : "",
-                            ].join(" ")}
-                        >
-                            <span className="text-2xl flex-shrink-0">{stat.icon}</span>
-                            <div>
-                                <p className="text-sm font-bold text-white leading-tight">{stat.value}</p>
-                                <p className="text-xs text-slate-500 mt-0.5">{stat.label}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+            {/* ── [6] 푸터 기능 스트립 (초경량) ── */}
+            <div className="flex items-center justify-center gap-6 py-3">
+                {[
+                    { icon: "🗺️", label: t.features.strategy },
+                    { icon: "📡", label: t.features.realtime },
+                    { icon: "🌐", label: t.features.multilang },
+                ].map((item) => (
+                    <div key={item.label} className="flex items-center gap-1.5 select-none">
+                        <span className="text-base leading-none">{item.icon}</span>
+                        <span className="text-[10px] text-slate-600 font-medium whitespace-nowrap">
+                            {item.label}
+                        </span>
+                    </div>
+                ))}
             </div>
 
         </section>
