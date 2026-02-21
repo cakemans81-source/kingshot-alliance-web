@@ -33,6 +33,7 @@ function formatDate(iso: string) {
    게임 일정 샘플 데이터
    ═══════════════════════════════════════════════ */
 
+/* 0=일,1=월,2=화,3=수,4=목,5=금,6=토 */
 interface ScheduleEvent {
     id: string;
     icon: string;
@@ -43,6 +44,7 @@ interface ScheduleEvent {
     gradient: string;
     border: string;
     glow: string;
+    days: number[]; // 진행 요일 배열
 }
 
 const SCHEDULE_EVENTS: ScheduleEvent[] = [
@@ -56,6 +58,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-violet-600 to-purple-700",
         border: "rgba(139,92,246,0.45)",
         glow: "rgba(139,92,246,0.3)",
+        days: [0, 1, 2, 3, 4, 5, 6], // 매일
     },
     {
         id: "three-alliances",
@@ -67,6 +70,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-sky-500 to-blue-600",
         border: "rgba(14,165,233,0.45)",
         glow: "rgba(14,165,233,0.3)",
+        days: [6, 0], // 토·일
     },
     {
         id: "top-kingdom",
@@ -78,6 +82,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-amber-500 to-yellow-600",
         border: "rgba(245,158,11,0.45)",
         glow: "rgba(245,158,11,0.3)",
+        days: [5, 6, 0], // 금·토·일
     },
     {
         id: "divine-beast",
@@ -89,6 +94,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-emerald-500 to-teal-600",
         border: "rgba(16,185,129,0.45)",
         glow: "rgba(16,185,129,0.3)",
+        days: [0, 1, 2, 3, 4, 5, 6], // 매일
     },
     {
         id: "supply-drop",
@@ -100,6 +106,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-rose-500 to-pink-600",
         border: "rgba(244,63,94,0.45)",
         glow: "rgba(244,63,94,0.3)",
+        days: [2, 4], // 화·목
     },
     {
         id: "world-boss",
@@ -111,14 +118,59 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-slate-500 to-gray-600",
         border: "rgba(100,116,139,0.45)",
         glow: "rgba(100,116,139,0.2)",
+        days: [3, 6], // 수·토
     },
 ];
+
+/* 오늘 요일(0=일~6=토) 기준 필터링 */
+function getTodayEvents(): ScheduleEvent[] {
+    const today = new Date().getDay();
+    return SCHEDULE_EVENTS.filter((ev) => ev.days.includes(today));
+}
 
 const STATUS_BADGE: Record<ScheduleEvent["status"], { label: string; color: string; bg: string }> = {
     live: { label: "● LIVE", color: "#4ade80", bg: "rgba(74,222,128,0.12)" },
     soon: { label: "◎ 예정", color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
     ended: { label: "✕ 종료", color: "#64748b", bg: "rgba(100,116,139,0.12)" },
 };
+
+/* ═══════════════════════════════════════════════
+   R4 간부 명단 데이터
+   ✏️  수정 포인트: 아래 OFFICERS 배열의 name과 role을 편집하세요
+   ═══════════════════════════════════════════════ */
+
+interface Officer {
+    id: string;
+    name: string;   // ← 닉네임 수정
+    role: string;   // ← 역할 수정
+    icon: string;   // ← 이모지 수정
+    color: string;
+}
+
+const OFFICERS: Officer[] = [
+    // ✏️ 아래 3개 항목을 실제 간부 정보로 교체하세요
+    {
+        id: "r4-1",
+        name: "닉네임 A",
+        role: "연맹전 오더 및 외교 담당",
+        icon: "🗡️",
+        color: "rgba(139,92,246,0.35)",
+    },
+    {
+        id: "r4-2",
+        name: "닉네임 B",
+        role: "성검 전투 징표 배치 및 공지 담당",
+        icon: "📢",
+        color: "rgba(6,182,212,0.35)",
+    },
+    {
+        id: "r4-3",
+        name: "닉네임 C",
+        role: "신규 연맹원 가입 심사 및 안내",
+        icon: "🛡️",
+        color: "rgba(16,185,129,0.35)",
+    },
+];
 
 /* ═══════════════════════════════════════════════
    섹션 카드 (최근 공지 / 자게)
@@ -328,49 +380,121 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                     </Link>
                 </div>
 
-                {/* 가로 스크롤 카드 영역 */}
+                {/* 가로 스크롤 카드 영역 — 오늘 요일 필터링 */}
                 <div
-                    className="flex gap-3 px-4 py-4 overflow-x-auto"
+                    className="flex gap-2 px-3 py-3 overflow-x-auto"
                     style={{ scrollbarWidth: "none" }}
                 >
-                    {SCHEDULE_EVENTS.map((ev) => {
+                    {getTodayEvents().length === 0 ? (
+                        <p className="w-full text-center text-slate-600 text-xs py-2">오늘 진행 일정이 없습니다.</p>
+                    ) : getTodayEvents().map((ev) => {
                         const badge = STATUS_BADGE[ev.status];
                         return (
                             <div
                                 key={ev.id}
-                                className="flex-shrink-0 w-[136px] rounded-xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
+                                className="flex-shrink-0 w-[112px] rounded-xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
                                 style={{
                                     background: "rgba(15,23,42,0.85)",
                                     borderColor: ev.border,
-                                    boxShadow: `0 2px 12px ${ev.glow}`,
+                                    boxShadow: `0 2px 10px ${ev.glow}`,
                                 }}
                             >
-                                {/* 카드 상단 그라데이션 */}
+                                {/* 카드 상단 그라데이션 — 슬림화 */}
                                 <div
-                                    className={`flex items-center justify-center h-14 bg-gradient-to-br ${ev.gradient}`}
+                                    className={`flex items-center justify-center h-10 bg-gradient-to-br ${ev.gradient}`}
                                     style={{ opacity: ev.status === "ended" ? 0.5 : 1 }}
                                 >
-                                    <span className="text-2xl filter drop-shadow-md">{ev.icon}</span>
+                                    <span className="text-xl filter drop-shadow-md">{ev.icon}</span>
                                 </div>
 
-                                {/* 카드 내용 */}
-                                <div className="px-3 py-2.5 space-y-1.5">
+                                {/* 카드 내용 — 타이트 패딩 */}
+                                <div className="px-2.5 py-2 space-y-1">
                                     <div
-                                        className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                                        className="inline-flex items-center text-[8px] font-bold px-1.5 py-0.5 rounded-md"
                                         style={{ background: badge.bg, color: badge.color }}
                                     >
                                         {badge.label}
                                     </div>
-                                    <p className="text-xs font-bold text-white leading-snug line-clamp-1">{ev.title}</p>
-                                    <p className="text-[10px] text-slate-400 line-clamp-1">{ev.subtitle}</p>
-                                    <p className="text-[10px] text-slate-600 flex items-center gap-0.5">
-                                        <span>🕐</span> {ev.time}
+                                    <p className="text-[11px] font-bold text-white leading-snug line-clamp-1">{ev.title}</p>
+                                    <p className="text-[9px] text-slate-500 flex items-center gap-0.5">
+                                        <span>🕐</span>{ev.time}
                                     </p>
                                 </div>
                             </div>
                         );
                     })}
                 </div>
+            </div>
+
+            {/* ══════════════════════════════════════════
+                [2-B] 👑 간부 (R4) 명단
+                ✏️  OFFICERS 배열에서 닉네임·역할·아이콘을 수정하세요
+                ══════════════════════════════════════════ */}
+            <div
+                className="mb-4 rounded-2xl border overflow-hidden"
+                style={{
+                    background: "rgba(15,23,42,0.75)",
+                    borderColor: "rgba(51,65,85,0.55)",
+                    backdropFilter: "blur(12px)",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+                }}
+            >
+                {/* 헤더 */}
+                <div
+                    className="flex items-center gap-2 px-5 py-3 border-b"
+                    style={{ borderColor: "rgba(51,65,85,0.45)" }}
+                >
+                    <span className="text-sm">👑</span>
+                    <h2 className="text-sm font-bold text-slate-200">간부 (R4) 명단</h2>
+                    <span
+                        className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}
+                    >
+                        {OFFICERS.length}명
+                    </span>
+                </div>
+
+                {/* 간부 리스트 */}
+                <ul className="divide-y" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
+                    {OFFICERS.map((officer) => (
+                        <li key={officer.id}>
+                            <div className="flex items-center gap-3 px-4 py-3">
+                                {/* 아이콘 아바타 */}
+                                <div
+                                    className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg"
+                                    style={{
+                                        background: officer.color,
+                                        border: `1px solid ${officer.color.replace("0.35", "0.6")}`,
+                                    }}
+                                >
+                                    {officer.icon}
+                                </div>
+
+                                {/* 닉네임 + 역할 */}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-200 leading-tight">
+                                        {officer.name}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 leading-snug mt-0.5 truncate">
+                                        {officer.role}
+                                    </p>
+                                </div>
+
+                                {/* R4 뱃지 */}
+                                <span
+                                    className="flex-shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full tracking-widest"
+                                    style={{
+                                        background: "rgba(245,158,11,0.15)",
+                                        border: "1px solid rgba(245,158,11,0.3)",
+                                        color: "#fbbf24",
+                                    }}
+                                >
+                                    R4
+                                </span>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
             </div>
 
             {/* ── [3] 최근 공지사항 ── */}
