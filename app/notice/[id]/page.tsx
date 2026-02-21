@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import PostDetailClient from "@/components/board/PostDetailClient";
 
+export const revalidate = 0;
+
 export const metadata: Metadata = {
     title: "공지사항 | KDH 킹샷 연맹",
 };

@@ -12,6 +12,8 @@ export const metadata: Metadata = {
    Server Component: Supabase 데이터 fetch
    ═══════════════════════════════════════════════ */
 
+export const revalidate = 0; // 캐시 무시, 매 접속마다 새로고침
+
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

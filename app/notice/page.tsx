@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import PostBoard from "@/components/board/PostBoard";
 
+export const revalidate = 0;
+
 export const metadata: Metadata = {
     title: "공지사항 | Kingshot Alliance",
     description: "킹샷 연맹 공식 공지사항",
