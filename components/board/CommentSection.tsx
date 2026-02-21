@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 
@@ -177,6 +178,19 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
     const { t } = useLocale();
     const c = t.comments;
 
+    /* URL 파라미터에서 직접 ID 읽기 (가장 안전한 소스) */
+    const params = useParams();
+    const resolvedPostId: number = (() => {
+        /* 1순위: prop으로 받은 값 */
+        const fromProp = Number(postId);
+        if (fromProp > 0 && !isNaN(fromProp)) return fromProp;
+        /* 2순위: URL params.id */
+        const fromUrl = Number(params?.id);
+        if (fromUrl > 0 && !isNaN(fromUrl)) return fromUrl;
+        /* 둘 다 실패 시 0 반환 (등록 차단) */
+        return 0;
+    })();
+
     /* ── 댓글 목록 ── */
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(true);
@@ -218,18 +232,19 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
 
     /* ── 댓글 로드 ── */
     useEffect(() => {
+        if (!resolvedPostId) return;  // ID 없으면 스킵
         setLoading(true);
         supabase
             .from("comments")
             .select("*")
             .eq("board_id", boardId)
-            .eq("post_id", postId)
+            .eq("post_id", resolvedPostId)
             .order("created_at", { ascending: false })
             .then(({ data, error }) => {
                 if (!error && data) setComments(data as Comment[]);
                 setLoading(false);
             });
-    }, [boardId, postId]);
+    }, [boardId, resolvedPostId]);
 
     /* ── 댓글 등록 ── */
     const handleSubmit = async (e: React.FormEvent) => {
@@ -248,20 +263,17 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
         lsSet(LS_ICON, selectedIcon);
         setMyNickname(author.trim());
 
-        /* ⚠️ post_id를 반드시 Number()로 정수 변환 — Supabase BIGINT 타입 일치 */
-        const numericPostId = Number(postId);
-
-        /* 🚫 NaN/0 가드: postId가 유효하지 않으면 즉시 차단 */
-        if (!numericPostId || isNaN(numericPostId)) {
-            setFormError("게시글 ID를 읽을 수 없습니다. 페이지를 새로고침 해주세요.");
+        /* 안전한 post_id 검증 — prop과 URL params 두 곳에서 추출한 resolvedPostId 사용 */
+        if (!resolvedPostId || resolvedPostId <= 0) {
+            setFormError("페이지를 새로고침 후 다시 시도해 주세요.");
             setSubmitting(false);
-            console.error("[CommentSection] postId 변환 실패:", postId, "→", numericPostId);
+            console.error("[CommentSection] resolvedPostId 실패 — prop:", postId, "/ params.id:", params?.id);
             return;
         }
 
         const fullPayload = {
             board_id: boardId,
-            post_id: numericPostId,
+            post_id: resolvedPostId,
             author: author.trim(),
             author_icon: selectedIcon || null,
             content: content.trim(),
@@ -287,7 +299,7 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
             /* 2차 시도: author_icon 제외 */
             const minPayload = {
                 board_id: boardId,
-                post_id: numericPostId,
+                post_id: resolvedPostId,
                 author: author.trim(),
                 content: content.trim(),
             };
