@@ -6,26 +6,41 @@ import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 
 /* ═══════════════════════════════════════
-   이미지 업로드
+   이미지 업로드 — Supabase Storage: board-images
    ═══════════════════════════════════════ */
 
-async function uploadImage(file: File): Promise<string | null> {
-    const ext = file.name.split(".").pop();
+const BUCKET = "board-images"; // ← 사용자가 생성한 버킷명
+
+async function uploadImage(
+    file: File,
+    onProgress?: (pct: number) => void
+): Promise<string | null> {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
     const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
     const filePath = `posts/${fileName}`;
 
+    onProgress?.(10);
+
     const { error } = await supabase.storage
-        .from("post_images")
-        .upload(filePath, file, { cacheControl: "3600", upsert: false });
+        .from(BUCKET)
+        .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type,
+        });
 
     if (error) {
-        console.error("[WriteForm] 이미지 업로드 실패:", error.message);
+        console.error("[WriteForm] 이미지 업로드 실패 —", error.message, error);
         return null;
     }
 
-    const { data } = supabase.storage.from("post_images").getPublicUrl(filePath);
+    onProgress?.(90);
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+    onProgress?.(100);
     return data.publicUrl;
 }
+
 
 /* ═══════════════════════════════════════
    Props
@@ -58,6 +73,8 @@ export default function WriteForm({
     const [content, setContent] = useState("");
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<number>(0);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -65,9 +82,9 @@ export default function WriteForm({
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] ?? null;
+    const applyFile = (file: File | null) => {
         setImageFile(file);
+        setUploadProgress(0);
         if (file) {
             const reader = new FileReader();
             reader.onload = () => setImagePreview(reader.result as string);
@@ -77,9 +94,21 @@ export default function WriteForm({
         }
     };
 
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        applyFile(e.target.files?.[0] ?? null);
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.type.startsWith("image/")) applyFile(file);
+    };
+
     const handleRemoveImage = () => {
         setImageFile(null);
         setImagePreview(null);
+        setUploadProgress(0);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -95,10 +124,12 @@ export default function WriteForm({
 
         let imageUrl: string | null = null;
         if (imageFile) {
-            imageUrl = await uploadImage(imageFile);
+            setUploadProgress(5);
+            imageUrl = await uploadImage(imageFile, setUploadProgress);
             if (!imageUrl) {
                 setError(t.board.uploadError);
                 setIsSubmitting(false);
+                setUploadProgress(0);
                 return;
             }
         }
@@ -208,15 +239,31 @@ export default function WriteForm({
                         </label>
 
                         {!imagePreview ? (
+                            /* ── 드롭존 ── */
                             <label
-                                className="flex flex-col items-center justify-center gap-2 w-full h-28 rounded-xl cursor-pointer transition-all duration-200 hover:border-cyan-500/50 hover:bg-slate-700/40"
+                                className="flex flex-col items-center justify-center gap-2 w-full rounded-xl cursor-pointer transition-all duration-200"
                                 style={{
-                                    border: "2px dashed rgba(71,85,105,0.6)",
-                                    background: "rgba(30,41,59,0.4)",
+                                    height: "7rem",
+                                    border: isDragOver
+                                        ? "2px dashed rgba(6,182,212,0.7)"
+                                        : "2px dashed rgba(71,85,105,0.6)",
+                                    background: isDragOver
+                                        ? "rgba(6,182,212,0.08)"
+                                        : "rgba(30,41,59,0.4)",
                                 }}
+                                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                                onDragLeave={() => setIsDragOver(false)}
+                                onDrop={handleDrop}
                             >
-                                <span className="text-2xl">🖼️</span>
-                                <span className="text-xs text-slate-400">{t.board.imageHint}</span>
+                                <span className="text-2xl">{isDragOver ? "📥" : "🖼️"}</span>
+                                <span className="text-xs text-slate-400 text-center px-4">
+                                    {isDragOver
+                                        ? "여기에 놓으면 추가됩니다"
+                                        : "클릭하거나 이미지를 드래그해서 추가"}
+                                </span>
+                                <span className="text-[10px] text-slate-600">
+                                    JPG · PNG · GIF · WEBP · 최대 5MB
+                                </span>
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -226,22 +273,53 @@ export default function WriteForm({
                                 />
                             </label>
                         ) : (
+                            /* ── 미리보기 + 진행률 ── */
                             <div className="relative rounded-xl overflow-hidden">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={imagePreview}
                                     alt="preview"
-                                    className="w-full max-h-60 object-cover rounded-xl"
+                                    className="w-full max-h-64 object-contain rounded-xl"
+                                    style={{ background: "rgba(15,23,42,0.6)" }}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={handleRemoveImage}
-                                    className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded-lg transition-colors backdrop-blur-sm"
-                                >
-                                    {t.board.removeImage}
-                                </button>
+
+                                {/* 업로드 진행률 오버레이 */}
+                                {isSubmitting && uploadProgress > 0 && uploadProgress < 100 && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl gap-2">
+                                        <span className="text-2xl">⏳</span>
+                                        <div className="w-3/4 h-2 rounded-full bg-slate-700/80 overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+                                                style={{ width: `${uploadProgress}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-xs text-cyan-300 font-mono">{uploadProgress}%</span>
+                                    </div>
+                                )}
+
+                                {/* 이미지 제거 버튼 */}
+                                {!isSubmitting && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveImage}
+                                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded-lg transition-colors backdrop-blur-sm"
+                                    >
+                                        {t.board.removeImage}
+                                    </button>
+                                )}
+
+                                {/* 파일명 표시 */}
+                                {imageFile && (
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 backdrop-blur-sm">
+                                        <p className="text-[10px] text-slate-300 truncate">
+                                            📎 {imageFile.name} · {(imageFile.size / 1024).toFixed(0)}KB
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
+
 
                     {/* 에러 */}
                     {error && (
