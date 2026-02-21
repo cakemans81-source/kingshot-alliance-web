@@ -13,7 +13,7 @@ import CommentSection from "./CommentSection";
    ═══════════════════════════════════════ */
 
 interface Post {
-    id: number;
+    id: number | string;   /* bigint 또는 uuid 양수 지원 */
     title: string;
     content: string;
     image_url: string | null;
@@ -23,7 +23,7 @@ interface Post {
 
 /* 이전/다음 글 요약 타입 */
 interface AdjacentPost {
-    id: number;
+    id: number | string;
     title: string;
 }
 
@@ -139,33 +139,37 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
     /* DB에서 게시글 fetch + 이전/다음 글 병렬 조회 */
     useEffect(() => {
         if (!postId) return;
+        /* UUID 여부 판별: 순수 숫자이면 lt/gt 쿼리 가능, UUID면 스킵 */
         const numId = Number(postId);
+        const isNumericId = !isNaN(numId) && numId > 0;
+
         setFetching(true);
         setPrevPost(null);
         setNextPost(null);
 
-        Promise.all([
-            /* 현재 글 */
-            supabase.from(tableName).select("*").eq("id", postId).single(),
-            /* 이전 글: id < 현재, 보른 순서 원하는 거 (id DESC 중 요는 id < numId에서 가장 큰 것) */
-            supabase.from(tableName)
-                .select("id, title")
-                .lt("id", numId)
-                .order("id", { ascending: false })
-                .limit(1),
-            /* 다음 글: id > 현재 */
-            supabase.from(tableName)
-                .select("id, title")
-                .gt("id", numId)
-                .order("id", { ascending: true })
-                .limit(1),
-        ]).then(([{ data: cur, error }, { data: prevData }, { data: nextData }]) => {
-            if (error || !cur) { router.replace(listHref); return; }
-            setPost(cur as Post);
-            setFetching(false);
-            if (prevData && prevData.length > 0) setPrevPost(prevData[0] as AdjacentPost);
-            if (nextData && nextData.length > 0) setNextPost(nextData[0] as AdjacentPost);
-        });
+        const currentQuery = supabase.from(tableName).select("*").eq("id", postId).single();
+
+        if (isNumericId) {
+            /* 숫자 ID: 이전/다음 글 병렬 조회 */
+            Promise.all([
+                currentQuery,
+                supabase.from(tableName).select("id, title").lt("id", numId).order("id", { ascending: false }).limit(1),
+                supabase.from(tableName).select("id, title").gt("id", numId).order("id", { ascending: true }).limit(1),
+            ]).then(([{ data: cur, error }, { data: prevData }, { data: nextData }]) => {
+                if (error || !cur) { router.replace(listHref); return; }
+                setPost(cur as Post);
+                setFetching(false);
+                if (prevData && prevData.length > 0) setPrevPost(prevData[0] as AdjacentPost);
+                if (nextData && nextData.length > 0) setNextPost(nextData[0] as AdjacentPost);
+            });
+        } else {
+            /* UUID ID: 현재 글만 조회 (이전/다음 없음) */
+            currentQuery.then(({ data: cur, error }) => {
+                if (error || !cur) { router.replace(listHref); return; }
+                setPost(cur as Post);
+                setFetching(false);
+            });
+        }
     }, [postId, tableName, listHref, router]);
 
     /* 양방향 자동 번역 — post 로드 후 실행

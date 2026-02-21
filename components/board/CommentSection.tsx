@@ -48,7 +48,7 @@ const AVATAR_COLORS = [
 interface Comment {
     id: number;
     board_id: string;
-    post_id: number;
+    post_id: number | string;   /* bigint | uuid 양수 지원 */
     author: string;
     author_icon: string | null;
     content: string;
@@ -57,7 +57,7 @@ interface Comment {
 
 interface CommentSectionProps {
     boardId: "notices" | "free_board";
-    postId: number;
+    postId: number | string;   /* bigint | uuid 양수 */
 }
 
 /* ═══════════════════════════════════════
@@ -180,15 +180,23 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
 
     /* URL 파라미터에서 직접 ID 읽기 (가장 안전한 소스) */
     const params = useParams();
-    const resolvedPostId: number = (() => {
-        /* 1순위: prop으로 받은 값 */
-        const fromProp = Number(postId);
-        if (fromProp > 0 && !isNaN(fromProp)) return fromProp;
+    const resolvedPostId: number | string = (() => {
+        /* 1순위: prop으로 받은 값이 유효하면 사용 */
+        if (postId && postId !== 0) {
+            const asNum = Number(postId);
+            /* 숫자 ID */
+            if (!isNaN(asNum) && asNum > 0) return asNum;
+            /* UUID (string) */
+            if (typeof postId === "string" && postId.length > 0) return postId;
+        }
         /* 2순위: URL params.id */
-        const fromUrl = Number(params?.id);
-        if (fromUrl > 0 && !isNaN(fromUrl)) return fromUrl;
-        /* 둘 다 실패 시 0 반환 (등록 차단) */
-        return 0;
+        const urlId = params?.id;
+        if (urlId) {
+            const asNum = Number(urlId);
+            if (!isNaN(asNum) && asNum > 0) return asNum;
+            if (typeof urlId === "string" && urlId.length > 0) return urlId;
+        }
+        return 0;  /* 실패 기본값 */
     })();
 
     /* ── 댓글 목록 ── */
@@ -263,13 +271,15 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
         lsSet(LS_ICON, selectedIcon);
         setMyNickname(author.trim());
 
-        /* 안전한 post_id 검증 — prop과 URL params 두 곳에서 추출한 resolvedPostId 사용 */
-        if (!resolvedPostId || resolvedPostId <= 0) {
+        /* 안전한 post_id 검증 — 숫자 0 이거나 빈 문자열이면 차단 */
+        const isInvalidId = !resolvedPostId || resolvedPostId === 0 || resolvedPostId === "";
+        if (isInvalidId) {
             setFormError("페이지를 새로고침 후 다시 시도해 주세요.");
             setSubmitting(false);
             console.error("[CommentSection] resolvedPostId 실패 — prop:", postId, "/ params.id:", params?.id);
             return;
         }
+
 
         const fullPayload = {
             board_id: boardId,
