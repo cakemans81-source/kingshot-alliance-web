@@ -21,6 +21,12 @@ interface Post {
     author: string | null;
 }
 
+/* 이전/다음 글 요약 타입 */
+interface AdjacentPost {
+    id: number;
+    title: string;
+}
+
 /* ═══════════════════════════════════════
    캐시 헬퍼
    ═══════════════════════════════════════ */
@@ -119,6 +125,10 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
     const [fetching, setFetching] = useState(true);
     const [imgError, setImgError] = useState(false);
 
+    // 이전/다음 글
+    const [prevPost, setPrevPost] = useState<AdjacentPost | null>(null);
+    const [nextPost, setNextPost] = useState<AdjacentPost | null>(null);
+
     // 번역 상태
     const [translating, setTranslating] = useState(false);
     const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
@@ -126,20 +136,36 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
     const [translateError, setTranslateError] = useState<string | null>(null);
     const [showTranslated, setShowTranslated] = useState(false);
 
-    /* DB에서 게시글 fetch */
+    /* DB에서 게시글 fetch + 이전/다음 글 병렬 조회 */
     useEffect(() => {
         if (!postId) return;
+        const numId = Number(postId);
         setFetching(true);
-        supabase
-            .from(tableName)
-            .select("*")
-            .eq("id", postId)
-            .single()
-            .then(({ data, error }) => {
-                if (error || !data) { router.replace(listHref); return; }
-                setPost(data as Post);
-                setFetching(false);
-            });
+        setPrevPost(null);
+        setNextPost(null);
+
+        Promise.all([
+            /* 현재 글 */
+            supabase.from(tableName).select("*").eq("id", postId).single(),
+            /* 이전 글: id < 현재, 보른 순서 원하는 거 (id DESC 중 요는 id < numId에서 가장 큰 것) */
+            supabase.from(tableName)
+                .select("id, title")
+                .lt("id", numId)
+                .order("id", { ascending: false })
+                .limit(1),
+            /* 다음 글: id > 현재 */
+            supabase.from(tableName)
+                .select("id, title")
+                .gt("id", numId)
+                .order("id", { ascending: true })
+                .limit(1),
+        ]).then(([{ data: cur, error }, { data: prevData }, { data: nextData }]) => {
+            if (error || !cur) { router.replace(listHref); return; }
+            setPost(cur as Post);
+            setFetching(false);
+            if (prevData && prevData.length > 0) setPrevPost(prevData[0] as AdjacentPost);
+            if (nextData && nextData.length > 0) setNextPost(nextData[0] as AdjacentPost);
+        });
     }, [postId, tableName, listHref, router]);
 
     /* 양방향 자동 번역 — post 로드 후 실행
@@ -385,6 +411,80 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                         )}
                     </div>
                 </div>
+
+                {/* 이전/다음 글 네비게이션 */}
+                {(prevPost || nextPost) && (
+                    <nav
+                        className="rounded-2xl overflow-hidden"
+                        style={{
+                            border: "1px solid rgba(51,65,85,0.5)",
+                            background: "rgba(15,23,42,0.6)",
+                            backdropFilter: "blur(8px)",
+                        }}
+                    >
+                        <div className="grid grid-cols-2 divide-x"
+                            style={{ borderColor: "rgba(51,65,85,0.4)" }}
+                        >
+                            {/* 이전 글 */}
+                            {prevPost ? (
+                                <Link
+                                    href={`${listHref}/${prevPost.id}`}
+                                    className="group flex items-center gap-3 px-4 py-4 sm:px-5 sm:py-5 transition-all duration-200 hover:bg-slate-700/30"
+                                >
+                                    <span
+                                        className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-200 group-hover:-translate-x-0.5"
+                                        style={{
+                                            background: "rgba(6,182,212,0.1)",
+                                            border: "1px solid rgba(6,182,212,0.25)",
+                                            color: "#22d3ee",
+                                        }}
+                                    >
+                                        ◄
+                                    </span>
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] text-slate-600 mb-0.5">이전 글</p>
+                                        <p className="text-xs sm:text-sm font-medium text-slate-300 truncate group-hover:text-cyan-300 transition-colors">
+                                            {prevPost.title}
+                                        </p>
+                                    </div>
+                                </Link>
+                            ) : (
+                                <div className="flex items-center justify-center px-4 py-4 sm:px-5 sm:py-5">
+                                    <span className="text-xs text-slate-700">첫 번째 글입니다</span>
+                                </div>
+                            )}
+
+                            {/* 다음 글 */}
+                            {nextPost ? (
+                                <Link
+                                    href={`${listHref}/${nextPost.id}`}
+                                    className="group flex items-center justify-end gap-3 px-4 py-4 sm:px-5 sm:py-5 transition-all duration-200 hover:bg-slate-700/30"
+                                >
+                                    <div className="min-w-0 text-right">
+                                        <p className="text-[10px] text-slate-600 mb-0.5">다음 글</p>
+                                        <p className="text-xs sm:text-sm font-medium text-slate-300 truncate group-hover:text-purple-300 transition-colors">
+                                            {nextPost.title}
+                                        </p>
+                                    </div>
+                                    <span
+                                        className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5"
+                                        style={{
+                                            background: "rgba(168,85,247,0.1)",
+                                            border: "1px solid rgba(168,85,247,0.25)",
+                                            color: "#c084fc",
+                                        }}
+                                    >
+                                        ►
+                                    </span>
+                                </Link>
+                            ) : (
+                                <div className="flex items-center justify-center px-4 py-4 sm:px-5 sm:py-5">
+                                    <span className="text-xs text-slate-700">마지막 글입니다</span>
+                                </div>
+                            )}
+                        </div>
+                    </nav>
+                )}
 
                 {/* ── 댓글 섹션 ── */}
                 <CommentSection boardId={tableName} postId={post.id} />
