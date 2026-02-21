@@ -425,6 +425,7 @@ export default function StrategyMap() {
                         label: resolvedLabel,
                         placement: JSON.stringify(resolvedPlacement),
                         frame_order: frameOrder,   // ← 명시적 삽입 (null 방지)
+                        positions: null,          // ← 콼럼이 존재하면 null 허용, 없으면 Supabase가 무시
                     },
                 ])
                 .select(); // 저장된 행 반환 (디버그용)
