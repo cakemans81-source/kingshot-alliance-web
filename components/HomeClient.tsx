@@ -386,7 +386,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 writeHint={t.home.writeHint}
                 badgeName={t.fab.notice}
                 items={notices}
-                itemHref={() => "/notice"}
+                itemHref={(id) => `/notice/${id}`}
             />
 
             {/* ── [4] 최근 자유게시판 ── */}
@@ -398,7 +398,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 writeHint={t.home.writeHint}
                 badgeName={t.fab.freeBoard}
                 items={freePosts}
-                itemHref={() => "/free-board"}
+                itemHref={(id) => `/free-board/${id}`}
             />
 
             {/* ── [5] 퀵 링크 (성검 + 자유게시판) ── */}
