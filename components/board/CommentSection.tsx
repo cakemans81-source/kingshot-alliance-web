@@ -248,13 +248,17 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
         lsSet(LS_ICON, selectedIcon);
         setMyNickname(author.trim());
 
+        /* ⚠️ post_id를 반드시 Number()로 정수 변환 — Supabase BIGINT 타입 일치 */
+        const numericPostId = Number(postId);
         const payload = {
             board_id: boardId,
-            post_id: postId,
+            post_id: numericPostId,
             author: author.trim(),
             author_icon: selectedIcon || null,
             content: content.trim(),
         };
+
+        console.log("[CommentSection] insert payload:", payload);
 
         /* 낙관적 업데이트 */
         const temp: Comment = { id: Date.now(), ...payload, created_at: new Date().toISOString() };
@@ -269,7 +273,13 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
         if (err || !data) {
             setComments((prev) => prev.filter((cm) => cm.id !== temp.id));
             setFormError(c.submitError);
-            console.error("[CommentSection] 등록 실패:", err?.message);
+            /* ✨ 상세 에러 디버깅 로그 */
+            console.error("[CommentSection] 등록 실패 — Supabase error:", {
+                message: err?.message,
+                details: err?.details,
+                hint: err?.hint,
+                code: err?.code,
+            });
         } else {
             setComments((prev) =>
                 prev.map((cm) => (cm.id === temp.id ? (data as Comment) : cm))
@@ -283,6 +293,7 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
         }
         setSubmitting(false);
     };
+
 
     /* ── 댓글 삭제 ── */
     const handleDelete = async (id: number) => {
