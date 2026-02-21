@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import FloatingWriteButtons from "@/components/FloatingWriteButtons";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,9 @@ export default function RootLayout({
         <main className="pt-16">
           {children}
         </main>
+
+        {/* 모든 페이지 공통 — 우측 하단 고정형 글쓰기 플로팅 버튼 */}
+        <FloatingWriteButtons />
       </body>
     </html>
   );
