@@ -409,31 +409,38 @@ export default function StrategyMap() {
 
         try {
             /**
-             * ── JSONB schema cache miss 방지 전략 ────────────────────────────
-             *
-             * placement 컬럼이 나중에 ALTER TABLE로 추가된 경우,
-             * PostgREST 스키마 캐시가 해당 컬럼을 인식하지 못할 수 있습니다.
-             *
-             * 해결책: placement를 JSON.stringify()로 직렬화하여 문자열로 전달합니다.
-             * PostgREST / PostgreSQL이 TEXT → JSONB 자동 캐스팅을 수행하므로
-             * 타입 추론 없이도 안전하게 저장됩니다.
-             *
-             * Supabase SQL Editor에서 아래도 확인하세요:
-             *   NOTIFY pgrst, 'reload schema';   -- 캐시 강제 갱신
+             * ── INSERT 필드 명세 ────────────────────────────────────────────
+             *  • label       : 패턴 설명 (TEXT)
+             *  • placement   : 배치 데이터, JSON.stringify로 직렬화 (JSONB)
+             *  • frame_order : 저장 순서 인덱스 (INT, NOT NULL).
+             *                  DB 기본값이 있더라도 명시적으로 전달해
+             *                  null constraint 에러를 완전히 방지합니다.
              * ──────────────────────────────────────────────────────────────── */
-            const { error } = await supabase
+            const frameOrder = patterns.length; // 현재까지 저장된 패턴 수 = 새 인덱스
+
+            const { data: insertedData, error } = await supabase
                 .from("strategy_frames")
                 .insert([
                     {
                         label: resolvedLabel,
-                        // placement를 문자열로 직렬화 → JSONB 컬럼이 schema cache에
-                        // 없어도 PostgreSQL이 text::jsonb 캐스팅으로 처리합니다.
                         placement: JSON.stringify(resolvedPlacement),
+                        frame_order: frameOrder,   // ← 명시적 삽입 (null 방지)
                     },
-                ]);
+                ])
+                .select(); // 저장된 행 반환 (디버그용)
 
             if (error) {
-                console.error("[StrategyMap] INSERT 실패:", error.message, error);
+                // 에러 객체 전체를 출력해 상세 진단 가능하게 함
+                console.error("[StrategyMap] INSERT 실패 — 전체 에러 객체:", error);
+                console.error("[StrategyMap] INSERT 실패 — message:", error.message);
+                console.error("[StrategyMap] INSERT 실패 — code:", (error as { code?: string }).code);
+                console.error("[StrategyMap] INSERT 실패 — details:", (error as { details?: string }).details);
+                console.error("[StrategyMap] INSERT 실패 — hint:", (error as { hint?: string }).hint);
+
+                const isConstraintErr =
+                    error.message.includes("not-null") ||
+                    error.message.includes("constraint") ||
+                    error.message.includes("frame_order");
 
                 const isSchemaErr =
                     error.message.includes("schema cache") ||
@@ -441,18 +448,19 @@ export default function StrategyMap() {
                     error.message.includes("relation");
 
                 setDbError(
-                    isSchemaErr
-                        ? `저장 실패 (스키마 캐시 문제)\n` +
-                        `Supabase SQL Editor에서 다음을 실행하세요:\n` +
-                        `1) CREATE TABLE IF NOT EXISTS public.strategy_frames (id BIGSERIAL PRIMARY KEY, label TEXT NOT NULL DEFAULT '', placement JSONB NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());\n` +
-                        `2) NOTIFY pgrst, 'reload schema';\n` +
-                        `(원인: ${error.message})`
-                        : `저장 실패: ${error.message}`
+                    isConstraintErr
+                        ? `저장 실패 (컬럼 제약 조건): ${error.message}\n` +
+                        `Supabase SQL Editor에서 다음을 실행해 주세요:\n` +
+                        `ALTER TABLE strategy_frames ALTER COLUMN frame_order SET DEFAULT 0;`
+                        : isSchemaErr
+                            ? `저장 실패 (스키마 캐시 문제): ${error.message}\n` +
+                            `→ Supabase SQL Editor: NOTIFY pgrst, 'reload schema';`
+                            : `저장 실패: ${error.message}`
                 );
                 // Optimistic Update 롤백
                 setPatterns((prev) => prev.filter((p) => p.id !== newPattern.id));
             } else {
-                console.log("[StrategyMap] DB 저장 완료 ✅");
+                console.log("[StrategyMap] DB 저장 완료 ✅", insertedData);
             }
         } catch (unexpectedErr) {
             // 네트워크 오류 등 예외 처리
