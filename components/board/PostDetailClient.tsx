@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
@@ -254,19 +253,23 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                     </div>
                 )}
 
-                {/* 이미지 */}
+                {/* 이미지 — 원본 비율 유지 (잘림 없음) */}
                 {post.image_url && !imgError && (
-                    <div className="relative w-full h-56 sm:h-72 rounded-2xl overflow-hidden mb-6">
-                        <Image
+                    <div className="w-full rounded-2xl overflow-hidden mb-6"
+                        style={{ boxShadow: "0 4px 28px rgba(0,0,0,0.45)" }}
+                    >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
                             src={post.image_url}
                             alt={post.title}
-                            fill
-                            className="object-cover"
                             onError={() => setImgError(true)}
-                            priority
-                            sizes="(max-width: 640px) 100vw, 672px"
+                            style={{
+                                width: "100%",
+                                height: "auto",
+                                display: "block",
+                                objectFit: "contain",
+                            }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
                     </div>
                 )}
 
