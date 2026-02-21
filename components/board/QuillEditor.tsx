@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * RichEditor — react-quill 없는 자체 리치 텍스트 에디터
+ * RichEditor — 자체 리치 텍스트 에디터 (contenteditable 기반)
  *
- * - contenteditable 기반 (SSR 완전 호환)
- * - 이미지 → Supabase board-images 버킷 업로드 후 <img> 삽입
- * - 툴바: Bold, Italic, Underline, Strike, H1/H2, 링크, 이미지
- * - 생성되는 HTML을 onChange(html) 로 전달
+ * ✅ 2026-02-21 이미지 삽입 완전 리뉴얼:
+ *    - savedRange 패턴 : 툴바 클릭 전 커서 위치를 저장 → 포커스가 사라져도 정확한 위치에 이미지 삽입
+ *    - <label htmlFor> 방식 : 이미지 버튼을 label로 교체해 브라우저 파일 다이얼로그 확실히 열림
+ *    - 이미지 style 강화 : max-width, height:auto, object-fit:contain 적용
  */
 
 import { useRef, useEffect, useCallback, useState } from "react";
@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase/client";
    Supabase Storage 업로드
    ───────────────────────────────────────────── */
 const BUCKET = "board-images";
+const FILE_INPUT_ID = "rich-editor-img-input";
 
 async function uploadToStorage(file: File): Promise<string | null> {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
@@ -23,13 +24,16 @@ async function uploadToStorage(file: File): Promise<string | null> {
     const { error } = await supabase.storage
         .from(BUCKET)
         .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-    if (error) { console.error("[RichEditor] 업로드 실패:", error.message); return null; }
+    if (error) {
+        console.error("[RichEditor] 업로드 실패:", error.message, error);
+        return null;
+    }
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
     return data.publicUrl;
 }
 
 /* ─────────────────────────────────────────────
-   툴바 버튼
+   툴바 버튼 — onMouseDown으로 에디터 포커스 유지
    ───────────────────────────────────────────── */
 interface ToolBtnProps {
     title: string;
@@ -65,7 +69,7 @@ interface QuillEditorProps {
 }
 
 /* ─────────────────────────────────────────────
-   RichEditor (QuillEditor 호환 인터페이스 유지)
+   RichEditor
    ───────────────────────────────────────────── */
 export default function QuillEditor({
     value,
@@ -75,13 +79,21 @@ export default function QuillEditor({
 }: QuillEditorProps) {
     const editorRef = useRef<HTMLDivElement>(null);
     const [uploading, setUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    /* 외부 value → 에디터 동기화 (최초 마운트 or 초기화) */
+    /* ── 마지막 커서 위치 저장 (포커스가 날아가도 복원용) ── */
+    const savedRange = useRef<Range | null>(null);
+
+    const saveSelection = () => {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            savedRange.current = sel.getRangeAt(0).cloneRange();
+        }
+    };
+
+    /* 외부 value → 에디터 동기화 (최초 마운트 or 리셋) */
     useEffect(() => {
         const el = editorRef.current;
         if (!el) return;
-        /* 빈 값으로 리셋할 때만 덮어씀 (커서 이동 방지) */
         if (value === "" && el.innerHTML !== "") {
             el.innerHTML = "";
         } else if (el.innerHTML === "" && value !== "") {
@@ -103,40 +115,63 @@ export default function QuillEditor({
         handleInput();
     };
 
-    /* 이미지 삽입 */
-    const handleImageInsert = async (file: File) => {
+    /* ── 이미지 파일 선택 후 처리 ── */
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // 같은 파일 재선택 허용
+        if (!file) return;
+
         setUploading(true);
         const url = await uploadToStorage(file);
         setUploading(false);
-        if (!url) return;
+
+        if (!url) {
+            alert("이미지 업로드에 실패했습니다. 다시 시도해 주세요.");
+            return;
+        }
 
         const el = editorRef.current;
         if (!el) return;
+
+        /* 저장해 둔 커서 위치 복원 후 이미지 삽입 */
         el.focus();
+        const img = document.createElement("img");
+        img.src = url;
+        img.style.cssText =
+            "max-width:100%;width:auto;height:auto;object-fit:contain;border-radius:8px;margin:8px 0;display:block;cursor:pointer;";
+        img.alt = "첨부 이미지";
 
         const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0);
-            range.collapse(false);
-            const img = document.createElement("img");
-            img.src = url;
-            img.style.cssText = "max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block;";
-            range.insertNode(img);
-            range.setStartAfter(img);
-            range.setEndAfter(img);
-            sel.removeAllRanges();
-            sel.addRange(range);
+        const range = savedRange.current ?? (sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null);
+
+        if (range) {
+            /* 저장된 범위가 에디터 내부인지 확인 */
+            try {
+                if (el.contains(range.commonAncestorContainer)) {
+                    range.collapse(false);
+                    range.insertNode(img);
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(img);
+                    newRange.collapse(true);
+                    sel?.removeAllRanges();
+                    sel?.addRange(newRange);
+                    savedRange.current = newRange.cloneRange();
+                } else {
+                    el.appendChild(img);
+                }
+            } catch {
+                el.appendChild(img);
+            }
         } else {
-            const img = document.createElement("img");
-            img.src = url;
-            img.style.cssText = "max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block;";
             el.appendChild(img);
         }
+
         handleInput();
     };
 
     /* 링크 삽입 */
     const handleLink = () => {
+        saveSelection();
         const url = window.prompt("링크 URL을 입력하세요:", "https://");
         if (url) exec("createLink", url);
     };
@@ -151,6 +186,16 @@ export default function QuillEditor({
                 pointerEvents: disabled ? "none" : "auto",
             }}
         >
+            {/* ── 숨긴 파일 Input (label로 트리거) ── */}
+            <input
+                id={FILE_INPUT_ID}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/heic"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={uploading}
+            />
+
             {/* ── 툴바 ── */}
             <div
                 className="flex items-center gap-0.5 px-2 py-1.5 flex-wrap border-b"
@@ -209,10 +254,18 @@ export default function QuillEditor({
                     </svg>
                 </ToolBtn>
 
-                {/* 이미지 버튼 */}
-                <ToolBtn
-                    title="이미지 삽입"
-                    onClick={() => fileInputRef.current?.click()}
+                {/* ── 이미지 버튼: label 방식으로 파일다이얼로그 확실히 오픈 ── */}
+                <label
+                    htmlFor={FILE_INPUT_ID}
+                    title="이미지 삽입 (Supabase 업로드)"
+                    className="w-7 h-7 flex items-center justify-center rounded-md cursor-pointer transition-all duration-150 hover:bg-slate-600/60 active:scale-95"
+                    style={{ color: uploading ? "#22d3ee" : "#94a3b8" }}
+                    onMouseDown={(e) => {
+                        /* 에디터 포커스 유지 + 현재 커서 저장 */
+                        saveSelection();
+                        /* label은 기본 동작(파일 다이얼로그)을 허용해야 하므로 stopPropagation만 */
+                        e.stopPropagation();
+                    }}
                 >
                     {uploading ? (
                         <span className="inline-block w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
@@ -223,20 +276,7 @@ export default function QuillEditor({
                             <path d="M1 11l3.5-3.5L8 11l2.5-2.5L15 12" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                     )}
-                </ToolBtn>
-
-                {/* 숨긴 파일 input */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/gif,image/webp"
-                    className="hidden"
-                    onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) await handleImageInsert(file);
-                        e.target.value = "";
-                    }}
-                />
+                </label>
 
                 <span className="w-px h-4 mx-1 bg-slate-700" />
 
@@ -254,10 +294,10 @@ export default function QuillEditor({
                     contentEditable={!disabled}
                     suppressContentEditableWarning
                     onInput={handleInput}
-                    onPaste={(e) => {
-                        /* 순수 텍스트 붙여넣기 시 기본 HTML 방지는 하지 않음 — Quill과 동일 동작 */
-                        setTimeout(handleInput, 0);
-                    }}
+                    onKeyUp={saveSelection}
+                    onMouseUp={saveSelection}
+                    onBlur={saveSelection}
+                    onPaste={() => { setTimeout(handleInput, 0); }}
                     className="outline-none px-4 py-3 text-sm leading-7 text-slate-200 min-h-[240px] overflow-auto"
                     style={{
                         wordBreak: "break-word",
@@ -288,9 +328,28 @@ export default function QuillEditor({
                 [contenteditable] ul { list-style:disc; padding-left:1.5rem; margin:0.5rem 0; }
                 [contenteditable] ol { list-style:decimal; padding-left:1.5rem; margin:0.5rem 0; }
                 [contenteditable] li { margin-bottom:0.2rem; }
-                [contenteditable] img { max-width:100%; height:auto; border-radius:8px; margin:8px 0; display:block; }
+                [contenteditable] img {
+                    display: block !important;
+                    max-width: 100% !important;
+                    width: auto !important;
+                    height: auto !important;
+                    object-fit: contain !important;
+                    border-radius: 8px;
+                    margin: 8px 0;
+                }
                 [contenteditable] blockquote { border-left:3px solid rgba(6,182,212,0.5); padding-left:1rem; color:#94a3b8; margin:0.5rem 0; }
+                /* 업로드 중 힌트 */
+                .ql-uploading-hint { color: #67e8f9; font-size: 0.75rem; padding: 4px 8px; }
             `}</style>
+
+            {/* 업로드 중 안내 */}
+            {uploading && (
+                <div className="px-4 py-2 text-xs text-cyan-400 flex items-center gap-2 border-t"
+                    style={{ borderColor: "rgba(51,65,85,0.4)", background: "rgba(6,182,212,0.05)" }}>
+                    <span className="inline-block w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    이미지를 Supabase에 업로드 중입니다...
+                </div>
+            )}
         </div>
     );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
@@ -170,20 +169,23 @@ function PostCard({ post, tableName }: PostCardProps) {
                 boxShadow: "0 2px 16px rgba(0,0,0,0.3)",
             }}
         >
-            {/* 이미지 */}
+            {/* 커버 이미지 — 원본 비율 유지 */}
             {post.image_url && !imgError && (
-                <Link href={detailHref} className="block">
-                    <div className="relative h-48 w-full overflow-hidden">
-                        <Image
-                            src={post.image_url}
-                            alt={post.title}
-                            fill
-                            className="object-cover transition-transform duration-500 group-hover:scale-105"
-                            onError={() => setImgError(true)}
-                            sizes="(max-width: 768px) 100vw, 50vw"
-                        />
-                        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-900/90 to-transparent" />
-                    </div>
+                <Link href={detailHref} className="block overflow-hidden rounded-t-2xl">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={post.image_url}
+                        alt={post.title}
+                        onError={() => setImgError(true)}
+                        className="transition-transform duration-500 group-hover:scale-105"
+                        style={{
+                            display: "block",
+                            width: "100%",
+                            height: "auto",
+                            maxHeight: "240px",
+                            objectFit: "cover",
+                        }}
+                    />
                 </Link>
             )}
 
