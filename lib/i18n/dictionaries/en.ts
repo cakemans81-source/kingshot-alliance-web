@@ -52,6 +52,30 @@ const en: Dictionary = {
     langSelector: {
         label: "Select Language",
     },
+    board: {
+        newPost: "✏️ New Post",
+        titleLabel: "Title",
+        titlePlaceholder: "Enter a title",
+        contentLabel: "Content",
+        contentPlaceholder: "Enter content",
+        imageLabel: "Attach Image",
+        imageOptional: "(optional)",
+        imageHint: "Click to select an image (JPG, PNG, GIF, WebP)",
+        submit: "📝 Submit",
+        submitting: "Submitting...",
+        postList: "📋 Post List",
+        refresh: "Refresh",
+        loading: "Loading posts...",
+        translateBtn: "🌐 Translate",
+        translating: "Translating...",
+        translateError: "Translation failed. Please try again.",
+        translatedLabel: "Translation",
+        originalLabel: "View original",
+        removeImage: "✕ Remove",
+        validationError: "Please enter both a title and content.",
+        uploadError: "Image upload failed. Please try again.",
+        successMsg: "Post submitted successfully! 🎉",
+    },
 };
 
 export default en;

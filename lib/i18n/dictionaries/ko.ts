@@ -1,7 +1,5 @@
 /**
  * i18n 사전 — 한국어 (기본값)
- * Dictionary 타입은 string 기반으로 정의하여
- * 다른 언어 파일이 동일 구조를 따를 수 있도록 합니다.
  */
 
 export interface Dictionary {
@@ -55,6 +53,30 @@ export interface Dictionary {
     langSelector: {
         label: string;
     };
+    board: {
+        newPost: string;
+        titleLabel: string;
+        titlePlaceholder: string;
+        contentLabel: string;
+        contentPlaceholder: string;
+        imageLabel: string;
+        imageOptional: string;
+        imageHint: string;
+        submit: string;
+        submitting: string;
+        postList: string;
+        refresh: string;
+        loading: string;
+        translateBtn: string;
+        translating: string;
+        translateError: string;
+        translatedLabel: string;
+        originalLabel: string;
+        removeImage: string;
+        validationError: string;
+        uploadError: string;
+        successMsg: string;
+    };
 }
 
 const ko: Dictionary = {
@@ -107,6 +129,30 @@ const ko: Dictionary = {
     },
     langSelector: {
         label: "언어 선택",
+    },
+    board: {
+        newPost: "✏️ 새 글 작성",
+        titleLabel: "제목",
+        titlePlaceholder: "제목을 입력하세요",
+        contentLabel: "내용",
+        contentPlaceholder: "내용을 입력하세요",
+        imageLabel: "이미지 첨부",
+        imageOptional: "(선택)",
+        imageHint: "클릭해서 이미지 선택 (JPG, PNG, GIF, WebP)",
+        submit: "📝 등록",
+        submitting: "등록 중...",
+        postList: "📋 게시글 목록",
+        refresh: "새로고침",
+        loading: "게시글을 불러오는 중...",
+        translateBtn: "🌐 번역하기",
+        translating: "번역 중...",
+        translateError: "번역 실패. 잠시 후 다시 시도해 주세요.",
+        translatedLabel: "번역본",
+        originalLabel: "원문 보기",
+        removeImage: "✕ 제거",
+        validationError: "제목과 내용을 모두 입력해 주세요.",
+        uploadError: "이미지 업로드에 실패했습니다. 다시 시도해 주세요.",
+        successMsg: "게시글이 성공적으로 등록됐습니다! 🎉",
     },
 };
 

@@ -52,6 +52,30 @@ const zh: Dictionary = {
     langSelector: {
         label: "选择语言",
     },
+    board: {
+        newPost: "✏️ 新帖子",
+        titleLabel: "标题",
+        titlePlaceholder: "请输入标题",
+        contentLabel: "内容",
+        contentPlaceholder: "请输入内容",
+        imageLabel: "附加图片",
+        imageOptional: "（可选）",
+        imageHint: "点击选择图片（JPG、PNG、GIF、WebP）",
+        submit: "📝 提交",
+        submitting: "提交中...",
+        postList: "📋 帖子列表",
+        refresh: "刷新",
+        loading: "正在加载帖子...",
+        translateBtn: "🌐 翻译",
+        translating: "翻译中...",
+        translateError: "翻译失败，请稍后再试。",
+        translatedLabel: "译文",
+        originalLabel: "查看原文",
+        removeImage: "✕ 删除",
+        validationError: "请输入标题和内容。",
+        uploadError: "图片上传失败，请重试。",
+        successMsg: "帖子发布成功！🎉",
+    },
 };
 
 export default zh;

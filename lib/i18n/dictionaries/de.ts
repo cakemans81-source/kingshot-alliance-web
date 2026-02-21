@@ -52,6 +52,30 @@ const de: Dictionary = {
     langSelector: {
         label: "Sprache wählen",
     },
+    board: {
+        newPost: "✏️ Neuer Beitrag",
+        titleLabel: "Titel",
+        titlePlaceholder: "Titel eingeben",
+        contentLabel: "Inhalt",
+        contentPlaceholder: "Inhalt eingeben",
+        imageLabel: "Bild anhängen",
+        imageOptional: "(optional)",
+        imageHint: "Klicken zum Bild auswählen (JPG, PNG, GIF, WebP)",
+        submit: "📝 Absenden",
+        submitting: "Wird gesendet...",
+        postList: "📋 Beitragsliste",
+        refresh: "Aktualisieren",
+        loading: "Beiträge werden geladen...",
+        translateBtn: "🌐 Übersetzen",
+        translating: "Übersetze...",
+        translateError: "Übersetzung fehlgeschlagen. Bitte erneut versuchen.",
+        translatedLabel: "Übersetzung",
+        originalLabel: "Original anzeigen",
+        removeImage: "✕ Entfernen",
+        validationError: "Bitte Titel und Inhalt eingeben.",
+        uploadError: "Bild-Upload fehlgeschlagen. Bitte erneut versuchen.",
+        successMsg: "Beitrag erfolgreich eingereicht! 🎉",
+    },
 };
 
 export default de;
