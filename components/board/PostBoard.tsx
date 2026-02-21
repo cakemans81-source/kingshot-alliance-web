@@ -39,6 +39,16 @@ function formatDate(iso: string) {
     });
 }
 
+/* HTML 태그 제거 → 카드 미리보기용 순수 텍스트 */
+function stripHtml(html: string): string {
+    if (typeof document !== "undefined") {
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        return div.textContent ?? div.innerText ?? "";
+    }
+    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 /* ═══════════════════════════════════════
    번역 캐시 (sessionStorage)
    ═══════════════════════════════════════ */
@@ -119,7 +129,11 @@ function PostCard({ post, tableName }: PostCardProps) {
 
         Promise.all([
             translateText(post.title, locale),
-            translateText(post.content, locale),
+            // HTML content는 태그 제거 후 텍스트만 번역
+            translateText(
+                post.content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+                locale
+            ),
         ])
             .then(([tTitle, tContent]) => {
                 if (cancelled) return;
@@ -141,7 +155,9 @@ function PostCard({ post, tableName }: PostCardProps) {
     }, [locale, post.id]);
 
     const displayTitle = showTranslated && translatedTitle ? translatedTitle : post.title;
-    const displayContent = showTranslated && translatedContent ? translatedContent : post.content;
+    // HTML content는 카드 미리보기에서 태그 제거 후 표시
+    const rawContent = showTranslated && translatedContent ? translatedContent : post.content;
+    const displayContent = stripHtml(rawContent);
 
     return (
         <article

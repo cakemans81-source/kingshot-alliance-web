@@ -2,8 +2,22 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
+
+/* QuillEditor — SSR 비활성화 (document 접근 때문) */
+const QuillEditor = dynamic(() => import("./QuillEditor"), {
+    ssr: false,
+    loading: () => (
+        <div
+            className="w-full h-48 rounded-xl flex items-center justify-center"
+            style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(51,65,85,0.55)" }}
+        >
+            <span className="text-slate-500 text-sm animate-pulse">에디터 로딩 중...</span>
+        </div>
+    ),
+});
 
 /* ═══════════════════════════════════════
    이미지 업로드 — Supabase Storage: board-images
@@ -11,13 +25,14 @@ import { useLocale } from "@/lib/i18n/LocaleContext";
 
 const BUCKET = "board-images"; // ← 사용자가 생성한 버킷명
 
+/* 커버 이미지 업로드 (별도 첨부 파일용, 에디터 본문 삽입과 별개) */
 async function uploadImage(
     file: File,
     onProgress?: (pct: number) => void
 ): Promise<string | null> {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
     const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const filePath = `posts/${fileName}`;
+    const filePath = `covers/${fileName}`;
 
     onProgress?.(10);
 
@@ -30,12 +45,11 @@ async function uploadImage(
         });
 
     if (error) {
-        console.error("[WriteForm] 이미지 업로드 실패 —", error.message, error);
+        console.error("[WriteForm] 커버 이미지 업로드 실패 —", error.message, error);
         return null;
     }
 
     onProgress?.(90);
-
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
     onProgress?.(100);
     return data.publicUrl;
@@ -211,113 +225,21 @@ export default function WriteForm({
                         />
                     </div>
 
-                    {/* 내용 */}
+                    {/* 내용 — QuillEditor (리치 텍스트) */}
                     <div>
                         <label className="block text-xs font-semibold text-slate-400 mb-1.5">
                             {t.board.contentLabel} <span className="text-red-400">*</span>
                         </label>
-                        <textarea
+                        <QuillEditor
                             value={content}
-                            onChange={(e) => setContent(e.target.value)}
+                            onChange={setContent}
                             placeholder={t.board.contentPlaceholder}
-                            rows={6}
-                            className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none resize-none transition-all"
-                            style={{
-                                background: "rgba(30,41,59,0.8)",
-                                border: "1px solid rgba(71,85,105,0.5)",
-                            }}
-                            onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
-                            onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                            disabled={isSubmitting}
                         />
-                    </div>
-
-                    {/* 이미지 업로드 */}
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                            {t.board.imageLabel}{" "}
-                            <span className="text-slate-600">{t.board.imageOptional}</span>
-                        </label>
-
-                        {!imagePreview ? (
-                            /* ── 드롭존 ── */
-                            <label
-                                className="flex flex-col items-center justify-center gap-2 w-full rounded-xl cursor-pointer transition-all duration-200"
-                                style={{
-                                    height: "7rem",
-                                    border: isDragOver
-                                        ? "2px dashed rgba(6,182,212,0.7)"
-                                        : "2px dashed rgba(71,85,105,0.6)",
-                                    background: isDragOver
-                                        ? "rgba(6,182,212,0.08)"
-                                        : "rgba(30,41,59,0.4)",
-                                }}
-                                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                                onDragLeave={() => setIsDragOver(false)}
-                                onDrop={handleDrop}
-                            >
-                                <span className="text-2xl">{isDragOver ? "📥" : "🖼️"}</span>
-                                <span className="text-xs text-slate-400 text-center px-4">
-                                    {isDragOver
-                                        ? "여기에 놓으면 추가됩니다"
-                                        : "클릭하거나 이미지를 드래그해서 추가"}
-                                </span>
-                                <span className="text-[10px] text-slate-600">
-                                    JPG · PNG · GIF · WEBP · 최대 5MB
-                                </span>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/gif,image/webp"
-                                    onChange={handleImageChange}
-                                    className="hidden"
-                                />
-                            </label>
-                        ) : (
-                            /* ── 미리보기 + 진행률 ── */
-                            <div className="relative rounded-xl overflow-hidden">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={imagePreview}
-                                    alt="preview"
-                                    className="w-full max-h-64 object-contain rounded-xl"
-                                    style={{ background: "rgba(15,23,42,0.6)" }}
-                                />
-
-                                {/* 업로드 진행률 오버레이 */}
-                                {isSubmitting && uploadProgress > 0 && uploadProgress < 100 && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl gap-2">
-                                        <span className="text-2xl">⏳</span>
-                                        <div className="w-3/4 h-2 rounded-full bg-slate-700/80 overflow-hidden">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
-                                                style={{ width: `${uploadProgress}%` }}
-                                            />
-                                        </div>
-                                        <span className="text-xs text-cyan-300 font-mono">{uploadProgress}%</span>
-                                    </div>
-                                )}
-
-                                {/* 이미지 제거 버튼 */}
-                                {!isSubmitting && (
-                                    <button
-                                        type="button"
-                                        onClick={handleRemoveImage}
-                                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded-lg transition-colors backdrop-blur-sm"
-                                    >
-                                        {t.board.removeImage}
-                                    </button>
-                                )}
-
-                                {/* 파일명 표시 */}
-                                {imageFile && (
-                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 backdrop-blur-sm">
-                                        <p className="text-[10px] text-slate-300 truncate">
-                                            📎 {imageFile.name} · {(imageFile.size / 1024).toFixed(0)}KB
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        {/* 에디터 이미지 삽입 안내 */}
+                        <p className="mt-1.5 text-[10px] text-slate-600">
+                            🖼️ 본문 이미지를 추가하려면 에디터 툴바의 이미지 버튼(🖼)을 사용하세요.
+                        </p>
                     </div>
 
 

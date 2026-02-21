@@ -39,6 +39,7 @@ function writeCache(key: string, value: string) {
    ═══════════════════════════════════════ */
 
 async function translateText(text: string, targetLang: LocaleCode): Promise<string> {
+    if (!text.trim()) return text;
     const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -47,6 +48,22 @@ async function translateText(text: string, targetLang: LocaleCode): Promise<stri
     if (!res.ok) throw new Error(`translate API ${res.status}`);
     const data = await res.json();
     return data.translatedText as string;
+}
+
+/* HTML 태그 제거 후 순수 텍스트 추출 (HTML content 번역 전트리용) */
+function stripHtml(html: string): string {
+    if (typeof document !== "undefined") {
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        return div.textContent ?? div.innerText ?? "";
+    }
+    // SSR fallback: 정규식으로 태그 제거
+    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/* content가 HTML인지 (Quill 저장본 별도 체크) */
+function isHtmlContent(text: string): boolean {
+    return /<[a-z][^>]*>/i.test(text);
 }
 
 /* ═══════════════════════════════════════
@@ -133,7 +150,11 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
 
         Promise.all([
             translateText(post.title, locale),
-            translateText(post.content, locale),
+            // HTML content는 태그 제거 후 텍스트만 번역
+            translateText(
+                isHtmlContent(post.content) ? stripHtml(post.content) : post.content,
+                locale
+            ),
         ])
             .then(([tTitle, tContent]) => {
                 if (cancelled) return;
@@ -272,9 +293,13 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
 
                     <hr style={{ borderColor: "rgba(51,65,85,0.45)" }} />
 
-                    {/* 내용 */}
-                    <div className={`text-sm sm:text-base text-slate-300 leading-relaxed whitespace-pre-wrap transition-opacity duration-300 ${translating ? "opacity-20" : "opacity-100"}`}>
+                    {/* 내용 — 원문 HTML 또는 번역 텍스트 */}
+                    <div
+                        className={`text-sm sm:text-base text-slate-300 leading-relaxed transition-opacity duration-300 ${translating ? "opacity-20" : "opacity-100"
+                            }`}
+                    >
                         {translating ? (
+                            /* 스켈레톤 */
                             <div className="space-y-2.5">
                                 {[1, 0.9, 0.8, 0.6, 0.7].map((w, i) => (
                                     <span
@@ -284,7 +309,37 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                     />
                                 ))}
                             </div>
-                        ) : displayContent}
+                        ) : showTranslated && translatedContent ? (
+                            /* 번역본: 텍스트 형식으로 표시 */
+                            <p className="whitespace-pre-wrap">{translatedContent}</p>
+                        ) : isHtmlContent(displayContent) ? (
+                            /* 원문 HTML 콘텐츠: 안전하게 렌더링 */
+                            <>
+                                <style>{`
+                                    .ql-rendered img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+                                    .ql-rendered p { margin-bottom: 0.75rem; }
+                                    .ql-rendered h1, .ql-rendered h2, .ql-rendered h3 { font-weight: bold; margin: 1rem 0 0.5rem; color: #e2e8f0; }
+                                    .ql-rendered h1 { font-size: 1.4rem; }
+                                    .ql-rendered h2 { font-size: 1.2rem; }
+                                    .ql-rendered h3 { font-size: 1.05rem; }
+                                    .ql-rendered ul, .ql-rendered ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+                                    .ql-rendered ul { list-style: disc; }
+                                    .ql-rendered ol { list-style: decimal; }
+                                    .ql-rendered li { margin-bottom: 0.25rem; }
+                                    .ql-rendered strong { font-weight: 700; color: #f1f5f9; }
+                                    .ql-rendered em { font-style: italic; }
+                                    .ql-rendered a { color: #22d3ee; text-decoration: underline; }
+                                    .ql-rendered blockquote { border-left: 3px solid rgba(6,182,212,0.4); padding-left: 1rem; color: #94a3b8; margin: 0.5rem 0; }
+                                `}</style>
+                                <div
+                                    className="ql-rendered"
+                                    dangerouslySetInnerHTML={{ __html: displayContent }}
+                                />
+                            </>
+                        ) : (
+                            /* 일반 텍스트 (Quill 이전 글) */
+                            <p className="whitespace-pre-wrap">{displayContent}</p>
+                        )}
                     </div>
                 </div>
 
