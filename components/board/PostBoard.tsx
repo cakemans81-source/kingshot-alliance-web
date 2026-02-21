@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
@@ -39,28 +39,6 @@ function formatDate(iso: string) {
 }
 
 /* ═══════════════════════════════════════
-   이미지 업로드 로직
-   ═══════════════════════════════════════ */
-
-async function uploadImage(file: File): Promise<string | null> {
-    const ext = file.name.split(".").pop();
-    const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const filePath = `posts/${fileName}`;
-
-    const { error } = await supabase.storage
-        .from("post_images")
-        .upload(filePath, file, { cacheControl: "3600", upsert: false });
-
-    if (error) {
-        console.error("[PostBoard] 이미지 업로드 실패:", error.message);
-        return null;
-    }
-
-    const { data } = supabase.storage.from("post_images").getPublicUrl(filePath);
-    return data.publicUrl;
-}
-
-/* ═══════════════════════════════════════
    번역 API 호출 헬퍼
    ═══════════════════════════════════════ */
 
@@ -90,7 +68,7 @@ function PostCard({ post }: { post: Post }) {
     const [translateError, setTranslateError] = useState<string | null>(null);
     const [showTranslated, setShowTranslated] = useState(false);
 
-    // 언어가 바뀌면 번역 초기화
+    // 언어 변경 시 번역 초기화
     useEffect(() => {
         setTranslatedTitle(null);
         setTranslatedContent(null);
@@ -99,7 +77,7 @@ function PostCard({ post }: { post: Post }) {
     }, [locale]);
 
     const handleTranslate = async () => {
-        if (locale === "ko") return; // 한국어면 번역 불필요
+        if (locale === "ko") return;
 
         // 이미 번역된 경우 토글
         if (translatedTitle && translatedContent) {
@@ -216,7 +194,8 @@ function PostCard({ post }: { post: Post }) {
 }
 
 /* ═══════════════════════════════════════
-   메인 컴포넌트 — PostBoard
+   메인 컴포넌트 — PostBoard (읽기 전용)
+   글쓰기는 플로팅 버튼(FloatingWriteButtons)을 통해서만 진입
    ═══════════════════════════════════════ */
 
 export default function PostBoard({
@@ -228,18 +207,8 @@ export default function PostBoard({
 }: PostBoardConfig) {
     const { t } = useLocale();
 
-    const [title, setTitle] = useState("");
-    const [content, setContent] = useState("");
-    const [imageFile, setImageFile] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
     const [posts, setPosts] = useState<Post[]>([]);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchPosts = useCallback(async () => {
         setIsFetching(true);
@@ -258,68 +227,6 @@ export default function PostBoard({
 
     useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] ?? null;
-        setImageFile(file);
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = () => setImagePreview(reader.result as string);
-            reader.readAsDataURL(file);
-        } else {
-            setImagePreview(null);
-        }
-    };
-
-    const handleRemoveImage = () => {
-        setImageFile(null);
-        setImagePreview(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title.trim() || !content.trim()) {
-            setError(t.board.validationError);
-            return;
-        }
-
-        setIsSubmitting(true);
-        setError(null);
-        setSuccessMsg(null);
-
-        let imageUrl: string | null = null;
-        if (imageFile) {
-            imageUrl = await uploadImage(imageFile);
-            if (!imageUrl) {
-                setError(t.board.uploadError);
-                setIsSubmitting(false);
-                return;
-            }
-        }
-
-        const { error: insertError } = await supabase.from(tableName).insert({
-            title: title.trim(),
-            content: content.trim(),
-            image_url: imageUrl,
-        });
-
-        if (insertError) {
-            console.error(`[PostBoard][${tableName}] INSERT 실패:`, insertError.message);
-            setError(`등록 실패: ${insertError.message}`);
-            setIsSubmitting(false);
-            return;
-        }
-
-        console.log(`[PostBoard][${tableName}] 게시글 등록 완료 ✅`);
-        setSuccessMsg(t.board.successMsg);
-        setTitle("");
-        setContent("");
-        handleRemoveImage();
-        await fetchPosts();
-        setIsSubmitting(false);
-        setTimeout(() => setSuccessMsg(null), 3000);
-    };
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-gray-950 text-white">
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
@@ -330,123 +237,13 @@ export default function PostBoard({
                         {pageTitle}
                     </h1>
                     <p className="mt-1.5 text-sm text-slate-400">{pageSubtitle}</p>
+
+                    {/* 글쓰기 안내 문구 */}
+                    <p className="mt-2 text-xs text-slate-600 flex items-center gap-1.5">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
+                        새 글 작성은 화면 우측 하단 <strong className="text-cyan-600">✏️ 빠른 글쓰기</strong> 버튼을 이용하세요.
+                    </p>
                 </div>
-
-                {/* ══ 글쓰기 폼 ══ */}
-                <form
-                    onSubmit={handleSubmit}
-                    className="mb-10 rounded-2xl border p-5 sm:p-6 space-y-4"
-                    style={{
-                        background: "rgba(15,23,42,0.8)",
-                        borderColor: "rgba(51,65,85,0.6)",
-                        backdropFilter: "blur(12px)",
-                        boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
-                    }}
-                >
-                    <h2 className="text-base font-bold text-slate-200 flex items-center gap-2">
-                        {t.board.newPost}
-                    </h2>
-
-                    {/* 제목 */}
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                            {t.board.titleLabel} <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder={t.board.titlePlaceholder}
-                            maxLength={100}
-                            className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none transition-all"
-                            style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                            onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
-                            onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                        />
-                    </div>
-
-                    {/* 내용 */}
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                            {t.board.contentLabel} <span className="text-red-400">*</span>
-                        </label>
-                        <textarea
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            placeholder={t.board.contentPlaceholder}
-                            rows={4}
-                            className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-600 outline-none resize-none transition-all"
-                            style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                            onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
-                            onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                        />
-                    </div>
-
-                    {/* 이미지 업로드 */}
-                    <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                            {t.board.imageLabel} <span className="text-slate-600">{t.board.imageOptional}</span>
-                        </label>
-
-                        {!imagePreview ? (
-                            <label
-                                className="flex flex-col items-center justify-center gap-2 w-full h-28 rounded-xl cursor-pointer transition-all duration-200 hover:border-cyan-500/50 hover:bg-slate-700/40"
-                                style={{ border: "2px dashed rgba(71,85,105,0.6)", background: "rgba(30,41,59,0.4)" }}
-                            >
-                                <span className="text-2xl">🖼️</span>
-                                <span className="text-xs text-slate-400">{t.board.imageHint}</span>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/gif,image/webp"
-                                    onChange={handleImageChange}
-                                    className="hidden"
-                                />
-                            </label>
-                        ) : (
-                            <div className="relative rounded-xl overflow-hidden">
-                                <img src={imagePreview} alt="preview" className="w-full max-h-56 object-cover rounded-xl" />
-                                <button
-                                    type="button"
-                                    onClick={handleRemoveImage}
-                                    className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded-lg transition-colors backdrop-blur-sm"
-                                >
-                                    {t.board.removeImage}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 에러 / 성공 */}
-                    {error && (
-                        <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
-                            ⚠️ {error}
-                        </div>
-                    )}
-                    {successMsg && (
-                        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-4 py-3 text-sm text-emerald-400">
-                            ✅ {successMsg}
-                        </div>
-                    )}
-
-                    {/* 등록 버튼 */}
-                    <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0"
-                        style={{
-                            background: "linear-gradient(135deg, #06b6d4, #3b82f6)",
-                            boxShadow: "0 4px 16px rgba(6,182,212,0.35)",
-                        }}
-                    >
-                        {isSubmitting ? (
-                            <>
-                                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                {t.board.submitting}
-                            </>
-                        ) : t.board.submit}
-                    </button>
-                </form>
 
                 {/* ══ 게시글 목록 ══ */}
                 <div>
@@ -469,23 +266,32 @@ export default function PostBoard({
                         </button>
                     </div>
 
+                    {/* 로딩 */}
                     {isFetching && (
-                        <div className="flex flex-col items-center justify-center py-16 text-slate-500 gap-3">
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
                             <span className="inline-block w-6 h-6 border-2 border-slate-700 border-t-cyan-500 rounded-full animate-spin" />
                             <span className="text-sm">{t.board.loading}</span>
                         </div>
                     )}
 
+                    {/* 빈 목록 */}
                     {!isFetching && posts.length === 0 && (
                         <div
-                            className="flex flex-col items-center justify-center py-16 rounded-2xl border text-slate-500 gap-3"
-                            style={{ background: "rgba(15,23,42,0.5)", borderColor: "rgba(51,65,85,0.4)" }}
+                            className="flex flex-col items-center justify-center py-20 rounded-2xl border text-slate-500 gap-4"
+                            style={{
+                                background: "rgba(15,23,42,0.5)",
+                                borderColor: "rgba(51,65,85,0.4)",
+                            }}
                         >
-                            <span className="text-4xl opacity-40">📭</span>
+                            <span className="text-5xl opacity-30">📭</span>
                             <p className="text-sm">{emptyMessage}</p>
+                            <p className="text-xs text-slate-600">
+                                우측 하단 ✏️ 버튼으로 첫 글을 작성해 보세요!
+                            </p>
                         </div>
                     )}
 
+                    {/* 게시글 카드 그리드 */}
                     {!isFetching && posts.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {posts.map((post) => (

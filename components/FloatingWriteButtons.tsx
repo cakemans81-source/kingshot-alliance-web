@@ -55,6 +55,7 @@ function FloatBtn({ href, label, icon, title, gradient, glow, border, hoverGlow 
 
 /* ═══════════════════════════════════════════════
    메인 컴포넌트
+   글쓰기 전용 경로: /notice/write, /free-board/write
    ═══════════════════════════════════════════════ */
 
 export default function FloatingWriteButtons() {
@@ -62,7 +63,7 @@ export default function FloatingWriteButtons() {
 
     const FLOAT_BUTTONS: FloatBtnProps[] = [
         {
-            href: "/free-board",
+            href: "/free-board/write",
             label: t.fab.freeBoard,
             icon: "+",
             title: t.fab.freeBoardTitle,
@@ -72,13 +73,13 @@ export default function FloatingWriteButtons() {
             hoverGlow: "0 8px 32px rgba(16,185,129,0.6)",
         },
         {
-            href: "/notice",
+            href: "/notice/write",
             label: t.fab.notice,
             icon: "+",
             title: t.fab.noticeTitle,
             gradient: "linear-gradient(135deg, #d97706, #fbbf24)",
             glow: "rgba(251,191,36,0.55)",
-            border: "rgba(251,191,36,0.6)",
+            border: "rgba(251,136,36,0.6)",
             hoverGlow: "0 8px 32px rgba(251,191,36,0.6)",
         },
     ];
@@ -88,7 +89,7 @@ export default function FloatingWriteButtons() {
             className="fixed bottom-6 right-4 sm:right-6 z-50 flex items-center gap-3"
             aria-label={t.fab.quickWrite}
         >
-            {/* 좌측 tooltip 힌트 (호버 시 표시) */}
+            {/* 좌측 tooltip 힌트 */}
             <motion.p
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 0 }}
