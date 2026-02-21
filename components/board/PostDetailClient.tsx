@@ -7,6 +7,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { LocaleCode } from "@/lib/i18n/LocaleContext";
+import CommentSection from "./CommentSection";
 
 /* ═══════════════════════════════════════
    타입
@@ -342,6 +343,9 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                         )}
                     </div>
                 </div>
+
+                {/* ── 댓글 섹션 ── */}
+                <CommentSection boardId={tableName} postId={post.id} />
 
             </div>
         </div>

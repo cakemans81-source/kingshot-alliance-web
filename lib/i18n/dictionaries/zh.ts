@@ -76,6 +76,19 @@ const zh: Dictionary = {
         uploadError: "图片上传失败，请重试。",
         successMsg: "帖子发布成功！🎉",
     },
+    comments: {
+        title: "💬 评论",
+        authorLabel: "昵称",
+        authorPlaceholder: "请输入昵称",
+        contentLabel: "评论内容",
+        contentPlaceholder: "请留下评论...",
+        submit: "💬 发表",
+        submitting: "发表中...",
+        empty: "暂无评论，快来第一个留言吧！🙌",
+        validationError: "请输入昵称和评论内容。",
+        submitError: "评论发表失败。",
+        deleteConfirm: "确定要删除这条评论吗？",
+    },
 };
 
 export default zh;

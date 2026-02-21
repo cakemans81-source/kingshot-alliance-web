@@ -76,6 +76,19 @@ const en: Dictionary = {
         uploadError: "Image upload failed. Please try again.",
         successMsg: "Post submitted successfully! 🎉",
     },
+    comments: {
+        title: "💬 Comments",
+        authorLabel: "Nickname",
+        authorPlaceholder: "Enter your nickname",
+        contentLabel: "Comment",
+        contentPlaceholder: "Leave a comment...",
+        submit: "💬 Post",
+        submitting: "Posting...",
+        empty: "No comments yet. Be the first to comment! 🙌",
+        validationError: "Please enter a nickname and comment.",
+        submitError: "Failed to post the comment.",
+        deleteConfirm: "Are you sure you want to delete this comment?",
+    },
 };
 
 export default en;

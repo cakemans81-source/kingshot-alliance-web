@@ -77,6 +77,19 @@ export interface Dictionary {
         uploadError: string;
         successMsg: string;
     };
+    comments: {
+        title: string;
+        authorLabel: string;
+        authorPlaceholder: string;
+        contentLabel: string;
+        contentPlaceholder: string;
+        submit: string;
+        submitting: string;
+        empty: string;
+        validationError: string;
+        submitError: string;
+        deleteConfirm: string;
+    };
 }
 
 const ko: Dictionary = {
@@ -152,7 +165,20 @@ const ko: Dictionary = {
         removeImage: "✕ 제거",
         validationError: "제목과 내용을 모두 입력해 주세요.",
         uploadError: "이미지 업로드에 실패했습니다. 다시 시도해 주세요.",
-        successMsg: "게시글이 성공적으로 등록됐습니다! 🎉",
+        successMsg: "게시글이 성공적으로 등록똑습니다! 🎉",
+    },
+    comments: {
+        title: "💬 댓글",
+        authorLabel: "닉네임",
+        authorPlaceholder: "닉네임을 입력하세요",
+        contentLabel: "댓글 내용",
+        contentPlaceholder: "댓글을 남겨주세요...",
+        submit: "💬 등록",
+        submitting: "등록 중...",
+        empty: "댓글이 없습니다. 첫 댓글을 남겨보세요! 🙌",
+        validationError: "닉네임과 댓글 내용을 입력해 주세요.",
+        submitError: "댓글 등록에 실패했습니다.",
+        deleteConfirm: "이 댓글을 삭제하시겠습니까?",
     },
 };
 

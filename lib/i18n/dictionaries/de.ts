@@ -76,6 +76,19 @@ const de: Dictionary = {
         uploadError: "Bild-Upload fehlgeschlagen. Bitte erneut versuchen.",
         successMsg: "Beitrag erfolgreich eingereicht! 🎉",
     },
+    comments: {
+        title: "💬 Kommentare",
+        authorLabel: "Nickname",
+        authorPlaceholder: "Nickname eingeben",
+        contentLabel: "Kommentar",
+        contentPlaceholder: "Kommentar hinterlassen...",
+        submit: "💬 Senden",
+        submitting: "Wird gesendet...",
+        empty: "Noch keine Kommentare. Schreib den ersten! 🙌",
+        validationError: "Bitte Nickname und Kommentar eingeben.",
+        submitError: "Kommentar konnte nicht gesendet werden.",
+        deleteConfirm: "Diesen Kommentar wirklich löschen?",
+    },
 };
 
 export default de;
