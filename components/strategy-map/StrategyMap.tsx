@@ -11,6 +11,7 @@ import {
     useDraggable,
     useDroppable,
     PointerSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     type DragStartEvent,
@@ -61,8 +62,10 @@ interface PatternFrame {
 const GRID_ROWS = 8;
 const GRID_COLS = 8;
 
-/** 셀 크기 (px) — 반응형 처리를 위해 CSS로도 재정의 */
+/** 셀 크기 (px) — 애니메이션 계산용 (실제 렌더는 CSS로 반응형 처리) */
 const CELL_SIZE = 64;
+/** 애니메이션 모드에서 실제 셀 px (JS로 계산, 모바일 기준) */
+const ANIM_CELL = 40;
 
 /** 더미 연맹원 데이터 */
 const INITIAL_MEMBERS: AllianceMember[] = [
@@ -128,12 +131,13 @@ function DraggablePiece({ member, isOnBoard }: DraggablePieceProps) {
             ref={setNodeRef}
             {...listeners}
             {...attributes}
+            // touch-none: 모바일 드래그 시 페이지 스크롤 방지
             className={`
-        flex flex-col items-center justify-center 
+        touch-none flex flex-col items-center justify-center 
         rounded-xl cursor-grab active:cursor-grabbing select-none
         transition-all duration-150
         ${isDragging ? "opacity-30 scale-90" : "opacity-100 scale-100"}
-        ${isOnBoard ? "w-full h-full" : "w-14 h-14"}
+        ${isOnBoard ? "w-full h-full" : "w-11 h-11 sm:w-14 sm:h-14"}
       `}
             style={{
                 background: `linear-gradient(135deg, ${member.color}cc, ${member.color}88)`,
@@ -144,8 +148,8 @@ function DraggablePiece({ member, isOnBoard }: DraggablePieceProps) {
             }}
             title={member.name}
         >
-            <span className="text-xl leading-none">{member.emoji}</span>
-            <span className="text-[9px] font-bold text-white/90 mt-0.5 truncate max-w-[54px]">
+            <span className="text-base sm:text-xl leading-none">{member.emoji}</span>
+            <span className="text-[8px] sm:text-[9px] font-bold text-white/90 mt-0.5 truncate max-w-[42px] sm:max-w-[54px]">
                 {member.name}
             </span>
         </div>
@@ -178,15 +182,14 @@ function DroppableCell({ row, col, children }: DroppableCellProps) {
                     : "bg-transparent hover:bg-white/5"
                 }
       `}
-            style={{ width: CELL_SIZE, height: CELL_SIZE }}
+            // 고정 픽셀 제거 → 부모 grid 셀 크기를 100% 따름
+            style={{ width: "100%", height: "100%" }}
         >
-            {/* 셀 좌표 라벨 (희미하게, 이미지 위에도 보이도록 drop-shadow 추가) */}
             <span
-                className="absolute top-0.5 left-1 text-[8px] text-white/25 pointer-events-none select-none"
+                className="absolute top-0.5 left-0.5 text-[6px] sm:text-[8px] text-white/25 pointer-events-none select-none"
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}
             >
-                {String.fromCharCode(65 + col)}
-                {row + 1}
+                {String.fromCharCode(65 + col)}{row + 1}
             </span>
             {children}
         </div>
@@ -203,33 +206,28 @@ interface AnimatedPieceProps {
 }
 
 function AnimatedPiece({ member, position }: AnimatedPieceProps) {
-    const pixel = cellToPixel(position);
+    // 모바일 반응형: 실제 셀 크기는 ANIM_CELL 기준
+    const pixel = {
+        x: position.col * ANIM_CELL,
+        y: position.row * ANIM_CELL,
+    };
 
     return (
         <motion.div
-            // 같은 key를 유지해야 layoutId 기반 이동 애니메이션이 동작
             layoutId={`anim-${member.id}`}
-            className="absolute flex flex-col items-center justify-center rounded-xl pointer-events-none"
+            className="absolute flex flex-col items-center justify-center rounded-lg pointer-events-none"
             style={{
-                width: CELL_SIZE - 4,
-                height: CELL_SIZE - 4,
+                width: ANIM_CELL - 2,
+                height: ANIM_CELL - 2,
                 background: `linear-gradient(135deg, ${member.color}cc, ${member.color}88)`,
                 boxShadow: `0 4px 16px ${member.color}88, inset 0 1px 1px rgba(255,255,255,0.3)`,
                 border: `2px solid ${member.color}`,
             }}
-            animate={{
-                x: pixel.x + 2,
-                y: pixel.y + 2,
-            }}
-            transition={{
-                type: "spring",
-                stiffness: 120,
-                damping: 18,
-                mass: 0.8,
-            }}
+            animate={{ x: pixel.x + 1, y: pixel.y + 1 }}
+            transition={{ type: "spring", stiffness: 120, damping: 18, mass: 0.8 }}
         >
-            <span className="text-xl leading-none">{member.emoji}</span>
-            <span className="text-[9px] font-bold text-white/90 mt-0.5">
+            <span className="text-sm leading-none">{member.emoji}</span>
+            <span className="text-[7px] font-bold text-white/90 mt-0.5">
                 {member.name}
             </span>
         </motion.div>
@@ -264,10 +262,15 @@ export default function StrategyMap() {
     const [isFetching, setIsFetching] = useState(true); // SELECT 진행 중 (초기 로드)
     const [dbError, setDbError] = useState<string | null>(null); // 마지막 에러 메시지
 
-    // ─────── dnd-kit 센서 설정 ───────
+    // ─────── dnd-kit 센서 설정 (PC + 모바일 터치 모두 지원) ───────
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: { distance: 5 }, // 5px 이상 이동해야 드래그 시작
+            activationConstraint: { distance: 5 },
+        }),
+        useSensor(TouchSensor, {
+            // 터치 시 250ms 홀드 OR 5px 이동 후 드래그 시작
+            // → 짧은 탭은 드래그로 인식 안 함, 스크롤과 구분
+            activationConstraint: { delay: 250, tolerance: 5 },
         })
     );
 
@@ -505,81 +508,81 @@ export default function StrategyMap() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
             >
-                <div className="flex flex-col lg:flex-row gap-6 items-start w-full max-w-6xl">
-                    {/* ═══════════════════════
-             좌측: 연맹원 패널
-             ═══════════════════════ */}
-                    <aside className="flex-shrink-0 bg-slate-800/50 backdrop-blur-md rounded-2xl border border-slate-700/60 p-4 space-y-3 w-full lg:w-52">
-                        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" />
+                {/* ─── 전체 레이아웃: 모바일=세로(맵 위에 연맹원), PC=가로(좌사이드+맵+우사이드) ─── */}
+                <div className="flex flex-col lg:flex-row gap-4 items-start w-full max-w-6xl">
+
+                    {/* ═══════════════════════════════════
+             연맹원 패널
+             모바일: 맵 위에 가로 스크롤 한 줄
+             PC(lg): 좌측 세로 사이드바
+             ═══════════════════════════════════ */}
+                    <aside className="
+                        w-full lg:w-48 lg:flex-shrink-0
+                        bg-slate-800/50 backdrop-blur-md rounded-2xl
+                        border border-slate-700/60 p-3
+                    ">
+                        <h2 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block flex-shrink-0" />
                             연맹원 목록
                         </h2>
 
-                        {/* 미배치 연맹원 */}
-                        <div className="space-y-2">
+                        {/* ── 미배치 연맹원 ── */}
+                        {/* 모바일: flex-row + overflow-x-auto (가로 스크롤) */}
+                        {/* PC: flex-col (세로 목록) */}
+                        <div className="
+                            flex flex-row gap-2 overflow-x-auto pb-1
+                            lg:flex-col lg:overflow-x-visible lg:pb-0 lg:space-y-2
+                            scrollbar-thin
+                        ">
                             {unplacedMembers.length === 0 && (
-                                <p className="text-xs text-slate-500 italic">
-                                    모든 연맹원이 배치됨
+                                <p className="text-xs text-slate-500 italic whitespace-nowrap">
+                                    모두 배치됨 ✅
                                 </p>
                             )}
                             {unplacedMembers.map((member) => (
-                                <div key={member.id} className="flex items-center gap-2">
+                                /* 모바일: 아이콘만 / PC: 아이콘+이름 가로 배치 */
+                                <div key={member.id} className="flex-shrink-0 flex flex-col lg:flex-row items-center gap-1 lg:gap-2">
                                     <DraggablePiece member={member} isOnBoard={false} />
-                                    <span className="text-xs text-slate-400">{member.name}</span>
+                                    <span className="text-[9px] lg:text-xs text-slate-400 whitespace-nowrap">{member.name}</span>
                                 </div>
                             ))}
                         </div>
 
-                        {/* 배치된 연맹원 (보드에서 제거 가능) */}
+                        {/* ── 배치된 연맹원 (PC 전용, 모바일은 공간 절약을 위해 숨김) ── */}
                         {placedMemberIds.length > 0 && (
-                            <>
-                                <hr className="border-slate-700/50" />
-                                <h3 className="text-xs font-medium text-slate-400">
-                                    배치됨 ({placedMemberIds.length})
-                                </h3>
-                                <div className="space-y-1">
-                                    {placedMemberIds.map((id) => {
-                                        const member = members.find((m) => m.id === id);
-                                        if (!member) return null;
-                                        const pos = placement[id];
-                                        return (
-                                            <div
-                                                key={id}
-                                                className="flex items-center justify-between bg-slate-700/30 rounded-lg px-2 py-1"
-                                            >
-                                                <span className="text-xs text-slate-300">
-                                                    {member.emoji} {member.name}
-                                                </span>
-                                                <span className="text-[10px] text-slate-500">
-                                                    {String.fromCharCode(65 + pos.col)}
-                                                    {pos.row + 1}
-                                                </span>
-                                                <button
-                                                    onClick={() => handleRemoveFromBoard(id)}
-                                                    className="text-[10px] text-rose-400 hover:text-rose-300 transition-colors ml-1"
-                                                    title="보드에서 제거"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </>
+                            <div className="hidden lg:block mt-3 space-y-1">
+                                <hr className="border-slate-700/50 mb-2" />
+                                <h3 className="text-xs font-medium text-slate-400">배치됨 ({placedMemberIds.length})</h3>
+                                {placedMemberIds.map((id) => {
+                                    const member = members.find((m) => m.id === id);
+                                    if (!member) return null;
+                                    const pos = placement[id];
+                                    return (
+                                        <div key={id} className="flex items-center justify-between bg-slate-700/30 rounded-lg px-2 py-1">
+                                            <span className="text-xs text-slate-300">{member.emoji} {member.name}</span>
+                                            <span className="text-[10px] text-slate-500">
+                                                {String.fromCharCode(65 + pos.col)}{pos.row + 1}
+                                            </span>
+                                            <button
+                                                onClick={() => handleRemoveFromBoard(id)}
+                                                className="text-[10px] text-rose-400 hover:text-rose-300 transition-colors ml-1"
+                                                title="보드에서 제거"
+                                            >✕</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
                     </aside>
 
                     {/* ═══════════════════════
              중앙: 체스판 맵
              ═══════════════════════ */}
-                    <div className="flex-1 flex flex-col items-center gap-4">
-                        {/* 맵 컨테이너 */}
+                    <div className="flex-1 flex flex-col items-center gap-4 w-full">
+                        {/* 맵 컨테이너 — 모바일: 100% 너비 + aspect-square, PC: 그대로 정사각형 */}
                         <div
-                            className="relative rounded-2xl overflow-hidden border-2 border-amber-700/50 shadow-2xl shadow-black/60"
-                            style={{
-                                width: GRID_COLS * CELL_SIZE,
-                                height: GRID_ROWS * CELL_SIZE,
-                            }}
+                            className="relative w-full rounded-2xl overflow-hidden border-2 border-amber-700/50 shadow-2xl shadow-black/60 touch-none"
+                            style={{ aspectRatio: "1 / 1", maxWidth: `${GRID_COLS * CELL_SIZE}px` }}
                         >
                             {/*
                * ── AI ASSET PLACEHOLDER — Runway Gen-2 배경 모션 영상 ──────────
@@ -612,10 +615,10 @@ export default function StrategyMap() {
                             {/* ─── 배치 모드: 드롭 가능한 그리드 (이미지 위에 투명하게) ─── */}
                             {!isPlaying && (
                                 <div
-                                    className="relative z-10 grid"
+                                    className="absolute inset-0 z-10 grid touch-none"
                                     style={{
-                                        gridTemplateColumns: `repeat(${GRID_COLS}, ${CELL_SIZE}px)`,
-                                        gridTemplateRows: `repeat(${GRID_ROWS}, ${CELL_SIZE}px)`,
+                                        gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                                        gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
                                     }}
                                 >
                                     {Array.from({ length: GRID_ROWS }).map((_, row) =>
