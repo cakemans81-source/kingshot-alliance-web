@@ -30,7 +30,98 @@ function formatDate(iso: string) {
 }
 
 /* ═══════════════════════════════════════════════
-   섹션 카드 (번역 지원)
+   게임 일정 샘플 데이터
+   ═══════════════════════════════════════════════ */
+
+interface ScheduleEvent {
+    id: string;
+    icon: string;
+    title: string;
+    subtitle: string;
+    time: string;
+    status: "live" | "soon" | "ended";
+    gradient: string;
+    border: string;
+    glow: string;
+}
+
+const SCHEDULE_EVENTS: ScheduleEvent[] = [
+    {
+        id: "holy-sword",
+        icon: "⚔️",
+        title: "성검 전투",
+        subtitle: "전 연맹 필참",
+        time: "매일 20:00",
+        status: "live",
+        gradient: "from-violet-600 to-purple-700",
+        border: "rgba(139,92,246,0.45)",
+        glow: "rgba(139,92,246,0.3)",
+    },
+    {
+        id: "three-alliances",
+        icon: "🏰",
+        title: "삼대 연맹전",
+        subtitle: "3대 연맹 참전",
+        time: "토·일 21:00",
+        status: "soon",
+        gradient: "from-sky-500 to-blue-600",
+        border: "rgba(14,165,233,0.45)",
+        glow: "rgba(14,165,233,0.3)",
+    },
+    {
+        id: "top-kingdom",
+        icon: "👑",
+        title: "최강 왕국",
+        subtitle: "왕국 랭킹전",
+        time: "금~일 진행",
+        status: "live",
+        gradient: "from-amber-500 to-yellow-600",
+        border: "rgba(245,158,11,0.45)",
+        glow: "rgba(245,158,11,0.3)",
+    },
+    {
+        id: "divine-beast",
+        icon: "🦄",
+        title: "신수의 선물",
+        subtitle: "신수 사냥 보상",
+        time: "매일 18:00",
+        status: "live",
+        gradient: "from-emerald-500 to-teal-600",
+        border: "rgba(16,185,129,0.45)",
+        glow: "rgba(16,185,129,0.3)",
+    },
+    {
+        id: "supply-drop",
+        icon: "📦",
+        title: "보급 지원",
+        subtitle: "연맹 물자 강화",
+        time: "화·목 15:00",
+        status: "soon",
+        gradient: "from-rose-500 to-pink-600",
+        border: "rgba(244,63,94,0.45)",
+        glow: "rgba(244,63,94,0.3)",
+    },
+    {
+        id: "world-boss",
+        icon: "🐉",
+        title: "월드 보스",
+        subtitle: "공통 공격 이벤트",
+        time: "수·토 19:30",
+        status: "ended",
+        gradient: "from-slate-500 to-gray-600",
+        border: "rgba(100,116,139,0.45)",
+        glow: "rgba(100,116,139,0.2)",
+    },
+];
+
+const STATUS_BADGE: Record<ScheduleEvent["status"], { label: string; color: string; bg: string }> = {
+    live: { label: "● LIVE", color: "#4ade80", bg: "rgba(74,222,128,0.12)" },
+    soon: { label: "◎ 예정", color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
+    ended: { label: "✕ 종료", color: "#64748b", bg: "rgba(100,116,139,0.12)" },
+};
+
+/* ═══════════════════════════════════════════════
+   섹션 카드 (최근 공지 / 자게)
    ═══════════════════════════════════════════════ */
 
 interface SectionCardProps {
@@ -49,7 +140,7 @@ function SectionCard({
 }: SectionCardProps) {
     return (
         <div
-            className="mb-6 rounded-2xl border overflow-hidden"
+            className="mb-4 rounded-2xl border overflow-hidden"
             style={{
                 background: "rgba(15,23,42,0.75)",
                 borderColor: "rgba(51,65,85,0.55)",
@@ -58,7 +149,7 @@ function SectionCard({
             }}
         >
             <div
-                className="flex items-center justify-between px-5 py-3.5 border-b"
+                className="flex items-center justify-between px-5 py-3 border-b"
                 style={{ borderColor: "rgba(51,65,85,0.45)" }}
             >
                 <h2 className="text-sm font-bold text-slate-200">{title}</h2>
@@ -74,7 +165,7 @@ function SectionCard({
             </div>
 
             {items.length === 0 ? (
-                <div className="px-5 py-6 text-center text-slate-600 text-sm">
+                <div className="px-5 py-5 text-center text-slate-600 text-sm">
                     {emptyHint}&nbsp;
                     <strong className="text-amber-500">{badgeName}</strong>
                     {writeHint}
@@ -85,7 +176,7 @@ function SectionCard({
                         <li key={item.id}>
                             <Link
                                 href={itemHref(item.id)}
-                                className="flex items-center gap-3 px-5 py-3 transition-colors duration-150 hover:bg-slate-700/30 group"
+                                className="flex items-center gap-3 px-5 py-2.5 transition-colors duration-150 hover:bg-slate-700/30 group"
                             >
                                 <span
                                     className="flex-shrink-0 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
@@ -143,15 +234,6 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             glow: "rgba(16,185,129,0.35)",
             border: "rgba(16,185,129,0.3)",
         },
-        {
-            href: "/diplomacy",
-            icon: "🤝",
-            label: t.quickLinks.diplomacy,
-            description: t.quickLinks.diplomacyDesc,
-            gradient: "from-amber-500 to-orange-500",
-            glow: "rgba(245,158,11,0.35)",
-            border: "rgba(245,158,11,0.3)",
-        },
     ];
 
     const FEATURES = [
@@ -161,12 +243,12 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
     ];
 
     return (
-        <section className="relative z-10 mx-auto max-w-2xl px-4 pt-10 pb-28 sm:px-6">
+        <section className="relative z-10 mx-auto max-w-2xl px-4 pt-8 pb-24 sm:px-6">
 
             {/* ── [1] 환영 타이틀 ── */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
                 <div
-                    className="mb-4 inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-[11px] font-semibold tracking-widest uppercase"
+                    className="mb-3 inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-[11px] font-semibold tracking-widest uppercase"
                     style={{
                         background: "rgba(6,182,212,0.08)",
                         borderColor: "rgba(6,182,212,0.28)",
@@ -205,14 +287,97 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                     </span>
                 </h1>
 
-                <p className="mt-3 text-sm sm:text-base text-slate-400 leading-relaxed">
+                <p className="mt-2 text-sm sm:text-base text-slate-400 leading-relaxed">
                     {t.home.subtitle}{" "}
                     <span className="font-semibold text-cyan-400">{t.home.subtitleHighlight}</span>
                     {t.home.subtitleEnd}
                 </p>
             </div>
 
-            {/* ── [2] 최근 공지사항 ── */}
+            {/* ══════════════════════════════════════════
+                [2] 오늘의 게임 일정 섹션 — 가로 스크롤 카드
+                ══════════════════════════════════════════ */}
+            <div
+                className="mb-4 rounded-2xl border overflow-hidden"
+                style={{
+                    background: "rgba(15,23,42,0.75)",
+                    borderColor: "rgba(51,65,85,0.55)",
+                    backdropFilter: "blur(12px)",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+                }}
+            >
+                {/* 섹션 헤더 */}
+                <div
+                    className="flex items-center justify-between px-5 py-3 border-b"
+                    style={{ borderColor: "rgba(51,65,85,0.45)" }}
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm">📅</span>
+                        <h2 className="text-sm font-bold text-slate-200">오늘의 주요 일정</h2>
+                        <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}
+                        >
+                            LIVE
+                        </span>
+                    </div>
+                    <Link
+                        href="/calendar"
+                        className="text-[11px] text-cyan-500 hover:text-cyan-300 transition-colors font-medium flex items-center gap-0.5"
+                    >
+                        전체 일정표
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </Link>
+                </div>
+
+                {/* 가로 스크롤 카드 영역 */}
+                <div
+                    className="flex gap-3 px-4 py-4 overflow-x-auto"
+                    style={{ scrollbarWidth: "none" }}
+                >
+                    {SCHEDULE_EVENTS.map((ev) => {
+                        const badge = STATUS_BADGE[ev.status];
+                        return (
+                            <div
+                                key={ev.id}
+                                className="flex-shrink-0 w-[136px] rounded-xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
+                                style={{
+                                    background: "rgba(15,23,42,0.85)",
+                                    borderColor: ev.border,
+                                    boxShadow: `0 2px 12px ${ev.glow}`,
+                                }}
+                            >
+                                {/* 카드 상단 그라데이션 */}
+                                <div
+                                    className={`flex items-center justify-center h-14 bg-gradient-to-br ${ev.gradient}`}
+                                    style={{ opacity: ev.status === "ended" ? 0.5 : 1 }}
+                                >
+                                    <span className="text-2xl filter drop-shadow-md">{ev.icon}</span>
+                                </div>
+
+                                {/* 카드 내용 */}
+                                <div className="px-3 py-2.5 space-y-1.5">
+                                    <div
+                                        className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                                        style={{ background: badge.bg, color: badge.color }}
+                                    >
+                                        {badge.label}
+                                    </div>
+                                    <p className="text-xs font-bold text-white leading-snug line-clamp-1">{ev.title}</p>
+                                    <p className="text-[10px] text-slate-400 line-clamp-1">{ev.subtitle}</p>
+                                    <p className="text-[10px] text-slate-600 flex items-center gap-0.5">
+                                        <span>🕐</span> {ev.time}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* ── [3] 최근 공지사항 ── */}
             <SectionCard
                 title={t.home.recentNotice}
                 listHref="/notice"
@@ -224,7 +389,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 itemHref={() => "/notice"}
             />
 
-            {/* ── [3] 최근 자유게시판 ── */}
+            {/* ── [4] 최근 자유게시판 ── */}
             <SectionCard
                 title={t.home.recentFreeBoard}
                 listHref="/free-board"
@@ -236,8 +401,8 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 itemHref={() => "/free-board"}
             />
 
-            {/* ── [4] 퀵 링크 ── */}
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3 mb-7">
+            {/* ── [5] 퀵 링크 (성검 + 자유게시판) ── */}
+            <div className="flex gap-3 mb-5">
                 {QUICK_LINKS.map((link) => (
                     <Link
                         key={link.href}
@@ -272,7 +437,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 ))}
             </div>
 
-            {/* ── [5] 기능 소개 카드 ── */}
+            {/* ── [6] 기능 소개 카드 ── */}
             <div
                 className="w-full rounded-2xl border"
                 style={{
@@ -286,7 +451,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                         <div
                             key={i}
                             className={[
-                                "flex flex-1 items-center gap-3 px-5 py-4",
+                                "flex flex-1 items-center gap-3 px-5 py-3.5",
                                 i > 0 ? "border-t border-slate-700/40 md:border-t-0 md:border-l md:border-slate-700/40" : "",
                             ].join(" ")}
                         >
