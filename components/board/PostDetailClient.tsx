@@ -422,14 +422,20 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                             backdropFilter: "blur(8px)",
                         }}
                     >
-                        <div className="grid grid-cols-2 divide-x"
-                            style={{ borderColor: "rgba(51,65,85,0.4)" }}
+                        <div
+                            className="grid grid-cols-2"
+                            style={{
+                                borderTop: "none",
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                            }}
                         >
                             {/* 이전 글 */}
                             {prevPost ? (
                                 <Link
                                     href={`${listHref}/${prevPost.id}`}
                                     className="group flex items-center gap-3 px-4 py-4 sm:px-5 sm:py-5 transition-all duration-200 hover:bg-slate-700/30"
+                                    style={{ borderRight: "1px solid rgba(51,65,85,0.5)" }}
                                 >
                                     <span
                                         className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-transform duration-200 group-hover:-translate-x-0.5"
@@ -449,7 +455,10 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                     </div>
                                 </Link>
                             ) : (
-                                <div className="flex items-center justify-center px-4 py-4 sm:px-5 sm:py-5">
+                                <div
+                                    className="flex items-center justify-center px-4 py-4 sm:px-5 sm:py-5"
+                                    style={{ borderRight: "1px solid rgba(51,65,85,0.5)" }}
+                                >
                                     <span className="text-xs text-slate-700">첫 번째 글입니다</span>
                                 </div>
                             )}
