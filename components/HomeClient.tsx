@@ -150,23 +150,30 @@ const DEFAULT_OFFICERS: Officer[] = [
     {
         id: "r4-1",
         name: "닉네임 A",
-        role: "연맹전 오더 및 외교 담당",
+        role: "role1",           /* i18n key 매핑 */
         icon: "🗡️",
         color: "rgba(139,92,246,0.35)",
     },
     {
         id: "r4-2",
         name: "닉네임 B",
-        role: "성검 전투 징표 배치 및 공지 담당",
+        role: "role2",
         icon: "📢",
         color: "rgba(6,182,212,0.35)",
     },
     {
         id: "r4-3",
         name: "닉네임 C",
-        role: "신규 연맹원 가입 심사 및 안내",
+        role: "role3",
         icon: "🛡️",
         color: "rgba(16,185,129,0.35)",
+    },
+    {
+        id: "r4-4",
+        name: "닉네임 D",
+        role: "role4",
+        icon: "💼",
+        color: "rgba(245,158,11,0.35)",
     },
 ];
 
@@ -266,39 +273,51 @@ function SectionCard({
    ═══════════════════════════════════════════════ */
 
 function OfficersSection() {
+    const { t } = useLocale();
+    const o = t.officers;
+
+    /* role key → 번역 텍스트 매핑 */
+    const roleLabel = (key: string): string => {
+        const map: Record<string, string> = {
+            role1: o.role1,
+            role2: o.role2,
+            role3: o.role3,
+            role4: o.role4,
+        };
+        /* 해상되지 않으면 사용자가 직접 입력한 텍스트로 간주 */
+        return map[key] ?? key;
+    };
+
     const [officers, setOfficers] = useState<Officer[]>(DEFAULT_OFFICERS);
     const [isAdmin, setIsAdmin] = useState(false);
     const [editDraft, setEditDraft] = useState<Officer[]>([]);
     const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
-    /* 수정 버튼 클릭 — 비밀번호 확인 */
+    /* 수정 버튼 유리크 — 비밀번호 확인 */
     const handleEditClick = () => {
         if (isAdmin) {
-            /* 이미 관리자 모드 → 종료 */
             setIsAdmin(false);
             setEditDraft([]);
             return;
         }
         const pw = window.prompt("🔒 관리자 비밀번호를 입력하세요:");
-        if (pw === null) return; // 취소
+        if (pw === null) return;
         if (pw.trim() === ADMIN_PASSWORD) {
             setIsAdmin(true);
-            setEditDraft(officers.map((o) => ({ ...o })));
+            setEditDraft(officers.map((of) => ({ ...of })));
         } else {
             alert("❌ 비밀번호가 올바르지 않습니다.");
         }
     };
 
-    /* 초고 변경 */
     const handleDraftChange = (id: string, field: "name" | "role", value: string) => {
         setEditDraft((prev) =>
-            prev.map((o) => (o.id === id ? { ...o, [field]: value } : o))
+            prev.map((of) => (of.id === id ? { ...of, [field]: value } : of))
         );
     };
 
-    /* 저장 */
     const handleSave = () => {
-        setOfficers(editDraft.map((o) => ({ ...o })));
+        setOfficers(editDraft.map((of) => ({ ...of })));
         setIsAdmin(false);
         setEditDraft([]);
         setSaveMsg("✅ 저장되었습니다!");
@@ -324,12 +343,12 @@ function OfficersSection() {
                 style={{ borderColor: isAdmin ? "rgba(245,158,11,0.35)" : "rgba(51,65,85,0.45)" }}
             >
                 <span className="text-sm">👑</span>
-                <h2 className="text-sm font-bold text-slate-200">간부 (R4) 명단</h2>
+                <h2 className="text-sm font-bold text-slate-200">{o.sectionTitle}</h2>
                 <span
                     className="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                     style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}
                 >
-                    {officers.length}명
+                    {o.teamCount}
                 </span>
 
                 {/* 저장 성공 메시지 */}
@@ -373,7 +392,7 @@ function OfficersSection() {
             {isAdmin ? (
                 <div className="p-4 space-y-3">
                     <p className="text-[10px] text-amber-400/80 mb-2">
-                        🔓 관리자 모드 — 닉네임과 역할을 수정하고 저장 버튼을 누르세요.
+                        {o.adminMode}
                     </p>
                     {editDraft.map((officer) => (
                         <div
@@ -384,7 +403,6 @@ function OfficersSection() {
                                 border: "1px solid rgba(71,85,105,0.4)",
                             }}
                         >
-                            {/* 아이콘 아바타 */}
                             <div
                                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg mt-0.5"
                                 style={{
@@ -394,8 +412,6 @@ function OfficersSection() {
                             >
                                 {officer.icon}
                             </div>
-
-                            {/* 입력 필드 */}
                             <div className="flex-1 space-y-1.5">
                                 <input
                                     type="text"
@@ -413,7 +429,7 @@ function OfficersSection() {
                                 />
                                 <input
                                     type="text"
-                                    value={officer.role}
+                                    value={roleLabel(officer.role)}
                                     onChange={(e) => handleDraftChange(officer.id, "role", e.target.value)}
                                     placeholder="역할 설명"
                                     maxLength={60}
@@ -426,7 +442,6 @@ function OfficersSection() {
                                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                                 />
                             </div>
-
                             <span
                                 className="flex-shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full tracking-widest mt-1"
                                 style={{
@@ -435,12 +450,11 @@ function OfficersSection() {
                                     color: "#fbbf24",
                                 }}
                             >
-                                R4
+                                {o.r4Label}
                             </span>
                         </div>
                     ))}
 
-                    {/* 저장 / 취소 버튼 */}
                     <div className="flex gap-2 pt-1">
                         <button
                             type="button"
@@ -488,7 +502,7 @@ function OfficersSection() {
                                         {officer.name}
                                     </p>
                                     <p className="text-[11px] text-slate-500 leading-snug mt-0.5 truncate">
-                                        {officer.role}
+                                        {roleLabel(officer.role)}
                                     </p>
                                 </div>
                                 <span
@@ -499,7 +513,7 @@ function OfficersSection() {
                                         color: "#fbbf24",
                                     }}
                                 >
-                                    R4
+                                    {o.r4Label}
                                 </span>
                             </div>
                         </li>

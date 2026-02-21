@@ -89,6 +89,16 @@ const zh: Dictionary = {
         submitError: "评论发表失败。",
         deleteConfirm: "确定要删除这条评论吗？",
     },
+    officers: {
+        sectionTitle: "R4干部名单",
+        teamCount: "4队",
+        adminMode: "🔓 管理员模式 — 编辑昵称和职责，然后点击保存。",
+        r4Label: "R4",
+        role1: "联盟战指挥与外交",
+        role2: "圣剑战标记配置与公告",
+        role3: "新成员审查与引导",
+        role4: "资源管理与活动奖励调配",
+    },
 };
 
 export default zh;

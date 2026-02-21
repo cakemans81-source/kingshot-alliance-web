@@ -89,6 +89,16 @@ const de: Dictionary = {
         submitError: "Kommentar konnte nicht gesendet werden.",
         deleteConfirm: "Diesen Kommentar wirklich löschen?",
     },
+    officers: {
+        sectionTitle: "R4-Offiziere",
+        teamCount: "4 Teams",
+        adminMode: "🔓 Admin-Modus — Nicknames & Rollen bearbeiten, dann Speichern drücken.",
+        r4Label: "R4",
+        role1: "Kampf-Order & Diplomatie",
+        role2: "Heiliges Schwert Marker-Platzierung & Ankündigungen",
+        role3: "Aufnahme neuer Mitglieder & Beratung",
+        role4: "Ressourcenverwaltung & Event-Belohnungen",
+    },
 };
 
 export default de;

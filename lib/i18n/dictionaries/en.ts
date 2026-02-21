@@ -89,6 +89,16 @@ const en: Dictionary = {
         submitError: "Failed to post the comment.",
         deleteConfirm: "Are you sure you want to delete this comment?",
     },
+    officers: {
+        sectionTitle: "R4 Officers",
+        teamCount: "4 Teams",
+        adminMode: "🔓 Admin Mode — Edit nicknames & roles, then press Save.",
+        r4Label: "R4",
+        role1: "Battle Order & Diplomacy",
+        role2: "Holy Sword Marker Placement & Announcements",
+        role3: "New Member Screening & Guidance",
+        role4: "Resource Management & Event Rewards",
+    },
 };
 
 export default en;

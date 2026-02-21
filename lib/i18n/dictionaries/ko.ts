@@ -90,6 +90,16 @@ export interface Dictionary {
         submitError: string;
         deleteConfirm: string;
     };
+    officers: {
+        sectionTitle: string;      /* "간부 (R4) 명단" */
+        teamCount: string;         /* "4팀" */
+        adminMode: string;         /* 관리자 모드 안내 */
+        r4Label: string;           /* "R4" */
+        role1: string;             /* 연맹전 오더 및 외교 담당 */
+        role2: string;             /* 성검 전투 징표 ... */
+        role3: string;             /* 신규 연맹원 ... */
+        role4: string;             /* 자원 관리 ... */
+    };
 }
 
 const ko: Dictionary = {
@@ -179,6 +189,16 @@ const ko: Dictionary = {
         validationError: "닉네임과 댓글 내용을 입력해 주세요.",
         submitError: "댓글 등록에 실패했습니다.",
         deleteConfirm: "이 댓글을 삭제하시겠습니까?",
+    },
+    officers: {
+        sectionTitle: "간부 (R4) 명단",
+        teamCount: "4팀",
+        adminMode: "효 관리자 모드 — 닉네임과 역할을 수정하고 저장 버튼을 누르세요.",
+        r4Label: "R4",
+        role1: "연맹전 오더 및 외교 담당",
+        role2: "성검 전투 징표 배치 및 공지 담당",
+        role3: "신규 연맹원 가입 심사 및 안내",
+        role4: "자원 관리 및 이벤트 보상 조율",
     },
 };
 
