@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { House } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { LocaleCode } from "@/lib/i18n/LocaleContext";
 
@@ -252,14 +253,28 @@ export default function NavBar() {
             <div className="max-w-7xl mx-auto h-full px-4 flex items-center justify-between gap-6">
                 {/* ─── 로고 ─── */}
                 <Link href="/" className="flex items-center gap-2.5 flex-shrink-0 group">
+                    {/* 홈 아이콘 */}
                     <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold flex-shrink-0 group-hover:scale-110 transition-transform duration-200"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110"
                         style={{
-                            background: "linear-gradient(135deg, #06b6d4, #3b82f6, #8b5cf6)",
-                            boxShadow: "0 0 16px rgba(6,182,212,0.4)",
+                            background: "linear-gradient(135deg, rgba(6,182,212,0.15), rgba(59,130,246,0.15))",
+                            border: "1px solid rgba(6,182,212,0.3)",
+                            boxShadow: "0 0 0 rgba(6,182,212,0)",
+                        }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.boxShadow = "0 0 18px rgba(6,182,212,0.45)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(6,182,212,0.7)";
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 rgba(6,182,212,0)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(6,182,212,0.3)";
                         }}
                     >
-                        ⚔
+                        <House
+                            size={18}
+                            strokeWidth={2}
+                            className="text-cyan-400 group-hover:text-cyan-300 transition-colors duration-200"
+                        />
                     </div>
                     <span className="hidden sm:flex items-center gap-1.5 font-extrabold text-base tracking-tight">
                         <span
@@ -310,8 +325,8 @@ export default function NavBar() {
                             }
                             onClick={() => setOpenDropdown(openDropdown === "strategy" ? null : "strategy")}
                             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${SUB_ITEMS.some((s) => pathname === s.href) || openDropdown === "strategy"
-                                    ? "text-cyan-300 bg-cyan-500/10"
-                                    : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+                                ? "text-cyan-300 bg-cyan-500/10"
+                                : "text-slate-300 hover:text-white hover:bg-slate-700/50"
                                 }`}
                             aria-expanded={openDropdown === "strategy"}
                         >
@@ -400,8 +415,8 @@ export default function NavBar() {
                                         key={item.href}
                                         href={item.href}
                                         className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-150 ${pathname === item.href
-                                                ? "text-cyan-300 bg-cyan-500/10 font-semibold"
-                                                : "text-slate-400 hover:text-white hover:bg-slate-700/40"
+                                            ? "text-cyan-300 bg-cyan-500/10 font-semibold"
+                                            : "text-slate-400 hover:text-white hover:bg-slate-700/40"
                                             }`}
                                     >
                                         {item.icon} {t.nav[item.labelKey]}

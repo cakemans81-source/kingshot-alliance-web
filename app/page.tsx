@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
@@ -276,7 +275,7 @@ export default async function HomePage() {
       <section className="relative z-10 mx-auto max-w-2xl px-4 pt-10 pb-28 sm:px-6">
 
         {/* ── [1] 환영 타이틀 ── */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-8">
           {/* 배지 */}
           <div
             className="mb-4 inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-[11px] font-semibold tracking-widest uppercase"
@@ -327,38 +326,7 @@ export default async function HomePage() {
           </p>
         </div>
 
-        {/* ── [2] 메인 캐릭터 이미지 ── */}
-        <div className="flex justify-center mb-7">
-          <div className="relative">
-            <div
-              aria-hidden
-              className="absolute inset-0 rounded-full blur-2xl"
-              style={{
-                background: "radial-gradient(circle, rgba(6,182,212,0.2), rgba(139,92,246,0.12), transparent 70%)",
-                transform: "scale(1.3)",
-              }}
-            />
-            <div
-              aria-hidden
-              className="absolute rounded-full border opacity-20 animate-spin-slow"
-              style={{ inset: "-10%", borderColor: "rgba(6,182,212,0.5)", borderStyle: "dashed" }}
-            />
-            <Image
-              src="/kingshot_main.jpg"
-              alt="킹샷 메인 캐릭터"
-              width={200}
-              height={200}
-              priority
-              quality={90}
-              className="relative z-10 animate-float drop-shadow-2xl"
-              style={{
-                filter: "drop-shadow(0 0 24px rgba(6,182,212,0.3))",
-                maxWidth: "min(200px, 45vw)",
-                height: "auto",
-              }}
-            />
-          </div>
-        </div>
+
 
         {/* ── [3] 최근 공지사항 TOP 5 ── */}
         <SectionCard
