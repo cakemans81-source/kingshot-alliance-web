@@ -335,35 +335,52 @@ export default function StrategyMap() {
         setDbError(null);
         console.log("[StrategyMap] Supabase에서 패턴 목록을 불러오는 중...");
 
-        const { data, error } = await supabase
-            .from("strategy_frames")
-            .select("*")
-            .order("created_at", { ascending: true });
+        try {
+            const { data, error } = await supabase
+                .from("strategy_frames")
+                .select("*")
+                .order("created_at", { ascending: true });
 
-        if (error) {
-            console.error("[StrategyMap] fetchFramesFromDB 실패:", error.message);
-            setDbError(`불러오기 실패: ${error.message}`);
+            if (error) {
+                console.error("[StrategyMap] fetchFramesFromDB 실패:", error.message);
+                setDbError(`불러오기 실패: ${error.message}`);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                const loaded: PatternFrame[] = (data as StrategyFrameRow[]).map(
+                    (row, idx) => {
+                        // placement가 문자열(JSON.stringify된 경우)이면 파싱, 아니면 그대로 사용
+                        let parsedPlacement: Record<string, { row: number; col: number }>;
+                        if (typeof row.placement === "string") {
+                            try {
+                                parsedPlacement = JSON.parse(row.placement);
+                            } catch {
+                                console.warn(`[StrategyMap] 패턴 ${idx + 1} placement 파싱 실패, 빈 객체 사용`);
+                                parsedPlacement = {};
+                            }
+                        } else {
+                            parsedPlacement = row.placement ?? {};
+                        }
+                        return {
+                            id: idx + 1,
+                            label: row.label,
+                            placement: parsedPlacement,
+                        };
+                    }
+                );
+                setPatterns(loaded);
+                console.log(`[StrategyMap] ${loaded.length}개 패턴 로드 완료`);
+            } else {
+                console.log("[StrategyMap] 저장된 패턴이 없습니다.");
+            }
+        } catch (unexpectedErr) {
+            const msg = unexpectedErr instanceof Error ? unexpectedErr.message : String(unexpectedErr);
+            console.error("[StrategyMap] 불러오기 중 예상치 못한 오류:", msg);
+            setDbError(`불러오기 오류: ${msg}`);
+        } finally {
             setIsFetching(false);
-            return;
         }
-
-        if (data && data.length > 0) {
-            // DB 행 → PatternFrame 형식으로 변환
-            const loaded: PatternFrame[] = (data as StrategyFrameRow[]).map(
-                (row, idx) => ({
-                    id: idx + 1,           // UI용 순번 재부여
-                    label: row.label,
-                    placement: row.placement,
-                })
-            );
-            setPatterns(loaded);
-            console.log(`[StrategyMap] ${loaded.length}개 패턴 로드 완료`
-            );
-        } else {
-            console.log("[StrategyMap] 저장된 패턴이 없습니다.");
-        }
-
-        setIsFetching(false);
     }, []);
 
     /* ──────────────────────────────────
@@ -390,46 +407,62 @@ export default function StrategyMap() {
             placement: resolvedPlacement,
         });
 
-        /**
-         * ── schema cache miss 방지 ─────────────────────────────────────
-         * insert()에 배열 형식을 전달하면 PostgREST가
-         * 컬럼 타입을 더 안정적으로 추론합니다.
-         * 에러 발생 시 Supabase SQL Editor에서:
-         *   1) CREATE TABLE IF NOT EXISTS public.strategy_frames (...) 실행
-         *   2) NOTIFY pgrst, 'reload schema'; 실행으로 캐시 갱신
-         * ──────────────────────────────────────────────────────────────── */
-        const { error } = await supabase
-            .from("strategy_frames")
-            .insert([
-                {
-                    label: resolvedLabel,
-                    placement: resolvedPlacement,
-                },
-            ]);
+        try {
+            /**
+             * ── JSONB schema cache miss 방지 전략 ────────────────────────────
+             *
+             * placement 컬럼이 나중에 ALTER TABLE로 추가된 경우,
+             * PostgREST 스키마 캐시가 해당 컬럼을 인식하지 못할 수 있습니다.
+             *
+             * 해결책: placement를 JSON.stringify()로 직렬화하여 문자열로 전달합니다.
+             * PostgREST / PostgreSQL이 TEXT → JSONB 자동 캐스팅을 수행하므로
+             * 타입 추론 없이도 안전하게 저장됩니다.
+             *
+             * Supabase SQL Editor에서 아래도 확인하세요:
+             *   NOTIFY pgrst, 'reload schema';   -- 캐시 강제 갱신
+             * ──────────────────────────────────────────────────────────────── */
+            const { error } = await supabase
+                .from("strategy_frames")
+                .insert([
+                    {
+                        label: resolvedLabel,
+                        // placement를 문자열로 직렬화 → JSONB 컬럼이 schema cache에
+                        // 없어도 PostgreSQL이 text::jsonb 캐스팅으로 처리합니다.
+                        placement: JSON.stringify(resolvedPlacement),
+                    },
+                ]);
 
-        if (error) {
-            console.error("[StrategyMap] INSERT 실패:", error.message);
+            if (error) {
+                console.error("[StrategyMap] INSERT 실패:", error.message, error);
 
-            // schema cache 관련 에러인지 감지
-            const isSchemaErr =
-                error.message.includes("schema cache") ||
-                error.message.includes("column") ||
-                error.message.includes("relation");
+                const isSchemaErr =
+                    error.message.includes("schema cache") ||
+                    error.message.includes("column") ||
+                    error.message.includes("relation");
 
-            setDbError(
-                isSchemaErr
-                    ? `저장 실패: Supabase 테이블이 존재하지 않거나 스키마 캐시가 오래됐습니다.\n` +
-                    `Supabase SQL Editor에서 strategy_frames 테이블 생성 후 "NOTIFY pgrst, 'reload schema';" 를 실행하세요.\n` +
-                    `(원인: ${error.message})`
-                    : `저장 실패: ${error.message}`
-            );
-            // Optimistic Update 롤백
+                setDbError(
+                    isSchemaErr
+                        ? `저장 실패 (스키마 캐시 문제)\n` +
+                        `Supabase SQL Editor에서 다음을 실행하세요:\n` +
+                        `1) CREATE TABLE IF NOT EXISTS public.strategy_frames (id BIGSERIAL PRIMARY KEY, label TEXT NOT NULL DEFAULT '', placement JSONB NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());\n` +
+                        `2) NOTIFY pgrst, 'reload schema';\n` +
+                        `(원인: ${error.message})`
+                        : `저장 실패: ${error.message}`
+                );
+                // Optimistic Update 롤백
+                setPatterns((prev) => prev.filter((p) => p.id !== newPattern.id));
+            } else {
+                console.log("[StrategyMap] DB 저장 완료 ✅");
+            }
+        } catch (unexpectedErr) {
+            // 네트워크 오류 등 예외 처리
+            const msg = unexpectedErr instanceof Error ? unexpectedErr.message : String(unexpectedErr);
+            console.error("[StrategyMap] 예상치 못한 저장 오류:", msg);
+            setDbError(`저장 중 오류 발생: ${msg}`);
             setPatterns((prev) => prev.filter((p) => p.id !== newPattern.id));
-        } else {
-            console.log("[StrategyMap] DB 저장 완료 ✅");
+        } finally {
+            setIsSaving(false);
         }
-
-        setIsSaving(false);
     }, [patterns.length, description, placement]);
 
     /* ──────────────────────────────────
