@@ -54,16 +54,11 @@ function formatDate(iso: string) {
    퀵 링크 데이터
    ═══════════════════════════════════════════════ */
 
+/**
+ * 공지사항은 플로팅 버튼(FloatingWriteButtons) + 메인 공지 목록으로 대체.
+ * 퀵링크에서 제거하여 중복을 없앴습니다.
+ */
 const QUICK_LINKS = [
-  {
-    href: "/notice",
-    icon: "📢",
-    label: "공지사항 확인",
-    description: "연맹 최신 소식",
-    gradient: "from-sky-500 to-cyan-500",
-    glow: "rgba(14,165,233,0.35)",
-    border: "rgba(14,165,233,0.3)",
-  },
   {
     href: "/strategy/holy-sword",
     icon: "⚔️",
@@ -81,6 +76,15 @@ const QUICK_LINKS = [
     gradient: "from-emerald-500 to-teal-500",
     glow: "rgba(16,185,129,0.35)",
     border: "rgba(16,185,129,0.3)",
+  },
+  {
+    href: "/diplomacy",
+    icon: "🤝",
+    label: "외교 현황",
+    description: "동맹 · 적대 연맹 정보",
+    gradient: "from-amber-500 to-orange-500",
+    glow: "rgba(245,158,11,0.35)",
+    border: "rgba(245,158,11,0.3)",
   },
 ];
 
@@ -130,10 +134,10 @@ export default async function HomePage() {
       {/* ════════════════════════════════════════
           콘텐츠 영역
           ════════════════════════════════════════ */}
-      <section className="relative z-10 mx-auto max-w-2xl px-4 pt-10 pb-16 sm:px-6">
+      <section className="relative z-10 mx-auto max-w-2xl px-4 pt-10 pb-24 sm:px-6">
 
         {/* ── [1] 환영 타이틀 ── */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           {/* 배지 */}
           <div
             className="mb-4 inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-[11px] font-semibold tracking-widest uppercase"
@@ -187,9 +191,49 @@ export default async function HomePage() {
           </p>
         </div>
 
-        {/* ── [2] 최근 공지사항 TOP 5 ── */}
+        {/* ── [2] 메인 캐릭터 이미지 (타이틀 바로 아래) ── */}
+        <div className="flex justify-center mb-7">
+          <div className="relative">
+            {/* 이미지 뒤 글로우 */}
+            <div
+              aria-hidden
+              className="absolute inset-0 rounded-full blur-2xl"
+              style={{
+                background: "radial-gradient(circle, rgba(6,182,212,0.2), rgba(139,92,246,0.12), transparent 70%)",
+                transform: "scale(1.3)",
+              }}
+            />
+            {/* 장식 링 */}
+            <div
+              aria-hidden
+              className="absolute rounded-full border opacity-20 animate-spin-slow"
+              style={{
+                inset: "-10%",
+                borderColor: "rgba(6,182,212,0.5)",
+                borderStyle: "dashed",
+              }}
+            />
+            {/* 이미지 — 모바일은 조금 더 작게(45vw), PC는 기존 유지 */}
+            <Image
+              src="/kingshot_main.jpg"
+              alt="킹샷 메인 캐릭터"
+              width={200}
+              height={200}
+              priority
+              quality={90}
+              className="relative z-10 animate-float drop-shadow-2xl"
+              style={{
+                filter: "drop-shadow(0 0 24px rgba(6,182,212,0.3))",
+                maxWidth: "min(200px, 45vw)",
+                height: "auto",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* ── [3] 최근 공지사항 TOP 5 (이미지 바로 아래) ── */}
         <div
-          className="mb-8 rounded-2xl border overflow-hidden"
+          className="mb-7 rounded-2xl border overflow-hidden"
           style={{
             background: "rgba(15,23,42,0.75)",
             borderColor: "rgba(51,65,85,0.55)",
@@ -218,8 +262,8 @@ export default async function HomePage() {
 
           {/* 공지사항 목록 */}
           {notices.length === 0 ? (
-            <div className="px-5 py-8 text-center text-slate-600 text-sm">
-              아직 등록된 공지사항이 없습니다.
+            <div className="px-5 py-6 text-center text-slate-600 text-sm">
+              아직 등록된 공지사항이 없습니다. 우측 하단 <strong className="text-amber-500">공지</strong> 버튼으로 첫 공지를 작성해 보세요!
             </div>
           ) : (
             <ul className="divide-y" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
@@ -227,26 +271,24 @@ export default async function HomePage() {
                 <li key={notice.id}>
                   <Link
                     href="/notice"
-                    className="flex items-center gap-3 px-5 py-3.5 transition-colors duration-150 hover:bg-slate-700/30 group"
+                    className="flex items-center gap-3 px-5 py-3 transition-colors duration-150 hover:bg-slate-700/30 group"
                   >
-                    {/* 순번 */}
+                    {/* 순번 배지 */}
                     <span
                       className="flex-shrink-0 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
                       style={{
                         background: i === 0
-                          ? "linear-gradient(135deg, #06b6d4, #3b82f6)"
+                          ? "linear-gradient(135deg, #f59e0b, #fbbf24)"  /* 1위는 골드 */
                           : "rgba(51,65,85,0.6)",
                         color: i === 0 ? "#fff" : "#64748b",
                       }}
                     >
                       {i + 1}
                     </span>
-
                     {/* 제목 */}
                     <span className="flex-1 text-sm text-slate-300 group-hover:text-white transition-colors truncate">
                       {notice.title}
                     </span>
-
                     {/* 날짜 */}
                     <span className="flex-shrink-0 text-[11px] text-slate-600 whitespace-nowrap">
                       {formatDate(notice.created_at)}
@@ -258,48 +300,8 @@ export default async function HomePage() {
           )}
         </div>
 
-        {/* ── [3] 축소된 메인 캐릭터 이미지 ── */}
-        <div className="flex justify-center mb-8">
-          <div className="relative">
-            {/* 이미지 뒤 글로우 */}
-            <div
-              aria-hidden
-              className="absolute inset-0 rounded-full blur-2xl"
-              style={{
-                background: "radial-gradient(circle, rgba(6,182,212,0.2), rgba(139,92,246,0.12), transparent 70%)",
-                transform: "scale(1.3)",
-              }}
-            />
-            {/* 장식 링 */}
-            <div
-              aria-hidden
-              className="absolute rounded-full border opacity-20 animate-spin-slow"
-              style={{
-                inset: "-10%",
-                borderColor: "rgba(6,182,212,0.5)",
-                borderStyle: "dashed",
-              }}
-            />
-            {/* 이미지 */}
-            <Image
-              src="/kingshot_main.jpg"
-              alt="킹샷 메인 캐릭터"
-              width={220}
-              height={220}
-              priority
-              quality={90}
-              className="relative z-10 animate-float drop-shadow-2xl"
-              style={{
-                filter: "drop-shadow(0 0 24px rgba(6,182,212,0.3))",
-                maxWidth: "min(220px, 55vw)",
-                height: "auto",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* ── [4] 빠른 이동 버튼 3개 ── */}
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3">
+        {/* ── [4] 빠른 이동 버튼 (공지 제외, 2→3개로 유지) ── */}
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3 mb-7">
           {QUICK_LINKS.map((link) => (
             <Link
               key={link.href}
@@ -342,7 +344,7 @@ export default async function HomePage() {
 
         {/* ── [5] 하단 기능 소개 카드 ── */}
         <div
-          className="mt-8 w-full rounded-2xl border"
+          className="w-full rounded-2xl border"
           style={{
             background: "rgba(15,23,42,0.6)",
             borderColor: "rgba(51,65,85,0.45)",
