@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 
@@ -33,7 +34,6 @@ function formatDate(iso: string) {
    게임 일정 샘플 데이터
    ═══════════════════════════════════════════════ */
 
-/* 0=일,1=월,2=화,3=수,4=목,5=금,6=토 */
 interface ScheduleEvent {
     id: string;
     icon: string;
@@ -44,7 +44,7 @@ interface ScheduleEvent {
     gradient: string;
     border: string;
     glow: string;
-    days: number[]; // 진행 요일 배열
+    days: number[];
 }
 
 const SCHEDULE_EVENTS: ScheduleEvent[] = [
@@ -58,7 +58,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-violet-600 to-purple-700",
         border: "rgba(139,92,246,0.45)",
         glow: "rgba(139,92,246,0.3)",
-        days: [0, 1, 2, 3, 4, 5, 6], // 매일
+        days: [0, 1, 2, 3, 4, 5, 6],
     },
     {
         id: "three-alliances",
@@ -70,7 +70,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-sky-500 to-blue-600",
         border: "rgba(14,165,233,0.45)",
         glow: "rgba(14,165,233,0.3)",
-        days: [6, 0], // 토·일
+        days: [6, 0],
     },
     {
         id: "top-kingdom",
@@ -82,7 +82,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-amber-500 to-yellow-600",
         border: "rgba(245,158,11,0.45)",
         glow: "rgba(245,158,11,0.3)",
-        days: [5, 6, 0], // 금·토·일
+        days: [5, 6, 0],
     },
     {
         id: "divine-beast",
@@ -94,7 +94,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-emerald-500 to-teal-600",
         border: "rgba(16,185,129,0.45)",
         glow: "rgba(16,185,129,0.3)",
-        days: [0, 1, 2, 3, 4, 5, 6], // 매일
+        days: [0, 1, 2, 3, 4, 5, 6],
     },
     {
         id: "supply-drop",
@@ -106,7 +106,7 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-rose-500 to-pink-600",
         border: "rgba(244,63,94,0.45)",
         glow: "rgba(244,63,94,0.3)",
-        days: [2, 4], // 화·목
+        days: [2, 4],
     },
     {
         id: "world-boss",
@@ -118,11 +118,10 @@ const SCHEDULE_EVENTS: ScheduleEvent[] = [
         gradient: "from-slate-500 to-gray-600",
         border: "rgba(100,116,139,0.45)",
         glow: "rgba(100,116,139,0.2)",
-        days: [3, 6], // 수·토
+        days: [3, 6],
     },
 ];
 
-/* 오늘 요일(0=일~6=토) 기준 필터링 */
 function getTodayEvents(): ScheduleEvent[] {
     const today = new Date().getDay();
     return SCHEDULE_EVENTS.filter((ev) => ev.days.includes(today));
@@ -135,20 +134,19 @@ const STATUS_BADGE: Record<ScheduleEvent["status"], { label: string; color: stri
 };
 
 /* ═══════════════════════════════════════════════
-   R4 간부 명단 데이터
-   ✏️  수정 포인트: 아래 OFFICERS 배열의 name과 role을 편집하세요
+   R4 간부 명단 데이터 (초기값)
+   ✏️  수정 포인트: 아래 배열의 name·role을 편집하세요
    ═══════════════════════════════════════════════ */
 
 interface Officer {
     id: string;
-    name: string;   // ← 닉네임 수정
-    role: string;   // ← 역할 수정
-    icon: string;   // ← 이모지 수정
+    name: string;
+    role: string;
+    icon: string;
     color: string;
 }
 
-const OFFICERS: Officer[] = [
-    // ✏️ 아래 3개 항목을 실제 간부 정보로 교체하세요
+const DEFAULT_OFFICERS: Officer[] = [
     {
         id: "r4-1",
         name: "닉네임 A",
@@ -171,6 +169,9 @@ const OFFICERS: Officer[] = [
         color: "rgba(16,185,129,0.35)",
     },
 ];
+
+/* 관리자 비밀번호 */
+const ADMIN_PASSWORD = "3741";
 
 /* ═══════════════════════════════════════════════
    섹션 카드 (최근 공지 / 자게)
@@ -261,6 +262,255 @@ function SectionCard({
 }
 
 /* ═══════════════════════════════════════════════
+   간부 명단 섹션 (관리자 수정 모드 포함)
+   ═══════════════════════════════════════════════ */
+
+function OfficersSection() {
+    const [officers, setOfficers] = useState<Officer[]>(DEFAULT_OFFICERS);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [editDraft, setEditDraft] = useState<Officer[]>([]);
+    const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+    /* 수정 버튼 클릭 — 비밀번호 확인 */
+    const handleEditClick = () => {
+        if (isAdmin) {
+            /* 이미 관리자 모드 → 종료 */
+            setIsAdmin(false);
+            setEditDraft([]);
+            return;
+        }
+        const pw = window.prompt("🔒 관리자 비밀번호를 입력하세요:");
+        if (pw === null) return; // 취소
+        if (pw.trim() === ADMIN_PASSWORD) {
+            setIsAdmin(true);
+            setEditDraft(officers.map((o) => ({ ...o })));
+        } else {
+            alert("❌ 비밀번호가 올바르지 않습니다.");
+        }
+    };
+
+    /* 초고 변경 */
+    const handleDraftChange = (id: string, field: "name" | "role", value: string) => {
+        setEditDraft((prev) =>
+            prev.map((o) => (o.id === id ? { ...o, [field]: value } : o))
+        );
+    };
+
+    /* 저장 */
+    const handleSave = () => {
+        setOfficers(editDraft.map((o) => ({ ...o })));
+        setIsAdmin(false);
+        setEditDraft([]);
+        setSaveMsg("✅ 저장되었습니다!");
+        setTimeout(() => setSaveMsg(null), 2500);
+    };
+
+    return (
+        <div
+            className="mb-4 rounded-2xl border overflow-hidden"
+            style={{
+                background: "rgba(15,23,42,0.75)",
+                borderColor: isAdmin ? "rgba(245,158,11,0.5)" : "rgba(51,65,85,0.55)",
+                backdropFilter: "blur(12px)",
+                boxShadow: isAdmin
+                    ? "0 4px 24px rgba(245,158,11,0.15)"
+                    : "0 4px 24px rgba(0,0,0,0.35)",
+                transition: "border-color 0.3s, box-shadow 0.3s",
+            }}
+        >
+            {/* 헤더 */}
+            <div
+                className="flex items-center gap-2 px-5 py-3 border-b"
+                style={{ borderColor: isAdmin ? "rgba(245,158,11,0.35)" : "rgba(51,65,85,0.45)" }}
+            >
+                <span className="text-sm">👑</span>
+                <h2 className="text-sm font-bold text-slate-200">간부 (R4) 명단</h2>
+                <span
+                    className="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}
+                >
+                    {officers.length}명
+                </span>
+
+                {/* 저장 성공 메시지 */}
+                {saveMsg && (
+                    <span className="ml-2 text-[10px] font-semibold text-emerald-400 animate-pulse">
+                        {saveMsg}
+                    </span>
+                )}
+
+                {/* 수정 버튼 (우측) */}
+                <button
+                    type="button"
+                    onClick={handleEditClick}
+                    className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-all duration-200 hover:opacity-80 active:scale-95"
+                    style={{
+                        background: isAdmin ? "rgba(245,158,11,0.2)" : "rgba(51,65,85,0.5)",
+                        border: isAdmin ? "1px solid rgba(245,158,11,0.4)" : "1px solid rgba(71,85,105,0.4)",
+                        color: isAdmin ? "#fbbf24" : "#94a3b8",
+                    }}
+                    title={isAdmin ? "수정 모드 종료" : "관리자 수정 모드"}
+                >
+                    {isAdmin ? (
+                        <>
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                                <path d="M12.7 1.3a1 1 0 0 0-1.4 0L2.5 10.1 1 15l4.9-1.5 8.8-8.8a1 1 0 0 0 0-1.4l-2-2zM4.5 12.5l-2 .6.6-2 7-7 1.4 1.4-7 7z" />
+                            </svg>
+                            수정 중…
+                        </>
+                    ) : (
+                        <>
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                                <path d="M12.7 1.3a1 1 0 0 0-1.4 0L2.5 10.1 1 15l4.9-1.5 8.8-8.8a1 1 0 0 0 0-1.4l-2-2zM4.5 12.5l-2 .6.6-2 7-7 1.4 1.4-7 7z" />
+                            </svg>
+                            수정
+                        </>
+                    )}
+                </button>
+            </div>
+
+            {/* 관리자 모드: 인라인 편집 폼 */}
+            {isAdmin ? (
+                <div className="p-4 space-y-3">
+                    <p className="text-[10px] text-amber-400/80 mb-2">
+                        🔓 관리자 모드 — 닉네임과 역할을 수정하고 저장 버튼을 누르세요.
+                    </p>
+                    {editDraft.map((officer) => (
+                        <div
+                            key={officer.id}
+                            className="flex items-start gap-3 p-3 rounded-xl"
+                            style={{
+                                background: "rgba(30,41,59,0.6)",
+                                border: "1px solid rgba(71,85,105,0.4)",
+                            }}
+                        >
+                            {/* 아이콘 아바타 */}
+                            <div
+                                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg mt-0.5"
+                                style={{
+                                    background: officer.color,
+                                    border: `1px solid ${officer.color.replace("0.35", "0.6")}`,
+                                }}
+                            >
+                                {officer.icon}
+                            </div>
+
+                            {/* 입력 필드 */}
+                            <div className="flex-1 space-y-1.5">
+                                <input
+                                    type="text"
+                                    value={officer.name}
+                                    onChange={(e) => handleDraftChange(officer.id, "name", e.target.value)}
+                                    placeholder="닉네임"
+                                    maxLength={30}
+                                    className="w-full rounded-lg px-3 py-1.5 text-sm font-bold text-white outline-none"
+                                    style={{
+                                        background: "rgba(15,23,42,0.8)",
+                                        border: "1px solid rgba(245,158,11,0.4)",
+                                    }}
+                                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.3)")}
+                                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                                />
+                                <input
+                                    type="text"
+                                    value={officer.role}
+                                    onChange={(e) => handleDraftChange(officer.id, "role", e.target.value)}
+                                    placeholder="역할 설명"
+                                    maxLength={60}
+                                    className="w-full rounded-lg px-3 py-1.5 text-xs text-slate-400 outline-none"
+                                    style={{
+                                        background: "rgba(15,23,42,0.8)",
+                                        border: "1px solid rgba(71,85,105,0.4)",
+                                    }}
+                                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.2)")}
+                                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                                />
+                            </div>
+
+                            <span
+                                className="flex-shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full tracking-widest mt-1"
+                                style={{
+                                    background: "rgba(245,158,11,0.15)",
+                                    border: "1px solid rgba(245,158,11,0.3)",
+                                    color: "#fbbf24",
+                                }}
+                            >
+                                R4
+                            </span>
+                        </div>
+                    ))}
+
+                    {/* 저장 / 취소 버튼 */}
+                    <div className="flex gap-2 pt-1">
+                        <button
+                            type="button"
+                            onClick={handleSave}
+                            className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
+                            style={{
+                                background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
+                                color: "#1a1a1a",
+                                boxShadow: "0 4px 14px rgba(245,158,11,0.3)",
+                            }}
+                        >
+                            💾 저장하기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setIsAdmin(false); setEditDraft([]); }}
+                            className="px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:text-white"
+                            style={{
+                                background: "rgba(30,41,59,0.6)",
+                                border: "1px solid rgba(71,85,105,0.4)",
+                                color: "#94a3b8",
+                            }}
+                        >
+                            취소
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                /* 일반 모드: 간부 리스트 */
+                <ul className="divide-y" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
+                    {officers.map((officer) => (
+                        <li key={officer.id}>
+                            <div className="flex items-center gap-3 px-4 py-3">
+                                <div
+                                    className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg"
+                                    style={{
+                                        background: officer.color,
+                                        border: `1px solid ${officer.color.replace("0.35", "0.6")}`,
+                                    }}
+                                >
+                                    {officer.icon}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-200 leading-tight">
+                                        {officer.name}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 leading-snug mt-0.5 truncate">
+                                        {officer.role}
+                                    </p>
+                                </div>
+                                <span
+                                    className="flex-shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full tracking-widest"
+                                    style={{
+                                        background: "rgba(245,158,11,0.15)",
+                                        border: "1px solid rgba(245,158,11,0.3)",
+                                        color: "#fbbf24",
+                                    }}
+                                >
+                                    R4
+                                </span>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+/* ═══════════════════════════════════════════════
    메인 클라이언트 컴포넌트
    ═══════════════════════════════════════════════ */
 
@@ -278,8 +528,6 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             border: "rgba(139,92,246,0.3)",
         },
     ];
-
-
 
     return (
         <section className="relative z-10 mx-auto max-w-2xl px-4 pt-8 pb-24 sm:px-6">
@@ -334,7 +582,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             </div>
 
             {/* ══════════════════════════════════════════
-                [2] 오늘의 게임 일정 섹션 — 가로 스크롤 카드
+                [2] 오늘의 게임 일정
                 ══════════════════════════════════════════ */}
             <div
                 className="mb-4 rounded-2xl border overflow-hidden"
@@ -371,7 +619,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                     </Link>
                 </div>
 
-                {/* 가로 스크롤 카드 영역 — 오늘 요일 필터링 */}
+                {/* 가로 스크롤 카드 */}
                 <div
                     className="flex gap-2 px-3 py-3 overflow-x-auto"
                     style={{ scrollbarWidth: "none" }}
@@ -390,15 +638,12 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                                     boxShadow: `0 2px 10px ${ev.glow}`,
                                 }}
                             >
-                                {/* 카드 상단 그라데이션 — 슬림화 */}
                                 <div
                                     className={`flex items-center justify-center h-10 bg-gradient-to-br ${ev.gradient}`}
                                     style={{ opacity: ev.status === "ended" ? 0.5 : 1 }}
                                 >
                                     <span className="text-xl filter drop-shadow-md">{ev.icon}</span>
                                 </div>
-
-                                {/* 카드 내용 — 타이트 패딩 */}
                                 <div className="px-2.5 py-2 space-y-1">
                                     <div
                                         className="inline-flex items-center text-[8px] font-bold px-1.5 py-0.5 rounded-md"
@@ -415,77 +660,6 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                         );
                     })}
                 </div>
-            </div>
-
-            {/* ══════════════════════════════════════════
-                [2-B] 👑 간부 (R4) 명단
-                ✏️  OFFICERS 배열에서 닉네임·역할·아이콘을 수정하세요
-                ══════════════════════════════════════════ */}
-            <div
-                className="mb-4 rounded-2xl border overflow-hidden"
-                style={{
-                    background: "rgba(15,23,42,0.75)",
-                    borderColor: "rgba(51,65,85,0.55)",
-                    backdropFilter: "blur(12px)",
-                    boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
-                }}
-            >
-                {/* 헤더 */}
-                <div
-                    className="flex items-center gap-2 px-5 py-3 border-b"
-                    style={{ borderColor: "rgba(51,65,85,0.45)" }}
-                >
-                    <span className="text-sm">👑</span>
-                    <h2 className="text-sm font-bold text-slate-200">간부 (R4) 명단</h2>
-                    <span
-                        className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(245,158,11,0.15)", color: "#fbbf24" }}
-                    >
-                        {OFFICERS.length}명
-                    </span>
-                </div>
-
-                {/* 간부 리스트 */}
-                <ul className="divide-y" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
-                    {OFFICERS.map((officer) => (
-                        <li key={officer.id}>
-                            <div className="flex items-center gap-3 px-4 py-3">
-                                {/* 아이콘 아바타 */}
-                                <div
-                                    className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg"
-                                    style={{
-                                        background: officer.color,
-                                        border: `1px solid ${officer.color.replace("0.35", "0.6")}`,
-                                    }}
-                                >
-                                    {officer.icon}
-                                </div>
-
-                                {/* 닉네임 + 역할 */}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-200 leading-tight">
-                                        {officer.name}
-                                    </p>
-                                    <p className="text-[11px] text-slate-500 leading-snug mt-0.5 truncate">
-                                        {officer.role}
-                                    </p>
-                                </div>
-
-                                {/* R4 뱃지 */}
-                                <span
-                                    className="flex-shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full tracking-widest"
-                                    style={{
-                                        background: "rgba(245,158,11,0.15)",
-                                        border: "1px solid rgba(245,158,11,0.3)",
-                                        color: "#fbbf24",
-                                    }}
-                                >
-                                    R4
-                                </span>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
             </div>
 
             {/* ── [3] 최근 공지사항 ── */}
@@ -512,12 +686,12 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 itemHref={(id) => `/free-board/${id}`}
             />
 
-            {/* ── [5] 퀴 링크 (성검 전투 공략서) ── */}
+            {/* ── [5] 성검 전투 공략 퀵 링크 ── */}
             {QUICK_LINKS.map((link) => (
                 <Link
                     key={link.href}
                     href={link.href}
-                    className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-5 py-4 transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5"
+                    className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-5 py-4 mb-4 transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5"
                     style={{
                         background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.75))",
                         border: `1px solid ${link.border}`,
@@ -546,6 +720,11 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 </Link>
             ))}
 
+            {/* ══════════════════════════════════════════
+                [6] 👑 간부 (R4) 명단 — 최하단 배치
+                관리자 비밀번호: 3741
+                ══════════════════════════════════════════ */}
+            <OfficersSection />
 
         </section>
     );
