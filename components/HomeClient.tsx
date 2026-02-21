@@ -398,7 +398,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             />
 
             {/* ── [5] 퀵 링크 (성검 + 자유게시판) ── */}
-            <div className="flex gap-3 mb-6">
+            <div className="flex gap-3">
                 {QUICK_LINKS.map((link) => (
                     <Link
                         key={link.href}
@@ -430,22 +430,6 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                             </svg>
                         </div>
                     </Link>
-                ))}
-            </div>
-
-            {/* ── [6] 푸터 기능 스트립 (초경량) ── */}
-            <div className="flex items-center justify-center gap-6 py-3">
-                {[
-                    { icon: "🗺️", label: t.features.strategy },
-                    { icon: "📡", label: t.features.realtime },
-                    { icon: "🌐", label: t.features.multilang },
-                ].map((item) => (
-                    <div key={item.label} className="flex items-center gap-1.5 select-none">
-                        <span className="text-base leading-none">{item.icon}</span>
-                        <span className="text-[10px] text-slate-600 font-medium whitespace-nowrap">
-                            {item.label}
-                        </span>
-                    </div>
                 ))}
             </div>
 
