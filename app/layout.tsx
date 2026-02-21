@@ -4,6 +4,7 @@ import "./globals.css";
 import NavBar from "@/components/NavBar";
 import FloatingWriteButtons from "@/components/FloatingWriteButtons";
 import MusicPlayer from "@/components/MusicPlayer";
+import { LocaleProvider } from "@/lib/i18n/LocaleContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kingshot Alliance",
+  title: "[ KDH ] 킹샷 연맹 | 공식 사이트",
   description: "킹샷 연맹 공식 공략 & 커뮤니티 사이트",
 };
 
@@ -30,19 +31,22 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-white`}
       >
-        {/* 전체 페이지 최상단 고정 네비게이션 바 */}
-        <NavBar />
+        {/* 다국어(i18n) Context — 모든 하위 컴포넌트에 언어 상태 공유 */}
+        <LocaleProvider>
+          {/* 전체 페이지 최상단 고정 네비게이션 바 */}
+          <NavBar />
 
-        {/* BGM 플레이어 — NavBar 바로 아래 우측 고정, 모든 페이지 공통 */}
-        <MusicPlayer />
+          {/* BGM 플레이어 — NavBar 바로 아래 우측 고정, 모든 페이지 공통 */}
+          <MusicPlayer />
 
-        {/* 네비게이션 바 높이(64px)만큼 상단 여백 확보 */}
-        <main className="pt-16">
-          {children}
-        </main>
+          {/* 네비게이션 바 높이(64px)만큼 상단 여백 확보 */}
+          <main className="pt-16">
+            {children}
+          </main>
 
-        {/* 모든 페이지 공통 — 우측 하단 고정형 글쓰기 플로팅 버튼 */}
-        <FloatingWriteButtons />
+          {/* 모든 페이지 공통 — 우측 하단 고정형 글쓰기 플로팅 버튼 */}
+          <FloatingWriteButtons />
+        </LocaleProvider>
       </body>
     </html>
   );
