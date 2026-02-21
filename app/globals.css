@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --background: #020617;
+  --foreground: #f1f5f9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ──────────────────────────────────────
+   히어로 페이지 애니메이션
+   ────────────────────────────────────── */
+
+/* 캐릭터 이미지 둥실둥실 부유 */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-18px); }
+}
+
+/* 장식 링 회전 */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes spin-slow-reverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* 배경 글로우 오브 팽창/수축 */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50%       { opacity: 0.32; transform: scale(1.06); }
+}
+
+.animate-float         { animation: float 6s ease-in-out infinite; }
+.animate-spin-slow     { animation: spin-slow 30s linear infinite; }
+.animate-spin-slow-rev { animation: spin-slow-reverse 45s linear infinite; }
+.animate-glow-pulse    { animation: glow-pulse 8s ease-in-out infinite; }
+.animate-glow-pulse-2  { animation: glow-pulse 10s ease-in-out 2s infinite; }
