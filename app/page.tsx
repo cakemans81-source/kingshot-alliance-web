@@ -55,7 +55,7 @@ async function fetchRecentFreePosts(): Promise<FreePost[]> {
     .from("free_board")
     .select("id, title, created_at")
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(4);
   if (error) {
     console.error("[HomePage] free_board fetch 실패:", error.message);
     return [];
