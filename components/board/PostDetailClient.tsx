@@ -496,7 +496,8 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                 )}
 
                 {/* ── 댓글 섹션 ── */}
-                <CommentSection boardId={tableName} postId={post.id} />
+                {/* postId를 URL 파라미터에서 직접 변환해 넓김으로써 bigint 타입과의 미스매치 방지 */}
+                <CommentSection boardId={tableName} postId={Number(postId)} />
 
             </div>
         </div>

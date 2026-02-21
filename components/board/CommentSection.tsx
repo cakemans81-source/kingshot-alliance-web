@@ -251,7 +251,14 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
         /* ⚠️ post_id를 반드시 Number()로 정수 변환 — Supabase BIGINT 타입 일치 */
         const numericPostId = Number(postId);
 
-        /* 1차 시도: author_icon 포함 */
+        /* 🚫 NaN/0 가드: postId가 유효하지 않으면 즉시 차단 */
+        if (!numericPostId || isNaN(numericPostId)) {
+            setFormError("게시글 ID를 읽을 수 없습니다. 페이지를 새로고침 해주세요.");
+            setSubmitting(false);
+            console.error("[CommentSection] postId 변환 실패:", postId, "→", numericPostId);
+            return;
+        }
+
         const fullPayload = {
             board_id: boardId,
             post_id: numericPostId,
