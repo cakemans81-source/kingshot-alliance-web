@@ -250,7 +250,9 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
 
         /* ⚠️ post_id를 반드시 Number()로 정수 변환 — Supabase BIGINT 타입 일치 */
         const numericPostId = Number(postId);
-        const payload = {
+
+        /* 1차 시도: author_icon 포함 */
+        const fullPayload = {
             board_id: boardId,
             post_id: numericPostId,
             author: author.trim(),
@@ -258,22 +260,43 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
             content: content.trim(),
         };
 
-        console.log("[CommentSection] insert payload:", payload);
+        console.log("[CommentSection] insert payload:", fullPayload);
 
         /* 낙관적 업데이트 */
-        const temp: Comment = { id: Date.now(), ...payload, created_at: new Date().toISOString() };
+        const temp: Comment = {
+            id: Date.now(),
+            ...fullPayload,
+            created_at: new Date().toISOString(),
+        };
         setComments((prev) => [temp, ...prev]);
 
-        const { data, error: err } = await supabase
-            .from("comments")
-            .insert(payload)
-            .select()
-            .single();
+        let data: Comment | null = null;
+        let err: { message?: string; details?: string; hint?: string; code?: string } | null = null;
+
+        /* 1차: 전체 페이로드 */
+        const res1 = await supabase.from("comments").insert(fullPayload).select().single();
+        if (res1.error) {
+            console.warn("[CommentSection] 1차 insert 실패 (에러:", res1.error.message, ")— author_icon 없이 재시도");
+            /* 2차 시도: author_icon 제외 */
+            const minPayload = {
+                board_id: boardId,
+                post_id: numericPostId,
+                author: author.trim(),
+                content: content.trim(),
+            };
+            const res2 = await supabase.from("comments").insert(minPayload).select().single();
+            if (res2.error) {
+                err = res2.error;
+            } else {
+                data = res2.data as Comment;
+            }
+        } else {
+            data = res1.data as Comment;
+        }
 
         if (err || !data) {
             setComments((prev) => prev.filter((cm) => cm.id !== temp.id));
             setFormError(c.submitError);
-            /* ✨ 상세 에러 디버깅 로그 */
             console.error("[CommentSection] 등록 실패 — Supabase error:", {
                 message: err?.message,
                 details: err?.details,
