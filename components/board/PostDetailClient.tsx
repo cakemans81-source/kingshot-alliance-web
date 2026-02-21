@@ -39,16 +39,32 @@ function writeCache(key: string, value: string) {
    번역 API
    ═══════════════════════════════════════ */
 
-async function translateText(text: string, targetLang: LocaleCode): Promise<string> {
+async function translateText(
+    text: string,
+    targetLang: LocaleCode,
+    sourceLang = "auto",
+): Promise<string> {
     if (!text.trim()) return text;
     const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLang }),
+        body: JSON.stringify({ text, targetLang, sourceLang }),
     });
     if (!res.ok) throw new Error(`translate API ${res.status}`);
     const data = await res.json();
     return data.translatedText as string;
+}
+
+/* 언어 자동 감지: 한글/영문/한자 비율으로 원문 언어 폀지 */
+function guessLang(text: string): string {
+    const koChars = (text.match(/[\uAC00-\uD7A3]/g) || []).length;
+    const enChars = (text.match(/[a-zA-Z]/g) || []).length;
+    const zhChars = (text.match(/[\u4E00-\u9FFF]/g) || []).length;
+    const total = text.length || 1;
+    if (koChars / total > 0.15) return "ko";
+    if (zhChars / total > 0.1) return "zh";
+    if (enChars / total > 0.3) return "en";
+    return "auto";
 }
 
 /* HTML 태그 제거 후 순수 텍스트 추출 (HTML content 번역 전트리용) */
@@ -126,9 +142,17 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
             });
     }, [postId, tableName, listHref, router]);
 
-    /* 자동 번역 — post 로드 후 locale이 ko가 아니면 즉시 실행 */
+    /* 양방향 자동 번역 — post 로드 후 실행
+     * 원문 언어를 폀지하여 locale과 다르면 번역
+     * ko 사용자도 영문/중문 글은 한국어로 번역됨 */
     useEffect(() => {
-        if (!post || locale === "ko") {
+        if (!post) { setShowTranslated(false); return; }
+
+        const rawText = post.title + " " + (isHtmlContent(post.content) ? stripHtml(post.content) : post.content).slice(0, 200);
+        const guessedLang = guessLang(rawText);
+
+        /* 원문 언어 === locale 이면 번역 불필요 */
+        if (guessedLang === locale || (guessedLang === "auto" && locale === "ko")) {
             setShowTranslated(false);
             return;
         }
@@ -150,11 +174,11 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
         setTranslateError(null);
 
         Promise.all([
-            translateText(post.title, locale),
-            // HTML content는 태그 제거 후 텍스트만 번역
+            translateText(post.title, locale, guessedLang),
             translateText(
                 isHtmlContent(post.content) ? stripHtml(post.content) : post.content,
-                locale
+                locale,
+                guessedLang,
             ),
         ])
             .then(([tTitle, tContent]) => {
