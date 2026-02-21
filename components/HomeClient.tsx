@@ -277,15 +277,6 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             glow: "rgba(139,92,246,0.35)",
             border: "rgba(139,92,246,0.3)",
         },
-        {
-            href: "/free-board",
-            icon: "💬",
-            label: t.quickLinks.freeBoard,
-            description: t.quickLinks.freeBoardDesc,
-            gradient: "from-emerald-500 to-teal-500",
-            glow: "rgba(16,185,129,0.35)",
-            border: "rgba(16,185,129,0.3)",
-        },
     ];
 
 
@@ -521,41 +512,40 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 itemHref={(id) => `/free-board/${id}`}
             />
 
-            {/* ── [5] 퀵 링크 (성검 + 자유게시판) ── */}
-            <div className="flex gap-3">
-                {QUICK_LINKS.map((link) => (
-                    <Link
-                        key={link.href}
-                        href={link.href}
-                        className="group relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 flex-1"
-                        style={{
-                            background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.75))",
-                            border: `1px solid ${link.border}`,
-                            boxShadow: `0 4px 20px ${link.glow}`,
-                        }}
+            {/* ── [5] 퀴 링크 (성검 전투 공략서) ── */}
+            {QUICK_LINKS.map((link) => (
+                <Link
+                    key={link.href}
+                    href={link.href}
+                    className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-5 py-4 transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5"
+                    style={{
+                        background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.75))",
+                        border: `1px solid ${link.border}`,
+                        boxShadow: `0 4px 20px ${link.glow}`,
+                    }}
+                >
+                    <div
+                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        style={{ background: `linear-gradient(135deg, ${link.glow.replace("0.35", "0.10")}, transparent)` }}
+                    />
+                    <span
+                        className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl bg-gradient-to-br ${link.gradient} transition-transform duration-300 group-hover:scale-110`}
+                        style={{ boxShadow: `0 3px 10px ${link.glow}` }}
                     >
-                        <div
-                            className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                            style={{ background: `linear-gradient(135deg, ${link.glow.replace("0.35", "0.10")}, transparent)` }}
-                        />
-                        <span
-                            className={`relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-lg bg-gradient-to-br ${link.gradient} transition-transform duration-300 group-hover:scale-110`}
-                            style={{ boxShadow: `0 3px 10px ${link.glow}` }}
-                        >
-                            {link.icon}
-                        </span>
-                        <div className="relative flex flex-col text-left min-w-0">
-                            <span className="text-sm font-bold text-white truncate">{link.label}</span>
-                            <span className="text-xs text-slate-400 truncate">{link.description}</span>
-                        </div>
-                        <div className="relative ml-auto text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:text-white flex-shrink-0">
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </div>
-                    </Link>
-                ))}
-            </div>
+                        {link.icon}
+                    </span>
+                    <div className="relative flex flex-col text-left min-w-0 flex-1">
+                        <span className="text-sm font-bold text-white">{link.label}</span>
+                        <span className="text-xs text-slate-400">{link.description}</span>
+                    </div>
+                    <div className="relative ml-auto text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:text-white flex-shrink-0">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+                </Link>
+            ))}
+
 
         </section>
     );
