@@ -4,9 +4,9 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
 export const metadata: Metadata = {
-  title: "Kingshot Alliance | 킹샷 연맹 공식 사이트",
+  title: "[ KDH ] 킹샷 연맹 | 공식 사이트",
   description:
-    "킹샷 연맹 공식 웹사이트. 공지사항, 전투 공략, 자유 게시판, 연맹원 명부를 한곳에서.",
+    "[ KDH ] 킹샷 연맹 공식 웹사이트. 공지사항, 전투 공략, 자유 게시판, 연맹원 명부를 한곳에서.",
 };
 
 /* ═══════════════════════════════════════════════
@@ -149,6 +149,17 @@ export default async function HomePage() {
 
           {/* 타이틀 */}
           <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight">
+            {/* [ KDH ] 브랜드 태그 — 골드 강조 */}
+            <span
+              className="block bg-clip-text text-transparent mb-0.5"
+              style={{
+                backgroundImage: "linear-gradient(135deg, #f59e0b 0%, #fbbf24 40%, #fcd34d 70%, #f59e0b 100%)",
+                filter: "drop-shadow(0 0 12px rgba(251,191,36,0.5))",
+                letterSpacing: "0.04em",
+              }}
+            >
+              [ KDH ]
+            </span>
             <span
               className="block bg-clip-text text-transparent"
               style={{

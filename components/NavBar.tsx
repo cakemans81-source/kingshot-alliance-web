@@ -272,8 +272,23 @@ export default function NavBar() {
                     >
                         ⚔
                     </div>
-                    <span className="font-extrabold text-base tracking-tight bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent hidden sm:block">
-                        Kingshot Alliance
+                    <span className="hidden sm:flex items-center gap-1.5 font-extrabold text-base tracking-tight">
+                        {/* [ KDH ] — 골드 포인트 */}
+                        <span
+                            style={{
+                                background: "linear-gradient(135deg, #f59e0b, #fcd34d, #f59e0b)",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                filter: "drop-shadow(0 0 6px rgba(251,191,36,0.5))",
+                                letterSpacing: "0.05em",
+                            }}
+                        >
+                            [ KDH ]
+                        </span>
+                        {/* 킹샷 연맹 — 사이안-블루 */}
+                        <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                            킹샷 연맹
+                        </span>
                     </span>
                 </Link>
 
