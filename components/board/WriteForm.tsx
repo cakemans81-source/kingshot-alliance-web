@@ -2,22 +2,9 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
-
-/* QuillEditor — SSR 비활성화 (document 접근 때문) */
-const QuillEditor = dynamic(() => import("./QuillEditor"), {
-    ssr: false,
-    loading: () => (
-        <div
-            className="w-full h-48 rounded-xl flex items-center justify-center"
-            style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(51,65,85,0.55)" }}
-        >
-            <span className="text-slate-500 text-sm animate-pulse">에디터 로딩 중...</span>
-        </div>
-    ),
-});
+import QuillEditor from "./QuillEditor";
 
 /* ═══════════════════════════════════════
    이미지 업로드 — Supabase Storage: board-images
