@@ -18,6 +18,7 @@ interface Post {
     content: string;
     image_url: string | null;
     created_at: string;
+    author: string | null;
 }
 
 /* ═══════════════════════════════════════
@@ -291,9 +292,23 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                         ) : displayTitle}
                     </h1>
 
-                    <p className="text-[11px] text-slate-600">
-                        🕐 {formatDate(post.created_at)}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[11px] text-slate-600">
+                            🕐 {formatDate(post.created_at)}
+                        </p>
+                        {post.author && (
+                            <span
+                                className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                                style={{
+                                    background: "rgba(6,182,212,0.1)",
+                                    border: "1px solid rgba(6,182,212,0.25)",
+                                    color: "#67e8f9",
+                                }}
+                            >
+                                👤 {post.author}
+                            </span>
+                        )}
+                    </div>
 
                     <hr style={{ borderColor: "rgba(51,65,85,0.45)" }} />
 

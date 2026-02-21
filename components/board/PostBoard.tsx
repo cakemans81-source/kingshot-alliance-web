@@ -17,6 +17,7 @@ export interface Post {
     content: string;
     image_url: string | null;
     created_at: string;
+    author: string | null;
 }
 
 export interface PostBoardConfig {
@@ -243,10 +244,24 @@ function PostCard({ post, tableName }: PostCardProps) {
                     <p className="text-[10px] text-red-400/80">{translateError}</p>
                 )}
 
-                <div className="flex items-center justify-between pt-1">
-                    <p className="text-[11px] text-slate-600">
-                        🕐 {formatDate(post.created_at)}
-                    </p>
+                <div className="flex items-center justify-between pt-1 flex-wrap gap-1">
+                    <div className="flex items-center gap-2">
+                        <p className="text-[11px] text-slate-600">
+                            🕐 {formatDate(post.created_at)}
+                        </p>
+                        {post.author && (
+                            <span
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{
+                                    background: "rgba(6,182,212,0.1)",
+                                    border: "1px solid rgba(6,182,212,0.25)",
+                                    color: "#67e8f9",
+                                }}
+                            >
+                                👤 {post.author}
+                            </span>
+                        )}
+                    </div>
                     <Link
                         href={detailHref}
                         className="text-[11px] text-slate-600 hover:text-cyan-400 transition-colors flex items-center gap-0.5"

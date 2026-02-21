@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
@@ -71,11 +71,20 @@ export default function WriteForm({
     const { t } = useLocale();
 
     const [title, setTitle] = useState("");
+    const [author, setAuthor] = useState("");
     const [content, setContent] = useState("");
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<number>(0);
     const [isDragOver, setIsDragOver] = useState(false);
+
+    /* localStorage 닉네임 자동 로드 (CommentSection과 동일 키 공유) */
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("kdh_nickname");
+            if (saved) setAuthor(saved);
+        } catch { /* noop */ }
+    }, []);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -123,6 +132,9 @@ export default function WriteForm({
         setIsSubmitting(true);
         setError(null);
 
+        /* 닉네임 localStorage 저장 */
+        try { localStorage.setItem("kdh_nickname", author.trim()); } catch { /* noop */ }
+
         let imageUrl: string | null = null;
         if (imageFile) {
             setUploadProgress(5);
@@ -139,6 +151,7 @@ export default function WriteForm({
             title: title.trim(),
             content: content.trim(),
             image_url: imageUrl,
+            author: author.trim() || null,
         });
 
         if (insertError) {
@@ -191,6 +204,27 @@ export default function WriteForm({
                         boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
                     }}
                 >
+                    {/* 닉네임 (작성자) */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                            닉네임 <span className="text-slate-600 font-normal">(선택)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={author}
+                            onChange={(e) => setAuthor(e.target.value)}
+                            placeholder="연맹 닉네임을 입력하세요"
+                            maxLength={20}
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all"
+                            style={{
+                                background: "rgba(30,41,59,0.8)",
+                                border: "1px solid rgba(71,85,105,0.5)",
+                            }}
+                            onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
+                            onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                        />
+                    </div>
+
                     {/* 제목 */}
                     <div>
                         <label className="block text-xs font-semibold text-slate-400 mb-1.5">
