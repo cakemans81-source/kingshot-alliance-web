@@ -29,7 +29,7 @@ const STRUCTURES: Structure[] = [
 ];
 
 const INIT_PLAYERS: Player[] = [
-    { id: "p1", name: "만두몬mandu", x: 741, y: 757, memo: "" },
+    { id: "p1", name: "만두몬mandu", x: 736, y: 752, memo: "" },
     { id: "p2", name: "jerry", x: 739, y: 760, memo: "" },
     { id: "p3", name: "Nightmare1870", x: 748, y: 750, memo: "" },
 ];
@@ -43,7 +43,7 @@ const CELL = 22; // px per grid cell
 const STORAGE_KEY = "kdh-players-v2";
 
 function toCol(gx: number) { return gx - MIN_X; }
-function toRow(gy: number) { return MAX_Y - gy; } // Y 반전
+function toRow(gy: number, size: number = 1) { return MAX_Y - (gy + size - 1); } // Y 반전 (입력좌표는 오브젝트의 가장 아래쪽 기준)
 
 /* ═══════════════════════════════════════════
    KdhGrid 컴포넌트
@@ -96,7 +96,7 @@ export default function KdhGrid() {
         if (!el) return;
         const hq = STRUCTURES[0];
         el.scrollLeft = toCol(hq.x) * CELL - 60;
-        el.scrollTop = toRow(hq.y) * CELL - 40;
+        el.scrollTop = toRow(hq.y, hq.size) * CELL - 40;
     }, []);
 
     /* 검색 시 첫 히트로 스크롤 */
@@ -105,7 +105,7 @@ export default function KdhGrid() {
         const p = players.find(pl => pl.id === hitIds[0]);
         if (!p || !gridRef.current) return;
         gridRef.current.scrollLeft = toCol(p.x) * CELL - 60;
-        gridRef.current.scrollTop = toRow(p.y) * CELL - 40;
+        gridRef.current.scrollTop = toRow(p.y, 2) * CELL - 40;
     }, [hitIds, players]);
 
     /* 유저 추가 */
@@ -293,7 +293,7 @@ export default function KdhGrid() {
                             {/* 건물 오버레이 */}
                             {STRUCTURES.map(s => {
                                 const col = toCol(s.x);
-                                const row = toRow(s.y);
+                                const row = toRow(s.y, s.size);
                                 const isHQ = s.type === "hq";
                                 return (
                                     <div
@@ -328,7 +328,7 @@ export default function KdhGrid() {
                             {/* 플레이어 오버레이 */}
                             {filteredPlayers.map(p => {
                                 const col = toCol(p.x);
-                                const row = toRow(p.y);
+                                const row = toRow(p.y, 2);
                                 const isHit = hitIds.includes(p.id);
                                 return (
                                     <div
