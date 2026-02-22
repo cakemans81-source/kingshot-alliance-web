@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KDH 연맹 좌표 그리드</title>
+<style>
+  :root {
+    --bg: #070d1a;
+    --panel: #0d1829;
+    --border: rgba(6,182,212,0.2);
+    --cyan: #06b6d4;
+    --indigo: #6366f1;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --green: #22c55e;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --cell: 26px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  header {
+    background: linear-gradient(135deg, #0d1829 0%, #0a1020 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-badge {
+    background: linear-gradient(135deg, #06b6d4, #6366f1);
+    border-radius: 10px; padding: 6px 12px;
+    font-weight: 900; font-size: 15px; letter-spacing: 1px; color: #fff;
+  }
+  .logo-title { font-size: 18px; font-weight: 700; color: var(--cyan); }
+  .logo-sub { font-size: 11px; color: var(--muted); }
+
+  .search-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  #searchInput {
+    background: rgba(13,24,41,0.9);
+    border: 1px solid rgba(6,182,212,0.35);
+    border-radius: 10px; padding: 8px 14px;
+    color: var(--text); font-size: 14px; outline: none; width: 220px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  #searchInput:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(6,182,212,0.2); }
+  #searchInput::placeholder { color: var(--muted); }
+  .btn {
+    padding: 8px 16px; border-radius: 10px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn-cyan { background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; }
+  .btn-cyan:hover { box-shadow: 0 0 12px rgba(6,182,212,0.5); }
+  .btn-ghost { background: rgba(30,41,59,0.8); color: var(--muted); border: 1px solid rgba(71,85,105,0.4); }
+  .btn-ghost:hover { color: var(--text); border-color: rgba(6,182,212,0.4); }
+  .btn-red { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+  main { display: flex; gap: 0; height: calc(100vh - 65px); }
+
+  /* ── 사이드패널 ── */
+  .sidebar {
+    width: 260px; flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 14px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 4px; }
+
+  .panel-title {
+    font-size: 10px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    border-bottom: 1px solid rgba(51,65,85,0.5); padding-bottom: 6px;
+  }
+
+  /* 구역 필터 */
+  .filter-btns { display: flex; flex-direction: column; gap: 6px; }
+  .filter-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 10px; border: none;
+    cursor: pointer; font-size: 12px; font-weight: 600;
+    transition: all .15s; text-align: left; width: 100%;
+  }
+  .filter-btn .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .filter-btn.active { box-shadow: 0 0 0 1px rgba(6,182,212,0.5); }
+  .filter-btn:hover { filter: brightness(1.2); }
+
+  /* 범례 */
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .legend-color { width: 18px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  /* 플레이어 목록 */
+  #playerList { display: flex; flex-direction: column; gap: 4px; }
+  .player-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px; border-radius: 8px;
+    background: rgba(15,23,42,0.6);
+    border: 1px solid transparent;
+    cursor: pointer; transition: all .15s; font-size: 12px;
+  }
+  .player-item:hover { border-color: rgba(6,182,212,0.3); background: rgba(6,182,212,0.05); }
+  .player-item.highlighted { border-color: var(--cyan); background: rgba(6,182,212,0.12); }
+  .player-name { font-weight: 600; color: var(--text); }
+  .player-coord { color: var(--muted); font-size: 10px; font-family: monospace; }
+  .player-del { color: var(--red); font-size: 14px; opacity: 0; transition: opacity .15s; background: none; border: none; cursor: pointer; }
+  .player-item:hover .player-del { opacity: 1; }
+
+  /* ── 그리드 영역 ── */
+  .grid-area {
+    flex: 1; overflow: auto; position: relative;
+    background: radial-gradient(ellipse at 50% 60%, rgba(6,182,212,0.04) 0%, transparent 70%);
+  }
+  .grid-area::-webkit-scrollbar { width: 6px; height: 6px; }
+  .grid-area::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.2); border-radius: 4px; }
+
+  .grid-wrapper { padding: 20px; display: inline-block; }
+
+  .grid-container {
+    position: relative;
+    display: grid;
+    border: 1px solid rgba(6,182,212,0.15);
+    border-radius: 4px;
+    overflow: visible;
+  }
+
+  .grid-cell {
+    width: var(--cell); height: var(--cell);
+    border-right: 1px solid rgba(51,65,85,0.25);
+    border-bottom: 1px solid rgba(51,65,85,0.25);
+    position: relative; transition: background .1s;
+    font-size: 8px; color: transparent;
+    cursor: crosshair;
+  }
+  .grid-cell:hover { background: rgba(6,182,212,0.08) !important; }
+
+  /* 축 레이블 */
+  .axis-x, .axis-y {
+    position: absolute; font-size: 9px; color: rgba(100,116,139,0.7);
+    font-family: monospace; pointer-events: none;
+  }
+
+  /* 건물/플레이어 오버레이 */
+  .overlay {
+    position: absolute; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; text-align: center;
+    cursor: pointer; transition: all .2s; overflow: hidden;
+    pointer-events: auto;
+  }
+  .overlay:hover { filter: brightness(1.25); transform: scale(1.03); z-index: 20; }
+  .overlay-hq {
+    background: linear-gradient(135deg, rgba(6,182,212,0.35), rgba(99,102,241,0.35));
+    border: 2px solid rgba(6,182,212,0.7);
+    color: #7dd3fc; box-shadow: 0 0 14px rgba(6,182,212,0.3);
+  }
+  .overlay-trap {
+    background: linear-gradient(135deg, rgba(245,158,11,0.3), rgba(239,68,68,0.2));
+    border: 2px solid rgba(245,158,11,0.6);
+    color: #fcd34d;
+  }
+  .overlay-player {
+    background: rgba(30,41,59,0.85);
+    border: 1.5px solid rgba(99,102,241,0.5);
+    color: #a5b4fc; font-size: 8px; line-height: 1.2;
+    padding: 1px;
+  }
+  .overlay-player:hover { border-color: var(--indigo); box-shadow: 0 0 8px rgba(99,102,241,0.4); }
+  .overlay-player.search-hit {
+    border-color: var(--cyan) !important;
+    background: rgba(6,182,212,0.2) !important;
+    box-shadow: 0 0 0 3px rgba(6,182,212,0.35), 0 0 18px rgba(6,182,212,0.5) !important;
+    color: #fff !important; z-index: 30 !important;
+    animation: pulseGlow 1.2s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(6,182,212,0.35), 0 0 18px rgba(6,182,212,0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(6,182,212,0.2), 0 0 30px rgba(6,182,212,0.7); }
+  }
+
+  /* 모달 */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #0d1829; border: 1px solid rgba(6,182,212,0.35);
+    border-radius: 16px; padding: 24px; width: 340px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; color: var(--cyan); margin-bottom: 16px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+  .form-group input {
+    width: 100%; background: rgba(7,13,26,0.8);
+    border: 1px solid rgba(71,85,105,0.5); border-radius: 8px;
+    padding: 9px 12px; color: var(--text); font-size: 14px; outline: none;
+    transition: border-color .2s;
+  }
+  .form-group input:focus { border-color: var(--cyan); }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  .modal-btns { display: flex; gap: 8px; margin-top: 18px; }
+
+  /* 토스트 */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.4);
+    border-radius: 10px; padding: 10px 18px;
+    color: var(--cyan); font-size: 13px; font-weight: 600;
+    opacity: 0; transform: translateY(10px);
+    transition: all .3s; pointer-events: none; z-index: 200;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  /* 정보 툴팁 */
+  #tooltip {
+    position: fixed; padding: 8px 12px;
+    background: rgba(13,24,41,0.96); border: 1px solid rgba(6,182,212,0.3);
+    border-radius: 8px; font-size: 11px; color: var(--text);
+    pointer-events: none; z-index: 50; opacity: 0; transition: opacity .15s;
+    min-width: 120px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  #tooltip.show { opacity: 1; }
+  #tooltip .tt-name { font-weight: 700; color: var(--cyan); font-size: 12px; }
+  #tooltip .tt-coord { color: var(--muted); font-size: 10px; font-family: monospace; }
+
+  /* 검색 결과 없음 */
+  #noResult {
+    display: none; padding: 10px; text-align: center;
+    font-size: 12px; color: #f87171;
+    background: rgba(239,68,68,0.08); border-radius: 8px;
+    border: 1px solid rgba(239,68,68,0.2);
+  }
+
+  /* 통계 배지 */
+  .stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat-badge {
+    flex: 1; min-width: 60px;
+    background: rgba(15,23,42,0.7);
+    border: 1px solid rgba(51,65,85,0.4);
+    border-radius: 8px; padding: 8px 10px; text-align: center;
+  }
+  .stat-num { font-size: 18px; font-weight: 800; color: var(--cyan); }
+  .stat-label { font-size: 9px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-badge">KDH</div>
+    <div>
+      <div class="logo-title">KDHunters 연맹 좌표 그리드</div>
+      <div class="logo-sub">총 <span id="totalCount">0</span>명 등록 · Y축: 위로 갈수록 증가</div>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <input id="searchInput" type="text" placeholder="🔍 아이디 검색 (한/영 부분일치)..." oninput="doSearch()">
+    <button class="btn btn-ghost" onclick="clearSearch()">✕ 초기화</button>
+    <button class="btn btn-cyan" onclick="openModal()">＋ 유저 추가</button>
+  </div>
+</header>
+
+<main>
+  <!-- 사이드바 -->
+  <div class="sidebar">
+    <!-- 통계 -->
+    <div>
+      <div class="panel-title">통계</div>
+      <div class="stat-row" style="margin-top:8px">
+        <div class="stat-badge"><div class="stat-num" id="stat-total">0</div><div class="stat-label">전체</div></div>
+        <div class="stat-badge"><div class="stat-num" id="stat-hq">0</div><div class="stat-label">본부 인근</div></div>
+        <div class="stat-badge"><div class="stat-num" id="stat-trap">0</div><div class="stat-label">함정 인근</div></div>
+      </div>
+    </div>
+
+    <!-- 구역 필터 -->
+    <div>
+      <div class="panel-title">구역 필터</div>
+      <div class="filter-btns" style="margin-top:8px">
+        <button class="filter-btn active" style="background:rgba(6,182,212,0.12);color:#67e8f9;border:1px solid rgba(6,182,212,0.3)" onclick="setFilter('all', this)">
+          <span class="dot" style="background:#06b6d4"></span>전체 보기
+        </button>
+        <button class="filter-btn" style="background:rgba(30,41,59,0.6);color:#94a3b8;border:1px solid rgba(51,65,85,0.3)" onclick="setFilter('hq', this)">
+          <span class="dot" style="background:#3b82f6"></span>본부 인근 (HQ ±5)
+        </button>
+        <button class="filter-btn" style="background:rgba(30,41,59,0.6);color:#94a3b8;border:1px solid rgba(51,65,85,0.3)" onclick="setFilter('trap1', this)">
+          <span class="dot" style="background:#f59e0b"></span>함정 1 인근
+        </button>
+        <button class="filter-btn" style="background:rgba(30,41,59,0.6);color:#94a3b8;border:1px solid rgba(51,65,85,0.3)" onclick="setFilter('trap2', this)">
+          <span class="dot" style="background:#ef4444"></span>함정 2 인근
+        </button>
+      </div>
+    </div>
+
+    <!-- 범례 -->
+    <div>
+      <div class="panel-title">범례</div>
+      <div class="legend" style="margin-top:8px">
+        <div class="legend-item"><div class="legend-color" style="background:rgba(6,182,212,0.5);border:1.5px solid #06b6d4"></div>본부 HQ (4×4)</div>
+        <div class="legend-item"><div class="legend-color" style="background:rgba(245,158,11,0.4);border:1.5px solid #f59e0b"></div>사냥 함정 (4×4)</div>
+        <div class="legend-item"><div class="legend-color" style="background:rgba(30,41,59,0.9);border:1.5px solid #6366f1"></div>유저 (2×2)</div>
+        <div class="legend-item"><div class="legend-color" style="background:rgba(6,182,212,0.2);border:1.5px solid #06b6d4;box-shadow:0 0 6px rgba(6,182,212,0.6)"></div>검색 강조</div>
+      </div>
+    </div>
+
+    <!-- 검색 결과 없음 -->
+    <div id="noResult">😔 해당 아이디를 찾을 수 없습니다.<br>철자나 한/영 전환을 확인하세요.</div>
+
+    <!-- 플레이어 목록 -->
+    <div>
+      <div class="panel-title">유저 목록</div>
+      <div id="playerList" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- 그리드 -->
+  <div class="grid-area" id="gridArea">
+    <div class="grid-wrapper">
+      <div id="gridContainer" class="grid-container"></div>
+    </div>
+  </div>
+</main>
+
+<!-- 유저 추가 모달 -->
+<div class="modal-backdrop" id="addModal">
+  <div class="modal">
+    <h3>➕ 유저 추가</h3>
+    <div class="form-group">
+      <label>게임 아이디 (한/영)</label>
+      <input type="text" id="f-name" placeholder="예: 만두몬mandu">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>X 좌표 (왼쪽 상단)</label>
+        <input type="number" id="f-x" placeholder="예: 740">
+      </div>
+      <div class="form-group">
+        <label>Y 좌표 (왼쪽 상단)</label>
+        <input type="number" id="f-y" placeholder="예: 755">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>메모 (선택)</label>
+      <input type="text" id="f-memo" placeholder="예: R5, 공격대장...">
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-cyan" style="flex:1" onclick="addPlayer()">추가</button>
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 툴팁 -->
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-coord" id="tt-coord"></div>
+  <div id="tt-memo" style="font-size:10px;color:#94a3b8;margin-top:3px"></div>
+</div>
+
+<!-- 토스트 -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+// 데이터베이스
+// ═══════════════════════════════════════
+const STRUCTURES = [
+  { id: 'hq',    label: 'HQ\n본부', x: 737, y: 757, size: 4, type: 'hq' },
+  { id: 'trap1', label: '🪤 함정1',  x: 730, y: 748, size: 4, type: 'trap', trapIdx: 1 },
+  { id: 'trap2', label: '🪤 함정2',  x: 742, y: 752, size: 4, type: 'trap', trapIdx: 2 },
+];
+
+let PLAYERS = JSON.parse(localStorage.getItem('kdh-players') || 'null') || [
+  { id: 'p1',  name: '만두몬mandu',    x: 740, y: 755, memo: '' },
+  { id: 'p2',  name: 'jerry',          x: 739, y: 760, memo: '' },
+  { id: 'p3',  name: 'Nightmare1870',  x: 748, y: 750, memo: '' },
+];
+
+function savePlayers() {
+  localStorage.setItem('kdh-players', JSON.stringify(PLAYERS));
+}
+
+// ═══════════════════════════════════════
+// 그리드 설정
+// ═══════════════════════════════════════
+const MIN_X = 724, MAX_X = 758;   // 35 cols
+const MIN_Y = 742, MAX_Y = 770;   // 29 rows
+const COLS = MAX_X - MIN_X + 1;
+const ROWS = MAX_Y - MIN_Y + 1;
+const CELL = 26; // px
+
+// 게임 좌표 → 그리드 col/row
+function toCol(gx) { return gx - MIN_X; }
+function toRow(gy) { return MAX_Y - gy; }  // Y 반전: 높은 Y = 위쪽
+
+let currentFilter = 'all';
+let currentSearch = '';
+
+// ═══════════════════════════════════════
+// 그리드 빌드
+// ═══════════════════════════════════════
+function buildGrid() {
+  const gc = document.getElementById('gridContainer');
+  gc.innerHTML = '';
+  gc.style.gridTemplateColumns = `repeat(${COLS}, ${CELL}px)`;
+  gc.style.gridTemplateRows = `repeat(${ROWS}, ${CELL}px)`;
+  gc.style.width = `${COLS * CELL}px`;
+  gc.style.height = `${ROWS * CELL}px`;
+
+  // 셀 생성
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell';
+      cell.dataset.gx = MIN_X + c;
+      cell.dataset.gy = MAX_Y - r;
+      gc.appendChild(cell);
+    }
+  }
+
+  // X축 레이블 (상단)
+  for (let c = 0; c < COLS; c += 3) {
+    const lbl = document.createElement('div');
+    lbl.className = 'axis-x';
+    lbl.textContent = MIN_X + c;
+    lbl.style.left = (c * CELL + 2) + 'px';
+    lbl.style.top = '-16px';
+    gc.appendChild(lbl);
+  }
+  // Y축 레이블 (왼쪽)
+  for (let r = 0; r < ROWS; r += 3) {
+    const lbl = document.createElement('div');
+    lbl.className = 'axis-y';
+    lbl.textContent = MAX_Y - r;
+    lbl.style.top = (r * CELL + 6) + 'px';
+    lbl.style.left = '-28px';
+    gc.appendChild(lbl);
+  }
+
+  renderOverlays();
+  renderSidebar();
+}
+
+// ═══════════════════════════════════════
+// 오버레이 (건물 + 유저)
+// ═══════════════════════════════════════
+function renderOverlays() {
+  // 기존 오버레이 제거
+  document.querySelectorAll('.overlay').forEach(e => e.remove());
+  const gc = document.getElementById('gridContainer');
+
+  // 건물
+  STRUCTURES.forEach(s => {
+    const col = toCol(s.x);
+    const row = toRow(s.y); // top-left in game = highest Y → lowest row index
+    const el = document.createElement('div');
+    el.className = 'overlay ' + (s.type === 'hq' ? 'overlay-hq' : 'overlay-trap');
+    el.style.left   = (col * CELL) + 'px';
+    el.style.top    = (row * CELL) + 'px';
+    el.style.width  = (s.size * CELL) + 'px';
+    el.style.height = (s.size * CELL) + 'px';
+    el.innerHTML = s.label.replace('\n','<br>');
+    el.addEventListener('mouseenter', (e) => showTooltip(e, s.label.replace('\n',' '), `X:${s.x}, Y:${s.y}`, `${s.size}×${s.size} 건물`));
+    el.addEventListener('mouseleave', hideTooltip);
+    el.addEventListener('mousemove', moveTooltip);
+    gc.appendChild(el);
+  });
+
+  // 필터링된 플레이어 목록
+  const filtered = filterPlayers();
+  const hitIds = getSearchHits();
+
+  filtered.forEach(p => {
+    const col = toCol(p.x);
+    const row = toRow(p.y);
+    const el = document.createElement('div');
+    el.className = 'overlay overlay-player' + (hitIds.includes(p.id) ? ' search-hit' : '');
+    el.style.left   = (col * CELL) + 'px';
+    el.style.top    = (row * CELL) + 'px';
+    el.style.width  = (2 * CELL) + 'px';
+    el.style.height = (2 * CELL) + 'px';
+    el.textContent = p.name.length > 8 ? p.name.slice(0,7)+'…' : p.name;
+    el.dataset.pid = p.id;
+    el.addEventListener('mouseenter', (e) => showTooltip(e, p.name, `X:${p.x}, Y:${p.y}`, p.memo));
+    el.addEventListener('mouseleave', hideTooltip);
+    el.addEventListener('mousemove', moveTooltip);
+    gc.appendChild(el);
+  });
+}
+
+function filterPlayers() {
+  if (currentFilter === 'all') return PLAYERS;
+  if (currentFilter === 'hq') {
+    const hq = STRUCTURES.find(s => s.id === 'hq');
+    return PLAYERS.filter(p => Math.abs(p.x - hq.x) <= 6 && Math.abs(p.y - hq.y) <= 6);
+  }
+  if (currentFilter === 'trap1') {
+    const t = STRUCTURES.find(s => s.id === 'trap1');
+    return PLAYERS.filter(p => Math.abs(p.x - t.x) <= 6 && Math.abs(p.y - t.y) <= 6);
+  }
+  if (currentFilter === 'trap2') {
+    const t = STRUCTURES.find(s => s.id === 'trap2');
+    return PLAYERS.filter(p => Math.abs(p.x - t.x) <= 6 && Math.abs(p.y - t.y) <= 6);
+  }
+  return PLAYERS;
+}
+
+function getSearchHits() {
+  if (!currentSearch) return [];
+  const q = currentSearch.toLowerCase();
+  return PLAYERS.filter(p => p.name.toLowerCase().includes(q)).map(p => p.id);
+}
+
+// ═══════════════════════════════════════
+// 사이드바 렌더
+// ═══════════════════════════════════════
+function renderSidebar() {
+  const list = document.getElementById('playerList');
+  const hitIds = getSearchHits();
+  const filtered = filterPlayers();
+
+  list.innerHTML = '';
+  filtered.forEach(p => {
+    const isHit = hitIds.includes(p.id);
+    const item = document.createElement('div');
+    item.className = 'player-item' + (isHit ? ' highlighted' : '');
+    item.innerHTML = `
+      <div>
+        <div class="player-name">${p.name}</div>
+        <div class="player-coord">X:${p.x}, Y:${p.y}${p.memo ? ' · ' + p.memo : ''}</div>
+      </div>
+      <button class="player-del" onclick="deletePlayer('${p.id}',event)" title="삭제">✕</button>
+    `;
+    item.addEventListener('click', () => jumpToPlayer(p));
+    list.appendChild(item);
+  });
+
+  // 통계
+  const hq = STRUCTURES.find(s => s.id === 'hq');
+  const trap1 = STRUCTURES.find(s => s.id === 'trap1');
+  const trap2 = STRUCTURES.find(s => s.id === 'trap2');
+  const nearHQ = PLAYERS.filter(p => Math.abs(p.x - hq.x) <= 6 && Math.abs(p.y - hq.y) <= 6).length;
+  const nearTrap = PLAYERS.filter(p =>
+    (Math.abs(p.x - trap1.x) <= 6 && Math.abs(p.y - trap1.y) <= 6) ||
+    (Math.abs(p.x - trap2.x) <= 6 && Math.abs(p.y - trap2.y) <= 6)
+  ).length;
+
+  document.getElementById('stat-total').textContent = PLAYERS.length;
+  document.getElementById('stat-hq').textContent = nearHQ;
+  document.getElementById('stat-trap').textContent = nearTrap;
+  document.getElementById('totalCount').textContent = PLAYERS.length;
+
+  // 검색 없음 메시지
+  const noResult = document.getElementById('noResult');
+  noResult.style.display = (currentSearch && hitIds.length === 0) ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════
+// 검색
+// ═══════════════════════════════════════
+function doSearch() {
+  currentSearch = document.getElementById('searchInput').value.trim();
+  renderOverlays();
+  renderSidebar();
+
+  // 검색된 첫 번째 유저로 스크롤
+  const hits = getSearchHits();
+  if (hits.length > 0) {
+    const p = PLAYERS.find(pl => pl.id === hits[0]);
+    if (p) setTimeout(() => jumpToPlayer(p, false), 50);
+  }
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  currentSearch = '';
+  renderOverlays();
+  renderSidebar();
+}
+
+function jumpToPlayer(p, doScroll = true) {
+  if (!doScroll) return;
+  const col = toCol(p.x);
+  const row = toRow(p.y);
+  const gridArea = document.getElementById('gridArea');
+  const px = col * CELL + 20; // wrapper padding
+  const py = row * CELL + 20;
+  gridArea.scrollTo({ left: px - 200, top: py - 150, behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════
+// 구역 필터
+// ═══════════════════════════════════════
+function setFilter(zone, btn) {
+  currentFilter = zone;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = 'rgba(30,41,59,0.6)';
+    b.style.color = '#94a3b8';
+    b.style.borderColor = 'rgba(51,65,85,0.3)';
+  });
+  btn.classList.add('active');
+  btn.style.background = 'rgba(6,182,212,0.12)';
+  btn.style.color = '#67e8f9';
+  btn.style.borderColor = 'rgba(6,182,212,0.3)';
+  renderOverlays();
+  renderSidebar();
+}
+
+// ═══════════════════════════════════════
+// 유저 추가/삭제
+// ═══════════════════════════════════════
+function openModal() {
+  document.getElementById('addModal').classList.add('open');
+  document.getElementById('f-name').focus();
+}
+function closeModal() {
+  document.getElementById('addModal').classList.remove('open');
+  ['f-name','f-x','f-y','f-memo'].forEach(id => document.getElementById(id).value = '');
+}
+
+function addPlayer() {
+  const name = document.getElementById('f-name').value.trim();
+  const x = parseInt(document.getElementById('f-x').value);
+  const y = parseInt(document.getElementById('f-y').value);
+  const memo = document.getElementById('f-memo').value.trim();
+
+  if (!name) return alert('아이디를 입력해주세요.');
+  if (isNaN(x) || isNaN(y)) return alert('좌표를 올바르게 입력해주세요.');
+  if (x < MIN_X || x > MAX_X || y < MIN_Y || y > MAX_Y) {
+    if (!confirm(`좌표(${x},${y})가 현재 그리드 범위 밖입니다. 그래도 추가할까요?`)) return;
+  }
+
+  // 겹침 검사 (2x2)
+  const overlap = PLAYERS.find(p =>
+    !(p.x + 2 <= x || x + 2 <= p.x || p.y - 2 >= y || y - 2 >= p.y)
+  );
+  if (overlap) {
+    if (!confirm(`⚠️ '${overlap.name}'의 영역과 겹칠 수 있습니다. 계속할까요?`)) return;
+  }
+
+  PLAYERS.push({ id: 'p' + Date.now(), name, x, y, memo });
+  savePlayers();
+  closeModal();
+  renderOverlays();
+  renderSidebar();
+  toast(`✅ '${name}' 추가됐습니다.`);
+}
+
+function deletePlayer(id, e) {
+  e.stopPropagation();
+  const p = PLAYERS.find(pl => pl.id === id);
+  if (!p) return;
+  if (!confirm(`'${p.name}'을(를) 삭제하시겠습니까?`)) return;
+  PLAYERS = PLAYERS.filter(pl => pl.id !== id);
+  savePlayers();
+  renderOverlays();
+  renderSidebar();
+  toast(`🗑️ '${p.name}' 삭제됐습니다.`);
+}
+
+// ═══════════════════════════════════════
+// 툴팁
+// ═══════════════════════════════════════
+const tipEl = document.getElementById('tooltip');
+function showTooltip(e, name, coord, memo) {
+  document.getElementById('tt-name').textContent = name;
+  document.getElementById('tt-coord').textContent = coord;
+  document.getElementById('tt-memo').textContent = memo || '';
+  tipEl.classList.add('show');
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  tipEl.style.left = (e.clientX + 14) + 'px';
+  tipEl.style.top  = (e.clientY - 10) + 'px';
+}
+function hideTooltip() { tipEl.classList.remove('show'); }
+
+// ═══════════════════════════════════════
+// 토스트
+// ═══════════════════════════════════════
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════
+// 모달 외부 클릭 닫기 / Enter 키
+// ═══════════════════════════════════════
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('addModal').classList.contains('open')) addPlayer();
+});
+
+// ═══════════════════════════════════════
+// 초기화
+// ═══════════════════════════════════════
+buildGrid();
+
+// HQ 중심으로 초기 스크롤
+setTimeout(() => {
+  const hq = STRUCTURES[0];
+  const col = toCol(hq.x);
+  const row = toRow(hq.y);
+  document.getElementById('gridArea').scrollTo({
+    left: col * CELL - 100,
+    top: row * CELL - 100,
+    behavior: 'smooth'
+  });
+}, 100);
+</script>
+</body>
+</html>

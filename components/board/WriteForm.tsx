@@ -77,6 +77,7 @@ export default function WriteForm({
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<number>(0);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [postPassword, setPostPassword] = useState("");
 
     /* localStorage 닉네임 자동 로드 (CommentSection과 동일 키 공유) */
     useEffect(() => {
@@ -152,6 +153,7 @@ export default function WriteForm({
             content: content.trim(),
             image_url: imageUrl,
             author: author.trim() || null,
+            post_password: postPassword.trim() || null,
         });
 
         if (insertError) {
@@ -188,7 +190,7 @@ export default function WriteForm({
                         <span className="text-xl">✅</span>
                         <div>
                             <p className="font-bold">{successMsg}</p>
-                            <p className="text-xs text-emerald-500/70 mt-0.5">목록 페이지로 이동 중...</p>
+                            <p className="text-xs text-emerald-500/70 mt-0.5">{t.board.successRedirecting}</p>
                         </div>
                     </div>
                 )}
@@ -207,13 +209,13 @@ export default function WriteForm({
                     {/* 닉네임 (작성자) */}
                     <div>
                         <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                            닉네임 <span className="text-slate-600 font-normal">(선택)</span>
+                            {t.board.nicknameLabel} <span className="text-slate-600 font-normal">{t.board.nicknameOptional}</span>
                         </label>
                         <input
                             type="text"
                             value={author}
                             onChange={(e) => setAuthor(e.target.value)}
-                            placeholder="연맹 닉네임을 입력하세요"
+                            placeholder={t.board.nicknamePlaceholder}
                             maxLength={20}
                             className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all"
                             style={{
@@ -223,6 +225,30 @@ export default function WriteForm({
                             onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
                             onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                         />
+                    </div>
+
+                    {/* 게시 비밀번호 */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                            {t.board.postPwLabel} <span className="text-slate-600 font-normal">{t.board.nicknameOptional}</span>
+                        </label>
+                        <input
+                            type="password"
+                            value={postPassword}
+                            onChange={(e) => setPostPassword(e.target.value)}
+                            placeholder={t.board.postPwPlaceholder}
+                            maxLength={30}
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all"
+                            style={{
+                                background: "rgba(30,41,59,0.8)",
+                                border: "1px solid rgba(71,85,105,0.5)",
+                            }}
+                            onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
+                            onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                        />
+                        <p className="mt-1 text-[10px] text-slate-600">
+                            🔒 {t.board.postPwHint}
+                        </p>
                     </div>
 
                     {/* 제목 */}
@@ -259,7 +285,7 @@ export default function WriteForm({
                         />
                         {/* 에디터 이미지 삽입 안내 */}
                         <p className="mt-1.5 text-[10px] text-slate-600">
-                            🖼️ 본문 이미지를 추가하려면 에디터 툴바의 이미지 버튼(🖼)을 사용하세요.
+                            {t.board.editorImageHint}
                         </p>
                     </div>
 
@@ -283,7 +309,7 @@ export default function WriteForm({
                                 border: "1px solid rgba(71,85,105,0.4)",
                             }}
                         >
-                            ← 취소
+                            {t.board.cancelBtn}
                         </button>
 
                         {/* 등록 */}

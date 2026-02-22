@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { House } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { LocaleCode } from "@/lib/i18n/LocaleContext";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ═══════════════════════════════════════════════
    타입 정의
@@ -193,14 +194,139 @@ function LanguageSelector() {
                         </button>
                     ))}
                 </div>
-                {/* 활성화 표시 */}
-                <div className="px-4 py-2 border-t border-slate-700/40">
-                    <p className="text-[10px] text-cyan-600/70 font-medium">
-                        ✅ i18n 실시간 적용 중
-                    </p>
-                </div>
+
             </div>
         </div>
+    );
+}
+
+/* ═══════════════════════════════════════════════
+   서브 컴포넌트 — 권한별 데스크탑 메뉴
+   ═══════════════════════════════════════════════ */
+
+function AuthMenuDesktop() {
+    const { user } = useAuth();
+    const pathname = usePathname();
+    if (!user || (user.role !== "staff" && user.role !== "admin")) return null;
+
+    return (
+        <>
+            {/* 간부 전용 게시판 */}
+            <Link
+                href="/strategy"
+                className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${pathname.startsWith("/strategy")
+                        ? "text-indigo-300 bg-indigo-500/15"
+                        : "text-indigo-300/70 hover:text-indigo-200 hover:bg-indigo-500/10"
+                    }`}
+                style={{ border: "1px solid rgba(99,102,241,0.25)" }}
+            >
+                ⭐ 간부 전용 게시판
+            </Link>
+            {/* 연맹 관리 (admin 전용) */}
+            {user.role === "admin" && (
+                <Link
+                    href="/admin"
+                    className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${pathname === "/admin"
+                            ? "text-yellow-300 bg-yellow-500/15"
+                            : "text-yellow-300/70 hover:text-yellow-200 hover:bg-yellow-500/10"
+                        }`}
+                    style={{ border: "1px solid rgba(251,191,36,0.25)" }}
+                >
+                    👑 연맹 관리
+                </Link>
+            )}
+        </>
+    );
+}
+
+/* ═══════════════════════════════════════════════
+   서브 컴포넌트 — 우측 로그인 / 프로필 버튼
+   ═══════════════════════════════════════════════ */
+
+function AuthButtonDesktop() {
+    const { user } = useAuth();
+    if (!user) {
+        return (
+            <Link
+                href="/auth"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
+                style={{
+                    background: "linear-gradient(135deg,rgba(6,182,212,0.7),rgba(99,102,241,0.7))",
+                    border: "1px solid rgba(6,182,212,0.4)",
+                    boxShadow: "0 2px 12px rgba(6,182,212,0.25)",
+                }}
+            >
+                🔑 로그인
+            </Link>
+        );
+    }
+    return (
+        <Link
+            href="/profile"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
+            style={{
+                background: "rgba(30,41,59,0.8)",
+                border: "1px solid rgba(71,85,105,0.5)",
+                color: "#94a3b8",
+            }}
+        >
+            <span
+                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{ background: "rgba(6,182,212,0.3)", color: "#22d3ee" }}
+            >
+                {user.nickname[0]?.toUpperCase() ?? "?"}
+            </span>
+            <span className="text-slate-300 max-w-[80px] truncate">{user.nickname}</span>
+        </Link>
+    );
+}
+
+/* ═══════════════════════════════════════════════
+   서브 컴포넌트 — 권한별 모바일 메뉴
+   ═══════════════════════════════════════════════ */
+
+function AuthMenuMobile() {
+    const { user } = useAuth();
+
+    return (
+        <>
+            {/* 로그인 / 프로필 */}
+            {!user ? (
+                <Link
+                    href="/auth"
+                    className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-cyan-300 hover:bg-cyan-500/10 transition-colors"
+                >
+                    🔑 로그인 / 가입
+                </Link>
+            ) : (
+                <Link
+                    href="/profile"
+                    className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 transition-colors"
+                >
+                    👤 내 프로필 ({user.nickname})
+                </Link>
+            )}
+
+            {/* 간부 전용 (staff / admin) */}
+            {user && (user.role === "staff" || user.role === "admin") && (
+                <Link
+                    href="/strategy"
+                    className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+                >
+                    ⭐ 간부 전용 게시판
+                </Link>
+            )}
+
+            {/* 연맹 관리 (admin) */}
+            {user?.role === "admin" && (
+                <Link
+                    href="/admin"
+                    className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-yellow-300 hover:bg-yellow-500/10 transition-colors"
+                >
+                    👑 연맹 관리
+                </Link>
+            )}
+        </>
     );
 }
 
@@ -236,6 +362,7 @@ export default function NavBar() {
         { key: "notice" as const, href: "/notice" },
         { key: "freeBoard" as const, href: "/free-board" },
         { key: "diplomacy" as const, href: "/diplomacy" },
+        { key: "kdhGrid" as const, href: "/kdh-grid" },
     ];
 
     return (
@@ -346,7 +473,7 @@ export default function NavBar() {
                         </div>
                     </div>
 
-                    {/* 자유게시판, 외교 */}
+                    {/* 자유게시판, 외교, 좌표그리드 */}
                     {NAV_SIMPLE.slice(1).map(({ key, href }) => {
                         const isActive = pathname === href;
                         return (
@@ -355,15 +482,19 @@ export default function NavBar() {
                                 href={href}
                                 className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive ? "text-cyan-300 bg-cyan-500/10" : "text-slate-300 hover:text-white hover:bg-slate-700/50"}`}
                             >
-                                {t.nav[key]}
+                                {key === "kdhGrid" ? "🗺️ " : ""}{t.nav[key]}
                                 {isActive && <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-cyan-400" />}
                             </Link>
                         );
                     })}
+
+                    {/* ── 간부 전용 게시판 (staff / admin) ── */}
+                    <AuthMenuDesktop />
                 </div>
 
-                {/* ─── 우측: 언어 선택 + 모바일 햄버거 ─── */}
-                <div className="flex items-center gap-3 flex-shrink-0">
+                {/* ─── 우측: 로그인/프로필 + 언어 선택 + 모바일 햄버거 ─── */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <AuthButtonDesktop />
                     <LanguageSelector />
                     <button
                         className="md:hidden flex flex-col gap-1.5 p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
@@ -426,16 +557,19 @@ export default function NavBar() {
                         )}
                     </div>
 
-                    {/* 자유게시판, 외교 */}
+                    {/* 자유게시판, 외교, 좌표그리드 */}
                     {NAV_SIMPLE.slice(1).map(({ key, href }) => (
                         <Link
                             key={href}
                             href={href}
                             className={`block px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150 ${pathname === href ? "text-cyan-300 bg-cyan-500/10" : "text-slate-300 hover:bg-slate-700/50 hover:text-white"}`}
                         >
-                            {t.nav[key]}
+                            {key === "kdhGrid" ? "🗺️ " : ""}{t.nav[key]}
                         </Link>
                     ))}
+
+                    {/* ── 권한 메뉴 (모바일) ── */}
+                    <AuthMenuMobile />
                 </div>
             </div>
         </nav>

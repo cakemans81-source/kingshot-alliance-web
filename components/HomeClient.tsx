@@ -34,104 +34,7 @@ function formatDate(iso: string) {
    게임 일정 샘플 데이터
    ═══════════════════════════════════════════════ */
 
-interface ScheduleEvent {
-    id: string;
-    icon: string;
-    title: string;
-    subtitle: string;
-    time: string;
-    status: "live" | "soon" | "ended";
-    gradient: string;
-    border: string;
-    glow: string;
-    days: number[];
-}
 
-const SCHEDULE_EVENTS: ScheduleEvent[] = [
-    {
-        id: "holy-sword",
-        icon: "⚔️",
-        title: "성검 전투",
-        subtitle: "전 연맹 필참",
-        time: "매일 20:00",
-        status: "live",
-        gradient: "from-violet-600 to-purple-700",
-        border: "rgba(139,92,246,0.45)",
-        glow: "rgba(139,92,246,0.3)",
-        days: [0, 1, 2, 3, 4, 5, 6],
-    },
-    {
-        id: "three-alliances",
-        icon: "🏰",
-        title: "삼대 연맹전",
-        subtitle: "3대 연맹 참전",
-        time: "토·일 21:00",
-        status: "soon",
-        gradient: "from-sky-500 to-blue-600",
-        border: "rgba(14,165,233,0.45)",
-        glow: "rgba(14,165,233,0.3)",
-        days: [6, 0],
-    },
-    {
-        id: "top-kingdom",
-        icon: "👑",
-        title: "최강 왕국",
-        subtitle: "왕국 랭킹전",
-        time: "금~일 진행",
-        status: "live",
-        gradient: "from-amber-500 to-yellow-600",
-        border: "rgba(245,158,11,0.45)",
-        glow: "rgba(245,158,11,0.3)",
-        days: [5, 6, 0],
-    },
-    {
-        id: "divine-beast",
-        icon: "🦄",
-        title: "신수의 선물",
-        subtitle: "신수 사냥 보상",
-        time: "매일 18:00",
-        status: "live",
-        gradient: "from-emerald-500 to-teal-600",
-        border: "rgba(16,185,129,0.45)",
-        glow: "rgba(16,185,129,0.3)",
-        days: [0, 1, 2, 3, 4, 5, 6],
-    },
-    {
-        id: "supply-drop",
-        icon: "📦",
-        title: "보급 지원",
-        subtitle: "연맹 물자 강화",
-        time: "화·목 15:00",
-        status: "soon",
-        gradient: "from-rose-500 to-pink-600",
-        border: "rgba(244,63,94,0.45)",
-        glow: "rgba(244,63,94,0.3)",
-        days: [2, 4],
-    },
-    {
-        id: "world-boss",
-        icon: "🐉",
-        title: "월드 보스",
-        subtitle: "공통 공격 이벤트",
-        time: "수·토 19:30",
-        status: "ended",
-        gradient: "from-slate-500 to-gray-600",
-        border: "rgba(100,116,139,0.45)",
-        glow: "rgba(100,116,139,0.2)",
-        days: [3, 6],
-    },
-];
-
-function getTodayEvents(): ScheduleEvent[] {
-    const today = new Date().getDay();
-    return SCHEDULE_EVENTS.filter((ev) => ev.days.includes(today));
-}
-
-const STATUS_BADGE: Record<ScheduleEvent["status"], { label: string; color: string; bg: string }> = {
-    live: { label: "● LIVE", color: "#4ade80", bg: "rgba(74,222,128,0.12)" },
-    soon: { label: "◎ 예정", color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
-    ended: { label: "✕ 종료", color: "#64748b", bg: "rgba(100,116,139,0.12)" },
-};
 
 /* ═══════════════════════════════════════════════
    R4 간부 명단 데이터 (초기값)
@@ -300,13 +203,13 @@ function OfficersSection() {
             setEditDraft([]);
             return;
         }
-        const pw = window.prompt("🔒 관리자 비밀번호를 입력하세요:");
+        const pw = window.prompt(t.officers.pwPrompt);
         if (pw === null) return;
         if (pw.trim() === ADMIN_PASSWORD) {
             setIsAdmin(true);
             setEditDraft(officers.map((of) => ({ ...of })));
         } else {
-            alert("❌ 비밀번호가 올바르지 않습니다.");
+            alert(t.officers.pwWrong);
         }
     };
 
@@ -320,7 +223,7 @@ function OfficersSection() {
         setOfficers(editDraft.map((of) => ({ ...of })));
         setIsAdmin(false);
         setEditDraft([]);
-        setSaveMsg("✅ 저장되었습니다!");
+        setSaveMsg(t.officers.saveSuccess);
         setTimeout(() => setSaveMsg(null), 2500);
     };
 
@@ -375,14 +278,14 @@ function OfficersSection() {
                             <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
                                 <path d="M12.7 1.3a1 1 0 0 0-1.4 0L2.5 10.1 1 15l4.9-1.5 8.8-8.8a1 1 0 0 0 0-1.4l-2-2zM4.5 12.5l-2 .6.6-2 7-7 1.4 1.4-7 7z" />
                             </svg>
-                            수정 중…
+                            {o.editingBtn}
                         </>
                     ) : (
                         <>
                             <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
                                 <path d="M12.7 1.3a1 1 0 0 0-1.4 0L2.5 10.1 1 15l4.9-1.5 8.8-8.8a1 1 0 0 0 0-1.4l-2-2zM4.5 12.5l-2 .6.6-2 7-7 1.4 1.4-7 7z" />
                             </svg>
-                            수정
+                            {o.editBtn}
                         </>
                     )}
                 </button>
@@ -466,7 +369,7 @@ function OfficersSection() {
                                 boxShadow: "0 4px 14px rgba(245,158,11,0.3)",
                             }}
                         >
-                            💾 저장하기
+                            {o.saveBtn}
                         </button>
                         <button
                             type="button"
@@ -478,7 +381,7 @@ function OfficersSection() {
                                 color: "#94a3b8",
                             }}
                         >
-                            취소
+                            {o.cancelBtn}
                         </button>
                     </div>
                 </div>
@@ -541,6 +444,15 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             glow: "rgba(139,92,246,0.35)",
             border: "rgba(139,92,246,0.3)",
         },
+        {
+            href: "/kdh-grid",
+            icon: "🗺️",
+            label: "KDH 좌표 그리드",
+            description: "연맹원 위치 · 본부/함정 좌표 관리",
+            gradient: "from-cyan-500 to-blue-600",
+            glow: "rgba(6,182,212,0.35)",
+            border: "rgba(6,182,212,0.3)",
+        },
     ];
 
     return (
@@ -595,86 +507,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 </p>
             </div>
 
-            {/* ══════════════════════════════════════════
-                [2] 오늘의 게임 일정
-                ══════════════════════════════════════════ */}
-            <div
-                className="mb-4 rounded-2xl border overflow-hidden"
-                style={{
-                    background: "rgba(15,23,42,0.75)",
-                    borderColor: "rgba(51,65,85,0.55)",
-                    backdropFilter: "blur(12px)",
-                    boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
-                }}
-            >
-                {/* 섹션 헤더 */}
-                <div
-                    className="flex items-center justify-between px-5 py-3 border-b"
-                    style={{ borderColor: "rgba(51,65,85,0.45)" }}
-                >
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm">📅</span>
-                        <h2 className="text-sm font-bold text-slate-200">오늘의 주요 일정</h2>
-                        <span
-                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                            style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}
-                        >
-                            LIVE
-                        </span>
-                    </div>
-                    <Link
-                        href="/calendar"
-                        className="text-[11px] text-cyan-500 hover:text-cyan-300 transition-colors font-medium flex items-center gap-0.5"
-                    >
-                        전체 일정표
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
-                    </Link>
-                </div>
 
-                {/* 가로 스크롤 카드 */}
-                <div
-                    className="flex gap-2 px-3 py-3 overflow-x-auto"
-                    style={{ scrollbarWidth: "none" }}
-                >
-                    {getTodayEvents().length === 0 ? (
-                        <p className="w-full text-center text-slate-600 text-xs py-2">오늘 진행 일정이 없습니다.</p>
-                    ) : getTodayEvents().map((ev) => {
-                        const badge = STATUS_BADGE[ev.status];
-                        return (
-                            <div
-                                key={ev.id}
-                                className="flex-shrink-0 w-[112px] rounded-xl border overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
-                                style={{
-                                    background: "rgba(15,23,42,0.85)",
-                                    borderColor: ev.border,
-                                    boxShadow: `0 2px 10px ${ev.glow}`,
-                                }}
-                            >
-                                <div
-                                    className={`flex items-center justify-center h-10 bg-gradient-to-br ${ev.gradient}`}
-                                    style={{ opacity: ev.status === "ended" ? 0.5 : 1 }}
-                                >
-                                    <span className="text-xl filter drop-shadow-md">{ev.icon}</span>
-                                </div>
-                                <div className="px-2.5 py-2 space-y-1">
-                                    <div
-                                        className="inline-flex items-center text-[8px] font-bold px-1.5 py-0.5 rounded-md"
-                                        style={{ background: badge.bg, color: badge.color }}
-                                    >
-                                        {badge.label}
-                                    </div>
-                                    <p className="text-[11px] font-bold text-white leading-snug line-clamp-1">{ev.title}</p>
-                                    <p className="text-[9px] text-slate-500 flex items-center gap-0.5">
-                                        <span>🕐</span>{ev.time}
-                                    </p>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
 
             {/* ── [3] 최근 공지사항 ── */}
             <SectionCard

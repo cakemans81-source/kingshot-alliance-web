@@ -7,18 +7,20 @@ import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { LocaleCode } from "@/lib/i18n/LocaleContext";
 import CommentSection from "./CommentSection";
+import QuillEditor from "./QuillEditor";
 
 /* ═══════════════════════════════════════
    타입
    ═══════════════════════════════════════ */
 
 interface Post {
-    id: number | string;   /* bigint 또는 uuid 양수 지원 */
+    id: number | string;
     title: string;
     content: string;
     image_url: string | null;
     created_at: string;
     author: string | null;
+    post_password: string | null;
 }
 
 /* 이전/다음 글 요약 타입 */
@@ -142,6 +144,18 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
 
+    // 수정/삭제 선택 모달 (1단계: 비밀번호 확인)
+    const [showActionModal, setShowActionModal] = useState(false);
+    const [actionPassword, setActionPassword] = useState("");
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [actionMode, setActionMode] = useState<"verify" | "choose" | "edit" | "delete">("verify");
+
+    // 수정 모드 상태
+    const [editTitle, setEditTitle] = useState("");
+    const [editContent, setEditContent] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+
     /* DB에서 게시글 fetch + 이전/다음 글 병렬 조회 */
     useEffect(() => {
         if (!postId) return;
@@ -180,8 +194,11 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
 
     /* 게시글 삭제 핸들러 */
     const handleDelete = async () => {
-        if (deletePassword !== "3741") {
-            setDeleteError("비밀번호가 일치하지 않습니다.");
+        // 비밀번호 없는 글은 관리자 번호(3741)로 허용, 있는 글은 post_password 일치
+        const stored = post?.post_password;
+        const ok = stored ? deletePassword === stored : deletePassword === "3741";
+        if (!ok) {
+            setDeleteError(t.board.deletePwWrong);
             return;
         }
         setDeleting(true);
@@ -192,11 +209,58 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
             .eq("id", postId);
         setDeleting(false);
         if (error) {
-            setDeleteError(`삭제 실패: ${error.message}`);
+            setDeleteError(`${t.board.deleteFailed}${error.message}`);
             return;
         }
         setShowDeleteModal(false);
         router.replace(listHref);
+    };
+
+    /* 수정/삭제 비밀번호 확인 */
+    const handleVerifyAction = () => {
+        if (!post) return;
+        const stored = post.post_password;
+        // 비밀번호 없는 글: 관리자 번호(3741)만 허용
+        // 비밀번호 있는 글: 입력값이 정확히 일치해야 함
+        const ok = stored ? actionPassword === stored : actionPassword === "3741";
+        if (!ok) {
+            setActionError(t.board.editPwWrong);
+            return; // ← 검증 실패: 모드 변경하지 않음
+        }
+        setActionError(null);
+        setActionMode("choose"); // ← 검증 성공 시에만 선택 화면으로 이동
+    };
+
+    /* 수정 저장 */
+    const handleSaveEdit = async () => {
+        if (!editTitle.trim() || !editContent.trim()) return;
+        setSaving(true);
+        const { error } = await supabase
+            .from(tableName)
+            .update({ title: editTitle.trim(), content: editContent.trim() })
+            .eq("id", postId);
+        setSaving(false);
+        if (error) {
+            setActionError(`${t.board.editFailed}${error.message}`);
+            return;
+        }
+        // 로칷8 포스트 업데이트
+        setPost((prev) => prev ? { ...prev, title: editTitle.trim(), content: editContent.trim() } : prev);
+        // 번역 캐시 제거 (수정되면 이전 번역 무효)
+        try {
+            sessionStorage.removeItem(getCacheKey(locale, postId, "title"));
+            sessionStorage.removeItem(getCacheKey(locale, postId, "content"));
+        } catch { /* ignore */ }
+        setTranslatedTitle(null);
+        setTranslatedContent(null);
+        setShowTranslated(false);
+        setSaveSuccess(true);
+        setTimeout(() => {
+            setSaveSuccess(false);
+            setShowActionModal(false);
+            setActionPassword("");
+            setActionMode("verify"); // 게시글 뷰로 복귀
+        }, 1500);
     };
 
     /* 양방향 자동 번역 — post 로드 후 실행
@@ -271,10 +335,271 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
 
     if (!post) return null;
 
+    /* ── 풀페이지 수정 모드 ── */
+    if (actionMode === "edit" && post) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-gray-950 text-white">
+                <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+
+                    {/* 헤더 */}
+                    <div className="mb-8">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
+                            ✏️ {t.board.editPost}
+                        </h1>
+                        <p className="mt-1.5 text-sm text-slate-400">내용을 수정한 뒤 저장 버튼을 눌러주세요.</p>
+                    </div>
+
+                    {/* 성공 메시지 */}
+                    {saveSuccess && (
+                        <div className="mb-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 px-5 py-4 text-sm text-emerald-400 flex items-center gap-3">
+                            <span className="text-xl">✅</span>
+                            <div>
+                                <p className="font-bold">{t.board.editSuccess}</p>
+                                <p className="text-xs text-emerald-500/70 mt-0.5">잠시 후 게시글로 이동합니다.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 수정 폼 */}
+                    <div
+                        className="rounded-2xl border p-5 sm:p-7 space-y-5"
+                        style={{
+                            background: "rgba(15,23,42,0.8)",
+                            borderColor: "rgba(51,65,85,0.6)",
+                            backdropFilter: "blur(12px)",
+                            boxShadow: "0 4px 32px rgba(0,0,0,0.4)",
+                        }}
+                    >
+                        {/* 제목 */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                                {t.board.titleLabel} <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                placeholder={t.board.titlePlaceholder}
+                                maxLength={100}
+                                className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all"
+                                style={{
+                                    background: "rgba(30,41,59,0.8)",
+                                    border: "1px solid rgba(71,85,105,0.5)",
+                                }}
+                                onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
+                                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                            />
+                        </div>
+
+                        {/* 내용 — QuillEditor */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                                {t.board.contentLabel} <span className="text-red-400">*</span>
+                            </label>
+                            <QuillEditor
+                                value={editContent}
+                                onChange={setEditContent}
+                                placeholder={t.board.contentPlaceholder}
+                                disabled={saving}
+                            />
+                        </div>
+
+                        {/* 에러 */}
+                        {actionError && (
+                            <div className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
+                                ⚠️ {actionError}
+                            </div>
+                        )}
+
+                        {/* 버튼 */}
+                        <div className="flex items-center gap-3 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setActionMode("verify");
+                                    setSaveSuccess(false);
+                                    setActionError(null);
+                                }}
+                                className="px-5 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white transition-colors"
+                                style={{
+                                    background: "rgba(30,41,59,0.6)",
+                                    border: "1px solid rgba(71,85,105,0.4)",
+                                }}
+                            >
+                                {t.board.cancelBtn}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveEdit}
+                                disabled={saving || !!saveSuccess}
+                                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5"
+                                style={{
+                                    background: "linear-gradient(135deg, #6366f1, #3b82f6)",
+                                    boxShadow: "0 4px 16px rgba(99,102,241,0.35)",
+                                }}
+                            >
+                                {saving ? (
+                                    <>
+                                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        {t.board.submitting}
+                                    </>
+                                ) : (
+                                    <>✅ {t.board.editSaveBtn}</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-gray-950 text-white">
 
-            {/* 삭제 비밀번호 모달 */}
+            {/* 수정/삭제 통합 모달 */}
+            {showActionModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center px-4"
+                    style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+                    onClick={(e) => { if (e.target === e.currentTarget) { setShowActionModal(false); setActionPassword(""); setActionError(null); setActionMode("verify"); setSaveSuccess(false); } }}
+                >
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+                        style={{
+                            background: "rgba(15,23,42,0.97)",
+                            border: "1px solid rgba(99,102,241,0.35)",
+                            boxShadow: "0 8px 40px rgba(99,102,241,0.18)",
+                        }}
+                    >
+                        {/* 비밀번호 입력 단계 */}
+                        {actionMode === "verify" && (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">🔒</span>
+                                    <h2 className="text-base font-bold text-indigo-300">{t.board.editOrDelete}</h2>
+                                </div>
+                                <p className="text-sm text-slate-400">{t.board.editPwPrompt}</p>
+                                <input
+                                    type="password"
+                                    value={actionPassword}
+                                    onChange={(e) => { setActionPassword(e.target.value); setActionError(null); }}
+                                    onKeyDown={(e) => { if (e.key === "Enter") handleVerifyAction(); }}
+                                    placeholder={t.board.deletePwPlaceholder}
+                                    autoFocus
+                                    className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none"
+                                    style={{
+                                        background: "rgba(30,41,59,0.9)",
+                                        border: actionError ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(99,102,241,0.4)",
+                                    }}
+                                />
+                                {actionError && (
+                                    <p className="text-xs text-red-400 flex items-center gap-1"><span>⚠️</span>{actionError}</p>
+                                )}
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        onClick={() => { setShowActionModal(false); setActionPassword(""); setActionError(null); }}
+                                        className="flex-1 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors"
+                                        style={{ background: "rgba(51,65,85,0.45)", border: "1px solid rgba(71,85,105,0.5)" }}
+                                    >
+                                        {t.board.deleteCancelBtn}
+                                    </button>
+                                    <button
+                                        onClick={handleVerifyAction}
+                                        disabled={!actionPassword.trim()}
+                                        className="flex-1 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        style={{ background: "rgba(99,102,241,0.8)", border: "1px solid rgba(99,102,241,0.5)" }}
+                                    >
+                                        🔓 확인
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        {/* 비밀번호 확인 후 선택 화면 */}
+                        {actionMode === "choose" && (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">✅</span>
+                                    <h2 className="text-base font-bold text-emerald-300">{t.board.editOrDelete}</h2>
+                                </div>
+                                <p className="text-sm text-slate-400">비밀번호가 확인되었습니다. 원하는 작업을 선택하세요.</p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setEditTitle(post?.title ?? "");
+                                            setEditContent(post?.content ?? "");
+                                            setShowActionModal(false);   // 모달 닫기
+                                            setActionMode("edit");       // 풀페이지 수정 모드로
+                                        }}
+                                        className="flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+                                        style={{ background: "rgba(99,102,241,0.75)", border: "1px solid rgba(99,102,241,0.5)" }}
+                                    >
+                                        {t.board.btnEdit}
+                                    </button>
+                                    <button
+                                        onClick={() => setActionMode("delete")}
+                                        className="flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+                                        style={{ background: "rgba(239,68,68,0.75)", border: "1px solid rgba(239,68,68,0.5)" }}
+                                    >
+                                        {t.board.btnDelete}
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => { setShowActionModal(false); setActionPassword(""); setActionMode("verify"); }}
+                                    className="w-full py-2 rounded-xl text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                                >
+                                    {t.board.deleteCancelBtn}
+                                </button>
+                            </>
+                        )}
+
+                        {/* 삭제 확인 */}
+                        {actionMode === "delete" && (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">🗑️</span>
+                                    <h2 className="text-base font-bold text-red-400">{t.board.deletePost}</h2>
+                                </div>
+                                <p className="text-sm text-slate-400">정말 이 게시글을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+                                {deleteError && <p className="text-xs text-red-400">⚠️ {deleteError}</p>}
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        onClick={() => setActionMode("choose")}
+                                        className="flex-1 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors"
+                                        style={{ background: "rgba(51,65,85,0.45)", border: "1px solid rgba(71,85,105,0.5)" }}
+                                    >
+                                        {t.board.deleteCancelBtn}
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            setDeleting(true);
+                                            setDeleteError(null);
+                                            const { error } = await supabase.from(tableName).delete().eq("id", postId);
+                                            setDeleting(false);
+                                            if (error) { setDeleteError(`${t.board.deleteFailed}${error.message}`); return; }
+                                            setShowActionModal(false);
+                                            router.replace(listHref);
+                                        }}
+                                        disabled={deleting}
+                                        className="flex-1 py-2 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50"
+                                        style={{ background: "rgba(239,68,68,0.8)", border: "1px solid rgba(239,68,68,0.5)" }}
+                                    >
+                                        {deleting ? (
+                                            <span className="flex items-center justify-center gap-1.5">
+                                                <span className="inline-block w-3.5 h-3.5 border border-white/40 border-t-white rounded-full animate-spin" />
+                                                {t.board.deletingBtn}
+                                            </span>
+                                        ) : t.board.deleteConfirmBtn}
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* 기존 삭제 비밀번호 모달 (유지) */}
             {showDeleteModal && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -292,9 +617,9 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                         {/* 헤더 */}
                         <div className="flex items-center gap-2">
                             <span className="text-xl">🗑️</span>
-                            <h2 className="text-base font-bold text-red-400">게시글 삭제</h2>
+                            <h2 className="text-base font-bold text-red-400">🗑️ {t.board.deletePost}</h2>
                         </div>
-                        <p className="text-sm text-slate-400">삭제하려면 <span className="text-slate-200 font-semibold">관리자 비밀번호</span>를 입력하세요.</p>
+                        <p className="text-sm text-slate-400">{t.board.deleteDesc} <span className="text-slate-200 font-semibold">{t.board.deleteDescHighlight}</span>를 입력하세요.</p>
 
                         {/* 비밀번호 입력 */}
                         <input
@@ -302,7 +627,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                             value={deletePassword}
                             onChange={(e) => { setDeletePassword(e.target.value); setDeleteError(null); }}
                             onKeyDown={(e) => { if (e.key === "Enter") handleDelete(); }}
-                            placeholder="비밀번호 입력"
+                            placeholder={t.board.deletePwPlaceholder}
                             autoFocus
                             className="w-full px-4 py-2.5 rounded-xl text-sm text-slate-200 placeholder-slate-600 outline-none"
                             style={{
@@ -325,7 +650,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                 className="flex-1 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors"
                                 style={{ background: "rgba(51,65,85,0.45)", border: "1px solid rgba(71,85,105,0.5)" }}
                             >
-                                취소
+                                {t.board.deleteCancelBtn}
                             </button>
                             <button
                                 onClick={handleDelete}
@@ -336,9 +661,9 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                 {deleting ? (
                                     <span className="flex items-center justify-center gap-1.5">
                                         <span className="inline-block w-3.5 h-3.5 border border-white/40 border-t-white rounded-full animate-spin" />
-                                        삭제 중...
+                                        {t.board.deletingBtn}
                                     </span>
-                                ) : "🗑️ 삭제"}
+                                ) : t.board.deleteConfirmBtn}
                             </button>
                         </div>
                     </div>
@@ -355,7 +680,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>
-                    목록으로
+                    {t.board.backToList}
                 </Link>
 
                 {/* 번역 상태 바 */}
@@ -386,7 +711,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                             </span>
                         ) : (
                             <span className="text-[11px] text-slate-500">
-                                {translateError ?? "원문을 표시 중입니다."}
+                                {translateError ?? t.board.originalShowing}
                             </span>
                         )}
 
@@ -447,20 +772,21 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                             ) : displayTitle}
                         </h1>
 
-                        {/* 삭제 버튼 */}
+                        {/* 수정/삭제 버튼 */}
                         <button
-                            onClick={() => { setShowDeleteModal(true); setDeletePassword(""); setDeleteError(null); }}
-                            title="게시글 삭제"
-                            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            onClick={() => { setShowActionModal(true); setActionPassword(""); setActionError(null); setActionMode("verify"); }}
+                            title={t.board.editOrDelete}
+                            className="flex-shrink-0 px-3 h-8 rounded-lg flex items-center gap-1.5 text-xs font-semibold transition-all hover:scale-105 active:scale-95"
                             style={{
-                                background: "rgba(239,68,68,0.12)",
-                                border: "1px solid rgba(239,68,68,0.3)",
-                                color: "#f87171",
+                                background: "rgba(99,102,241,0.12)",
+                                border: "1px solid rgba(99,102,241,0.35)",
+                                color: "#a5b4fc",
                             }}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
+                            {t.board.editOrDelete}
                         </button>
                     </div>
 
@@ -570,7 +896,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                         ◄
                                     </span>
                                     <div className="min-w-0">
-                                        <p className="text-[10px] text-slate-600 mb-0.5">이전 글</p>
+                                        <p className="text-[10px] text-slate-600 mb-0.5">{t.board.prevPost}</p>
                                         <p className="text-xs sm:text-sm font-medium text-slate-300 truncate group-hover:text-cyan-300 transition-colors">
                                             {prevPost.title}
                                         </p>
@@ -581,7 +907,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                     className="flex items-center justify-center px-4 py-4 sm:px-5 sm:py-5"
                                     style={{ borderRight: "1px solid rgba(51,65,85,0.5)" }}
                                 >
-                                    <span className="text-xs text-slate-700">첫 번째 글입니다</span>
+                                    <span className="text-xs text-slate-700">{t.board.firstPost}</span>
                                 </div>
                             )}
 
@@ -592,7 +918,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                     className="group flex items-center justify-end gap-3 px-4 py-4 sm:px-5 sm:py-5 transition-all duration-200 hover:bg-slate-700/30"
                                 >
                                     <div className="min-w-0 text-right">
-                                        <p className="text-[10px] text-slate-600 mb-0.5">다음 글</p>
+                                        <p className="text-[10px] text-slate-600 mb-0.5">{t.board.nextPost}</p>
                                         <p className="text-xs sm:text-sm font-medium text-slate-300 truncate group-hover:text-purple-300 transition-colors">
                                             {nextPost.title}
                                         </p>
@@ -610,7 +936,7 @@ export default function PostDetailClient({ tableName, listHref, accentColor }: P
                                 </Link>
                             ) : (
                                 <div className="flex items-center justify-center px-4 py-4 sm:px-5 sm:py-5">
-                                    <span className="text-xs text-slate-700">마지막 글입니다</span>
+                                    <span className="text-xs text-slate-700">{t.board.lastPost}</span>
                                 </div>
                             )}
                         </div>

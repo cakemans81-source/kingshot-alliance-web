@@ -288,7 +288,7 @@ function PostCard({ post, tableName }: PostCardProps) {
                         href={detailHref}
                         className="text-[11px] text-slate-600 hover:text-cyan-400 transition-colors flex items-center gap-0.5"
                     >
-                        자세히
+                        {t.board.readMore}
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
@@ -343,7 +343,7 @@ export default function PostBoard({
                     <p className="mt-1.5 text-sm text-slate-400">{pageSubtitle}</p>
                     <p className="mt-2 text-xs text-slate-600 flex items-center gap-1.5">
                         <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500/60" />
-                        새 글 작성은 화면 우측 하단 <strong className="text-cyan-600">✏️ 빠른 글쓰기</strong> 버튼을 이용하세요.
+                        {t.board.writeHintText} <strong className="text-cyan-600">{t.board.writeHintBtn}</strong> {t.board.postCount === "건" ? "버튼을 이용하세요." : "button at the bottom right."}
                     </p>
                 </div>
 
@@ -352,7 +352,7 @@ export default function PostBoard({
                         <h2 className="text-base font-bold text-slate-300">
                             {t.board.postList}
                             {!isFetching && (
-                                <span className="ml-2 text-xs font-normal text-slate-500">({posts.length}건)</span>
+                                <span className="ml-2 text-xs font-normal text-slate-500">({posts.length}{t.board.postCount})</span>
                             )}
                         </h2>
                         <button
@@ -379,7 +379,7 @@ export default function PostBoard({
                         >
                             <span className="text-5xl opacity-30">📭</span>
                             <p className="text-sm">{emptyMessage}</p>
-                            <p className="text-xs text-slate-600">우측 하단 ✏️ 버튼으로 첫 글을 작성해 보세요!</p>
+                            <p className="text-xs text-slate-600">{t.board.firstPostHint}</p>
                         </div>
                     )}
 
