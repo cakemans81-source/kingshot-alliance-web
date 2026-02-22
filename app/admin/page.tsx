@@ -11,6 +11,7 @@ interface Member {
     game_id: string;
     nickname: string;
     bio: string | null;
+    avatar_url: string | null;
     role: UserRole;
     created_at: string;
 }
@@ -49,7 +50,7 @@ export default function AdminPage() {
         setLoading(true);
         const { data } = await supabase
             .from("users")
-            .select("id, game_id, nickname, bio, role, created_at")
+            .select("id, game_id, nickname, bio, role, avatar_url, created_at")
             .order("created_at", { ascending: true });
         if (data) setMembers(data as Member[]);
         setLoading(false);

@@ -38,7 +38,7 @@ export default function AuthPage() {
         const hashed = await hashPassword(password);
         const { data, error: err } = await supabase
             .from("users")
-            .select("id, game_id, nickname, bio, role")
+            .select("id, game_id, nickname, bio, role, avatar_url")
             .eq("game_id", gameId.trim())
             .eq("password", hashed)
             .maybeSingle();
@@ -72,7 +72,7 @@ export default function AuthPage() {
         const { data, error: err } = await supabase
             .from("users")
             .insert({ game_id: gameId.trim(), nickname: gameId.trim(), bio: bio.trim() || null, password: hashed, role: "member" })
-            .select("id, game_id, nickname, bio, role")
+            .select("id, game_id, nickname, bio, role, avatar_url")
             .single();
 
         if (err || !data) {
