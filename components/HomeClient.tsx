@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n/LocaleContext";
+import type { LocaleCode } from "@/lib/i18n/LocaleContext";
 import { supabase } from "@/lib/supabase/client";
 
 /* ═══════════════════════════════════════════════
@@ -29,6 +30,39 @@ function formatDate(iso: string) {
         month: "2-digit",
         day: "2-digit",
     });
+}
+
+/* ═══════════════════════════════════════════════
+   번역 헬퍼 및 캐시
+   ═══════════════════════════════════════════════ */
+
+function getCacheKey(locale: string, id: number, type: string) {
+    return `tx_home_${locale}_${type}_${id}`;
+}
+function readCache(key: string): string | null {
+    try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function writeCache(key: string, value: string) {
+    try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
+async function translateText(text: string, targetLang: LocaleCode): Promise<string> {
+    if (!text.trim()) return text;
+    const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, targetLang }),
+    });
+    if (!res.ok) throw new Error("Translation failed");
+    const data = await res.json();
+    return data.translatedText;
+}
+
+function guessLang(text: string): string {
+    const koChars = (text.match(/[\uAC00-\uD7A3]/g) || []).length;
+    const enChars = (text.match(/[a-zA-Z]/g) || []).length;
+    const total = text.length || 1;
+    return koChars / total > 0.15 ? "ko" : "en";
 }
 
 /* ═══════════════════════════════════════════════
@@ -97,11 +131,46 @@ interface SectionCardProps {
     badgeName: string;
     items: Item[];
     itemHref: (id: number) => string;
+    type: string; // "notice" | "free"
 }
 
 function SectionCard({
-    title, listHref, viewAllLabel, emptyHint, writeHint, badgeName, items, itemHref,
+    title, listHref, viewAllLabel, emptyHint, writeHint, badgeName, items, itemHref, type
 }: SectionCardProps) {
+    const { locale } = useLocale();
+    const targetLocale = locale as LocaleCode;
+
+    // 번역된 제목들 상태 관리
+    const [translations, setTranslations] = useState<Record<number, string>>({});
+    const [loadingMap, setLoadingMap] = useState<Record<number, boolean>>({});
+
+    const handleItemTranslate = async (e: React.MouseEvent, item: Item) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (translations[item.id]) {
+            // 이미 번역된 경우 원문으로 토글 (선택 사항, 여기서는 단순 번역 노출 유지)
+            return;
+        }
+
+        const cacheKey = getCacheKey(targetLocale, item.id, type);
+        const cached = readCache(cacheKey);
+        if (cached) {
+            setTranslations(prev => ({ ...prev, [item.id]: cached }));
+            return;
+        }
+
+        setLoadingMap(prev => ({ ...prev, [item.id]: true }));
+        try {
+            const result = await translateText(item.title, targetLocale);
+            writeCache(cacheKey, result);
+            setTranslations(prev => ({ ...prev, [item.id]: result }));
+        } catch (err) {
+            console.error("Home translation error:", err);
+        } finally {
+            setLoadingMap(prev => ({ ...prev, [item.id]: false }));
+        }
+    };
     return (
         <div
             className="mb-4 rounded-2xl border overflow-hidden"
@@ -136,36 +205,60 @@ function SectionCard({
                 </div>
             ) : (
                 <ul className="divide-y" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
-                    {items.map((item, i) => (
-                        <li key={item.id}>
-                            <Link
-                                href={itemHref(item.id)}
-                                className="flex items-center gap-3 px-5 py-2 transition-colors duration-150 hover:bg-slate-700/30 group"
-                            >
-                                <span
-                                    className="flex-shrink-0 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                                    style={{
-                                        background: i === 0 ? "linear-gradient(135deg, #f59e0b, #fbbf24)" : "rgba(51,65,85,0.6)",
-                                        color: i === 0 ? "#fff" : "#64748b",
-                                    }}
+                    {items.map((item, i) => {
+                        const isKo = guessLang(item.title) === "ko";
+                        const showTranslateBtn = !isKo && targetLocale === "ko" || isKo && targetLocale !== "ko";
+                        const displayTitle = translations[item.id] || item.title;
+
+                        return (
+                            <li key={item.id}>
+                                <Link
+                                    href={itemHref(item.id)}
+                                    className="flex items-center gap-2.5 px-4 py-2.5 transition-colors duration-150 hover:bg-slate-700/30 group"
                                 >
-                                    {i + 1}
-                                </span>
-                                <span className="flex-1 text-sm text-slate-300 group-hover:text-white transition-colors truncate">
-                                    {item.title}
-                                </span>
-                                <span className="flex-shrink-0 text-[11px] text-slate-600 whitespace-nowrap">
-                                    {formatDate(item.created_at)}
-                                </span>
-                                <svg
-                                    className="flex-shrink-0 w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors"
-                                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                            </Link>
-                        </li>
-                    ))}
+                                    <span
+                                        className="flex-shrink-0 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center translate-y-[-0.5px]"
+                                        style={{
+                                            background: i === 0 ? "linear-gradient(135deg, #f59e0b, #fbbf24)" : "rgba(51,65,85,0.6)",
+                                            color: i === 0 ? "#fff" : "#64748b",
+                                        }}
+                                    >
+                                        {i + 1}
+                                    </span>
+                                    <div className="flex-1 flex items-center min-w-0 gap-2">
+                                        <span className="text-sm text-slate-300 group-hover:text-white transition-colors truncate">
+                                            {displayTitle}
+                                        </span>
+                                        {showTranslateBtn && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => handleItemTranslate(e, item)}
+                                                disabled={loadingMap[item.id]}
+                                                className="flex-shrink-0 text-[10px] text-slate-600 hover:text-cyan-400 p-1 rounded-md hover:bg-slate-800 transition-all flex items-center gap-1"
+                                                title="Translate Title"
+                                            >
+                                                {loadingMap[item.id] ? (
+                                                    <div className="w-2.5 h-2.5 border border-slate-700 border-t-cyan-500 rounded-full animate-spin" />
+                                                ) : (
+                                                    "🌐"
+                                                )}
+                                                {translations[item.id] && <span className="text-[8px] font-bold text-cyan-500/60 uppercase">Done</span>}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <span className="flex-shrink-0 text-[10px] text-slate-600 whitespace-nowrap ml-1 opacity-80 group-hover:opacity-100">
+                                        {formatDate(item.created_at)}
+                                    </span>
+                                    <svg
+                                        className="flex-shrink-0 w-3.5 h-3.5 text-slate-800 group-hover:text-slate-400 transition-all transform group-hover:translate-x-0.5"
+                                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </Link>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </div>
@@ -650,6 +743,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 badgeName={t.fab.notice}
                 items={notices}
                 itemHref={(id) => `/notice/${id}`}
+                type="notice"
             />
 
             {/* ── [4] 최근 자유게시판 ── */}
@@ -662,6 +756,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 badgeName={t.fab.freeBoard}
                 items={freePosts}
                 itemHref={(id) => `/free-board/${id}`}
+                type="free"
             />
 
             {/* ── [5] 성검 전투 공략 퀵 링크 ── */}
