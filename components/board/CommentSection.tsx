@@ -102,14 +102,14 @@ function Avatar({ name, icon, size = 32 }: { name: string; icon?: string | null;
     const color = avatarColor(name);
     return (
         <div
-            className="rounded-full flex items-center justify-center flex-shrink-0 font-bold select-none"
+            className="rounded-full flex items-center justify-center flex-shrink-0 font-bold select-none transition-all"
             style={{
                 width: size, height: size,
-                background: icon ? "rgba(30,41,59,0.9)" : color,
-                border: `1.5px solid ${color}40`,
-                fontSize: icon ? size * 0.55 : size * 0.38,
+                background: icon ? "rgba(30,41,59,0.95)" : color,
+                border: icon ? `1.5px solid ${color}88` : `1.5px solid ${color}40`,
+                fontSize: icon ? size * 0.6 : size * 0.38,
                 color: "#fff",
-                boxShadow: `0 0 0 2px ${color}22`,
+                boxShadow: icon ? `0 0 15px ${color}33` : `0 0 0 2px ${color}22`,
             }}
         >
             {icon || name[0]?.toUpperCase() || "?"}
