@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
+import { useAuth } from "@/lib/auth/AuthContext";
 import QuillEditor from "./QuillEditor";
 
 /* ═══════════════════════════════════════
@@ -69,6 +70,7 @@ export default function WriteForm({
 }: WriteFormProps) {
     const router = useRouter();
     const { t } = useLocale();
+    const { user } = useAuth();
 
     const [title, setTitle] = useState("");
     const [author, setAuthor] = useState("");
@@ -169,6 +171,26 @@ export default function WriteForm({
             router.push(successRedirect);
         }, 1200);
     };
+
+    /* 권한 체크: 공지사항은 간부 이상만 가능 */
+    const isNotice = tableName === "notices";
+    const hasPermission = !isNotice || (user?.role === "admin" || user?.role === "staff");
+
+    if (!hasPermission) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex shadow-inner items-center justify-center p-6 text-center">
+                <div className="max-w-md space-y-4">
+                    <span className="text-5xl">🚫</span>
+                    <h2 className="text-xl font-bold text-white">작성 권한이 없습니다</h2>
+                    <p className="text-slate-400 text-sm">공지사항은 연맹 관리자나 간부 전용 메뉴입니다. 연맹원 권한으로는 글을 작성할 수 없습니다.</p>
+                    <button
+                        onClick={() => router.back()}
+                        className="px-6 py-2 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition-all"
+                    >뒤로 가기</button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-gray-950 text-white">

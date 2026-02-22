@@ -9,6 +9,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { LocaleCode } from "@/lib/i18n/LocaleContext";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ═══ 번역 헬퍼 ═══ */
 function cmCacheKey(locale: string, commentId: number): string { return `cm_tx_${locale}_${commentId}`; }
@@ -235,6 +236,7 @@ function DeleteModal({ onConfirm, onCancel, loading }: { onConfirm: () => void; 
 
 export default function CommentSection({ boardId, postId }: CommentSectionProps) {
     const { t, locale } = useLocale();
+    const { user } = useAuth();
     const c = t.comments;
     const b = t.board;
 
@@ -489,117 +491,126 @@ export default function CommentSection({ boardId, postId }: CommentSectionProps)
             </div>
 
             {/* ══ 댓글 입력 폼 ══ */}
-            <form
-                onSubmit={handleSubmit}
-                className="rounded-2xl p-4 space-y-3"
-                style={{ background: "rgba(15,23,42,0.78)", border: "1px solid rgba(51,65,85,0.55)", backdropFilter: "blur(12px)" }}
-            >
-                {/* 닉네임 + 아이콘 */}
-                <div className="flex items-center gap-2">
-                    <div className="relative flex-shrink-0" ref={pickerRef}>
-                        <button
-                            type="button"
-                            onClick={() => setShowIconPicker((v) => !v)}
-                            className="transition-transform hover:scale-110 active:scale-95"
-                            title={c.iconPickerTitle}
-                        >
-                            <Avatar name={author || "?"} icon={selectedIcon} size={36} />
-                        </button>
-                        {showIconPicker && (
-                            <IconPicker selected={selectedIcon} onSelect={setSelectedIcon} onClose={() => setShowIconPicker(false)} />
-                        )}
+            {boardId === "notices" && (user?.role !== "admin" && user?.role !== "staff") ? (
+                <div
+                    className="rounded-2xl p-6 text-center"
+                    style={{ background: "rgba(15,23,42,0.45)", border: "1px dashed rgba(51,65,85,0.5)" }}
+                >
+                    <p className="text-sm text-slate-500">📢 공지사항에는 간부 이상만 댓글을 작성할 수 있습니다.</p>
+                </div>
+            ) : (
+                <form
+                    onSubmit={handleSubmit}
+                    className="rounded-2xl p-4 space-y-3"
+                    style={{ background: "rgba(15,23,42,0.78)", border: "1px solid rgba(51,65,85,0.55)", backdropFilter: "blur(12px)" }}
+                >
+                    {/* 닉네임 + 아이콘 */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-shrink-0" ref={pickerRef}>
+                            <button
+                                type="button"
+                                onClick={() => setShowIconPicker((v) => !v)}
+                                className="transition-transform hover:scale-110 active:scale-95"
+                                title={c.iconPickerTitle}
+                            >
+                                <Avatar name={author || "?"} icon={selectedIcon} size={36} />
+                            </button>
+                            {showIconPicker && (
+                                <IconPicker selected={selectedIcon} onSelect={setSelectedIcon} onClose={() => setShowIconPicker(false)} />
+                            )}
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                            <label className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">{c.authorLabel}</label>
+                            <input
+                                type="text"
+                                value={author}
+                                onChange={(e) => setAuthor(e.target.value)}
+                                placeholder={c.authorPlaceholder}
+                                maxLength={20}
+                                className="w-full rounded-xl px-3 py-1.5 text-sm text-white placeholder:text-slate-700 outline-none transition-all"
+                                style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.45)" }}
+                                onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.35)")}
+                                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                            />
+                        </div>
                     </div>
-                    <div className="flex-1 flex flex-col gap-0.5">
-                        <label className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">{c.authorLabel}</label>
-                        <input
-                            type="text"
-                            value={author}
-                            onChange={(e) => setAuthor(e.target.value)}
-                            placeholder={c.authorPlaceholder}
-                            maxLength={20}
-                            className="w-full rounded-xl px-3 py-1.5 text-sm text-white placeholder:text-slate-700 outline-none transition-all"
-                            style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.45)" }}
+
+                    <p className="text-[9px] text-slate-700 -mt-1 pl-11">{c.iconHint}</p>
+
+                    {/* 댓글 내용 + 이모지 버튼 */}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">{c.contentLabel}</label>
+                        <textarea
+                            ref={textareaRef}
+                            value={content}
+                            onChange={(e) => { setContent(e.target.value); autoResize(); }}
+                            placeholder={c.contentPlaceholder}
+                            maxLength={500}
+                            rows={3}
+                            className="w-full rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-700 outline-none resize-none transition-all"
+                            style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.45)", minHeight: "72px" }}
                             onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.35)")}
                             onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                         />
-                    </div>
-                </div>
-
-                <p className="text-[9px] text-slate-700 -mt-1 pl-11">{c.iconHint}</p>
-
-                {/* 댓글 내용 + 이모지 버튼 */}
-                <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">{c.contentLabel}</label>
-                    <textarea
-                        ref={textareaRef}
-                        value={content}
-                        onChange={(e) => { setContent(e.target.value); autoResize(); }}
-                        placeholder={c.contentPlaceholder}
-                        maxLength={500}
-                        rows={3}
-                        className="w-full rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-700 outline-none resize-none transition-all"
-                        style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.45)", minHeight: "72px" }}
-                        onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.35)")}
-                        onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                    />
-                    <div className="flex items-center justify-between">
-                        {/* 이모지 버튼 */}
-                        <div className="relative" ref={emojiPickerRef}>
-                            <button
-                                type="button"
-                                onClick={() => setShowEmojiPicker((v) => !v)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all hover:scale-105 active:scale-95"
-                                style={{
-                                    background: showEmojiPicker ? "rgba(6,182,212,0.2)" : "rgba(30,41,59,0.8)",
-                                    border: showEmojiPicker ? "1px solid rgba(6,182,212,0.45)" : "1px solid rgba(71,85,105,0.4)",
-                                    color: showEmojiPicker ? "#22d3ee" : "#64748b",
-                                }}
-                                title="이모지 삽입"
-                            >
-                                😊 <span>이모지</span>
-                            </button>
-                            {showEmojiPicker && (
-                                <EmojiPicker
-                                    onSelect={insertEmoji}
-                                    onClose={() => setShowEmojiPicker(false)}
-                                />
-                            )}
+                        <div className="flex items-center justify-between">
+                            {/* 이모지 버튼 */}
+                            <div className="relative" ref={emojiPickerRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEmojiPicker((v) => !v)}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all hover:scale-105 active:scale-95"
+                                    style={{
+                                        background: showEmojiPicker ? "rgba(6,182,212,0.2)" : "rgba(30,41,59,0.8)",
+                                        border: showEmojiPicker ? "1px solid rgba(6,182,212,0.45)" : "1px solid rgba(71,85,105,0.4)",
+                                        color: showEmojiPicker ? "#22d3ee" : "#64748b",
+                                    }}
+                                    title="이모지 삽입"
+                                >
+                                    😊 <span>이모지</span>
+                                </button>
+                                {showEmojiPicker && (
+                                    <EmojiPicker
+                                        onSelect={insertEmoji}
+                                        onClose={() => setShowEmojiPicker(false)}
+                                    />
+                                )}
+                            </div>
+                            <p className="text-right text-[9px] text-slate-700">{content.length} / 500</p>
                         </div>
-                        <p className="text-right text-[9px] text-slate-700">{content.length} / 500</p>
                     </div>
-                </div>
 
-                {formError && (
-                    <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2">⚠️ {formError}</p>
-                )}
-                {successMsg && (
-                    <p className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2 animate-pulse">
-                        {c.successMsg}
-                    </p>
-                )}
-
-                <div className="flex items-center justify-between">
-                    {myNickname && (
-                        <p className="text-[10px] text-slate-600">
-                            <span className="text-cyan-600">✓</span> {c.nickSaved}{" "}
-                            <strong className="text-slate-500">{myNickname}</strong>
+                    {formError && (
+                        <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2">⚠️ {formError}</p>
+                    )}
+                    {successMsg && (
+                        <p className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2 animate-pulse">
+                            {c.successMsg}
                         </p>
                     )}
-                    <button
-                        type="submit"
-                        disabled={submitting}
-                        className="ml-auto px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{
-                            background: submitting ? "rgba(6,182,212,0.2)" : "linear-gradient(135deg, rgba(6,182,212,0.85), rgba(59,130,246,0.85))",
-                            border: "1px solid rgba(6,182,212,0.4)",
-                            color: "#fff",
-                            boxShadow: submitting ? "none" : "0 2px 14px rgba(6,182,212,0.35)",
-                        }}
-                    >
-                        {submitting ? c.submitting : c.submit}
-                    </button>
-                </div>
-            </form>
+
+                    <div className="flex items-center justify-between">
+                        {myNickname && (
+                            <p className="text-[10px] text-slate-600">
+                                <span className="text-cyan-600">✓</span> {c.nickSaved}{" "}
+                                <strong className="text-slate-500">{myNickname}</strong>
+                            </p>
+                        )}
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className="ml-auto px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{
+                                background: submitting ? "rgba(6,182,212,0.2)" : "linear-gradient(135deg, rgba(6,182,212,0.85), rgba(59,130,246,0.85))",
+                                border: "1px solid rgba(6,182,212,0.4)",
+                                color: "#fff",
+                                boxShadow: submitting ? "none" : "0 2px 14px rgba(6,182,212,0.35)",
+                            }}
+                        >
+                            {submitting ? c.submitting : c.submit}
+                        </button>
+                    </div>
+                </form>
+            )}
 
             {/* ══ 댓글 목록 ══ */}
             {loading ? (

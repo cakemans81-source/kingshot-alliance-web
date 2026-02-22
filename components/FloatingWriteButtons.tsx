@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocale } from "@/lib/i18n/LocaleContext";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ═══════════════════════════════════════════════
    서브 메뉴 아이템 타입
@@ -25,6 +26,7 @@ interface SubItem {
 
 export default function FloatingWriteButtons() {
     const { t } = useLocale();
+    const { user } = useAuth();
     const [open, setOpen] = useState(false);
     const fabRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +50,7 @@ export default function FloatingWriteButtons() {
         return () => window.removeEventListener("keydown", handler);
     }, []);
 
-    const SUB_ITEMS: SubItem[] = [
+    const ALL_SUB_ITEMS: SubItem[] = [
         {
             href: "/free-board/write",
             icon: "💬",
@@ -66,6 +68,15 @@ export default function FloatingWriteButtons() {
             border: "rgba(139,92,246,0.6)",
         },
     ];
+
+    // 권한에 따른 필터링
+    const SUB_ITEMS = ALL_SUB_ITEMS.filter(item => {
+        if (item.href === "/notice/write") {
+            // 공지사항 작성은 admin, staff 만 가능
+            return user?.role === "admin" || user?.role === "staff";
+        }
+        return true;
+    });
 
     return (
         <>
