@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ═══════════════════════════════════════════
    타입 & 상수
@@ -49,6 +50,9 @@ function toRow(gy: number, size: number = 1) { return MAX_Y - (gy + size - 1); }
    KdhGrid 컴포넌트
    ═══════════════════════════════════════════ */
 export default function KdhGrid() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === "admin";
+
     const [players, setPlayers] = useState<Player[]>(() => {
         if (typeof window === "undefined") return INIT_PLAYERS;
         try {
@@ -181,18 +185,20 @@ export default function KdhGrid() {
                                 color: "#e2e8f0",
                             }}
                         />
-                        {/* 추가 버튼 */}
-                        <button
-                            type="button"
-                            onClick={() => setShowModal(true)}
-                            className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95"
-                            style={{
-                                background: "linear-gradient(135deg,#06b6d4,#3b82f6)",
-                                color: "#fff",
-                            }}
-                        >
-                            ＋ 추가
-                        </button>
+                        {/* 추가 버튼 (관리자만 노출) */}
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                onClick={() => setShowModal(true)}
+                                className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95"
+                                style={{
+                                    background: "linear-gradient(135deg,#06b6d4,#3b82f6)",
+                                    color: "#fff",
+                                }}
+                            >
+                                ＋ 추가
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -415,14 +421,16 @@ export default function KdhGrid() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-mono text-slate-500">X:{p.x} Y:{p.y}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => deletePlayer(p.id)}
-                                            className="text-[11px] text-slate-700 hover:text-red-400 transition-colors"
-                                            title="삭제"
-                                        >
-                                            ✕
-                                        </button>
+                                        {isAdmin && (
+                                            <button
+                                                type="button"
+                                                onClick={() => deletePlayer(p.id)}
+                                                className="text-[11px] text-slate-700 hover:text-red-400 transition-colors"
+                                                title="삭제"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
