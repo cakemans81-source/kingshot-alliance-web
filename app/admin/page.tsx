@@ -38,6 +38,8 @@ export default function AdminPage() {
     const [filter, setFilter] = useState<UserRole | "all">("all");
     const [saving, setSaving] = useState<number | null>(null);
     const [msg, setMsg] = useState<{ id: number; text: string; ok: boolean } | null>(null);
+    const [kickTarget, setKickTarget] = useState<Member | null>(null);
+    const [kicking, setKicking] = useState(false);
 
     /* 권한 체크 */
     useEffect(() => {
@@ -70,6 +72,20 @@ export default function AdminPage() {
         }
         setSaving(null);
         setTimeout(() => setMsg(null), 2000);
+    };
+
+    /* 멤버 추방 */
+    const handleKick = async () => {
+        if (!kickTarget) return;
+        setKicking(true);
+        const { error } = await supabase.from("users").delete().eq("id", kickTarget.id);
+        if (error) {
+            alert("추방 실패: " + error.message);
+        } else {
+            setMembers((prev) => prev.filter((m) => m.id !== kickTarget.id));
+            setKickTarget(null);
+        }
+        setKicking(false);
     };
 
     if (!user || user.role !== "admin") return null;
@@ -186,21 +202,35 @@ export default function AdminPage() {
                                     )}
                                     {/* 권한 변경 드롭다운 (자기 자신 제외) */}
                                     {m.id !== user.id && (
-                                        <select
-                                            value={m.role}
-                                            disabled={saving === m.id}
-                                            onChange={(e) => changeRole(m.id, e.target.value as UserRole)}
-                                            className="rounded-xl px-2 py-1.5 text-xs outline-none transition-all disabled:opacity-50 disabled:cursor-wait"
-                                            style={{
-                                                background: "rgba(30,41,59,0.9)",
-                                                border: "1px solid rgba(71,85,105,0.5)",
-                                                color: "#cbd5e1",
-                                            }}
-                                        >
-                                            {ROLE_ORDER.map((r) => (
-                                                <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-                                            ))}
-                                        </select>
+                                        <div className="flex items-center gap-1.5">
+                                            <select
+                                                value={m.role}
+                                                disabled={saving === m.id}
+                                                onChange={(e) => changeRole(m.id, e.target.value as UserRole)}
+                                                className="rounded-xl px-2 py-1.5 text-xs outline-none transition-all disabled:opacity-50 disabled:cursor-wait"
+                                                style={{
+                                                    background: "rgba(30,41,59,0.9)",
+                                                    border: "1px solid rgba(71,85,105,0.5)",
+                                                    color: "#cbd5e1",
+                                                }}
+                                            >
+                                                {ROLE_ORDER.map((r) => (
+                                                    <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                                                ))}
+                                            </select>
+
+                                            {/* 추방 버튼 */}
+                                            <button
+                                                onClick={() => setKickTarget(m)}
+                                                className="p-1.5 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                                                title="연맹에서 추방"
+                                                style={{ border: "1px solid rgba(239, 68, 68, 0.3)" }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                                                </svg>
+                                            </button>
+                                        </div>
                                     )}
                                     {m.id === user.id && (
                                         <span className="text-[10px] text-slate-700 italic">본인</span>
@@ -215,6 +245,51 @@ export default function AdminPage() {
                     총 {members.length}명 가입 · 현재 {filtered.length}명 표시
                 </p>
             </div>
+
+            {/* 추방 확인 모달 */}
+            {kickTarget && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) setKickTarget(null); }}
+                >
+                    <div
+                        className="w-full max-w-sm rounded-3xl p-6 space-y-5 animate-in fade-in zoom-in duration-200"
+                        style={{
+                            background: "rgba(15,23,42,0.98)",
+                            border: "1px solid rgba(239, 68, 68, 0.4)",
+                            boxShadow: "0 0 40px rgba(239, 68, 68, 0.1)"
+                        }}
+                    >
+                        <div className="text-center space-y-2">
+                            <span className="text-4xl">⚠️</span>
+                            <h2 className="text-xl font-bold text-white">연맹원 추방 확인</h2>
+                            <p className="text-sm text-slate-400 leading-relaxed">
+                                <span className="text-red-400 font-bold">[{kickTarget.nickname}]</span> 님을 연맹에서 정말로 추방하시겠습니까? <br />
+                                <span className="text-[11px] text-slate-500 mt-1 block">(계정이 삭제되며 복구할 수 없습니다)</span>
+                            </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setKickTarget(null)}
+                                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-slate-400 hover:text-white transition-colors"
+                                style={{ background: "rgba(51,65,85,0.4)", border: "1px solid rgba(71,85,105,0.3)" }}
+                            >취소</button>
+                            <button
+                                onClick={handleKick}
+                                disabled={kicking}
+                                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white transition-all hover:brightness-110 disabled:opacity-50"
+                                style={{
+                                    background: "linear-gradient(135deg, #ef4444, #b91c1c)",
+                                    boxShadow: "0 4px 12px rgba(239, 68, 68, 0.3)"
+                                }}
+                            >
+                                {kicking ? "추방 중..." : "확인, 추방합니다"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
