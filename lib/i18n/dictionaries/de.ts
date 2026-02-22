@@ -12,6 +12,13 @@ const de: Dictionary = {
         kdhGrid: "Koordinatengitter",
         allianceName: "KDH Allianz",
     },
+    search: {
+        placeholder: "ID oder Inhalt suchen...",
+        submit: "Suche",
+        results: "Suchergebnisse",
+        noResults: "Keine Ergebnisse gefunden.",
+        allBoards: "Ergebnisse von allen Boards",
+    },
     home: {
         badge: "Offizielle Allianz-Website",
         titleBrand: "[ KDH ]",
