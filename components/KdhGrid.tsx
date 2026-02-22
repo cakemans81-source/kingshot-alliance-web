@@ -29,7 +29,7 @@ const STRUCTURES: Structure[] = [
 ];
 
 const INIT_PLAYERS: Player[] = [
-    { id: "p1", name: "만두몬mandu", x: 740, y: 755, memo: "" },
+    { id: "p1", name: "만두몬mandu", x: 741, y: 757, memo: "" },
     { id: "p2", name: "jerry", x: 739, y: 760, memo: "" },
     { id: "p3", name: "Nightmare1870", x: 748, y: 750, memo: "" },
 ];
