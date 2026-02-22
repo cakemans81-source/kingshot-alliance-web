@@ -215,8 +215,8 @@ function AuthMenuDesktop() {
             <Link
                 href="/strategy"
                 className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${pathname.startsWith("/strategy")
-                        ? "text-indigo-300 bg-indigo-500/15"
-                        : "text-indigo-300/70 hover:text-indigo-200 hover:bg-indigo-500/10"
+                    ? "text-indigo-300 bg-indigo-500/15"
+                    : "text-indigo-300/70 hover:text-indigo-200 hover:bg-indigo-500/10"
                     }`}
                 style={{ border: "1px solid rgba(99,102,241,0.25)" }}
             >
@@ -227,8 +227,8 @@ function AuthMenuDesktop() {
                 <Link
                     href="/admin"
                     className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${pathname === "/admin"
-                            ? "text-yellow-300 bg-yellow-500/15"
-                            : "text-yellow-300/70 hover:text-yellow-200 hover:bg-yellow-500/10"
+                        ? "text-yellow-300 bg-yellow-500/15"
+                        : "text-yellow-300/70 hover:text-yellow-200 hover:bg-yellow-500/10"
                         }`}
                     style={{ border: "1px solid rgba(251,191,36,0.25)" }}
                 >
@@ -260,25 +260,27 @@ function AuthButtonDesktop() {
             </Link>
         );
     }
-    return (
-        <Link
-            href="/profile"
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
-            style={{
-                background: "rgba(30,41,59,0.8)",
-                border: "1px solid rgba(71,85,105,0.5)",
-                color: "#94a3b8",
-            }}
+    <Link
+        href="/profile"
+        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
+        style={{
+            background: "rgba(30,41,59,0.8)",
+            border: "1px solid rgba(71,85,105,0.5)",
+            color: "#94a3b8",
+        }}
+    >
+        <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold overflow-hidden"
+            style={{ background: "rgba(6,182,212,0.3)", color: "#22d3ee", border: "1px solid rgba(6,182,212,0.4)" }}
         >
-            <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: "rgba(6,182,212,0.3)", color: "#22d3ee" }}
-            >
-                {user.nickname[0]?.toUpperCase() ?? "?"}
-            </span>
-            <span className="text-slate-300 max-w-[80px] truncate">{user.nickname}</span>
-        </Link>
-    );
+            {user.avatar_url ? (
+                <img src={user.avatar_url} alt="p" className="w-full h-full object-cover" />
+            ) : (
+                user.nickname[0]?.toUpperCase() ?? "?"
+            )}
+        </div>
+        <span className="text-slate-300 max-w-[80px] truncate">{user.nickname}</span>
+    </Link>
 }
 
 /* ═══════════════════════════════════════════════

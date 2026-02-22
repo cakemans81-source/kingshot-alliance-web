@@ -24,6 +24,7 @@ export interface AuthUser {
     game_id: string;
     nickname: string;
     bio: string | null;
+    avatar_url: string | null;
     role: UserRole;
 }
 
