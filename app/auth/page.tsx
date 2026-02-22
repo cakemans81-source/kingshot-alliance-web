@@ -21,7 +21,7 @@ export default function AuthPage() {
     /* 공통 필드 */
     const [gameId, setGameId] = useState("");
     const [password, setPassword] = useState("");
-    const [nickname, setNickname] = useState("");
+
     const [confirm, setConfirm] = useState("");
     const [bio, setBio] = useState("");
 
@@ -56,8 +56,8 @@ export default function AuthPage() {
     /* ── 가입 ── */
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!gameId.trim() || !password.trim() || !nickname.trim()) {
-            setError("게임 ID, 닉네임, 비밀번호는 필수입니다."); return;
+        if (!gameId.trim() || !password.trim()) {
+            setError("게임 ID와 비밀번호는 필수입니다."); return;
         }
         if (password !== confirm) { setError("비밀번호가 일치하지 않습니다."); return; }
         if (password.length < 4) { setError("비밀번호는 최소 4자 이상이어야 합니다."); return; }
@@ -71,7 +71,7 @@ export default function AuthPage() {
         const hashed = await hashPassword(password);
         const { data, error: err } = await supabase
             .from("users")
-            .insert({ game_id: gameId.trim(), nickname: nickname.trim(), bio: bio.trim() || null, password_hash: hashed, role: "member" })
+            .insert({ game_id: gameId.trim(), nickname: gameId.trim(), bio: bio.trim() || null, password_hash: hashed, role: "member" })
             .select("id, game_id, nickname, bio, role")
             .single();
 
@@ -146,19 +146,7 @@ export default function AuthPage() {
                             />
                         </Field>
 
-                        {/* 닉네임 (가입 시만) */}
-                        {tab === "register" && (
-                            <Field label="닉네임" required>
-                                <input
-                                    type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
-                                    placeholder="표시될 닉네임" maxLength={20}
-                                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition-all"
-                                    style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(6,182,212,0.4)")}
-                                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                                />
-                            </Field>
-                        )}
+
 
                         {/* 비밀번호 */}
                         <Field label="비밀번호" required>
