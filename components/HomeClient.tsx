@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n/LocaleContext";
+import { supabase } from "@/lib/supabase/client";
 
 /* ═══════════════════════════════════════════════
    타입
@@ -434,6 +435,48 @@ function OfficersSection() {
 export default function HomeClient({ notices, freePosts }: HomeClientProps) {
     const { t } = useLocale();
 
+    /* ── 검색 엔진 ── */
+    const [searchTerm, setSearchTerm] = useState("");
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState<(Item & { board: string; author: string })[]>([]);
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const query = searchTerm.trim();
+        if (!query) {
+            setSearchResults([]);
+            return;
+        }
+
+        setIsSearching(true);
+        try {
+            // 공지사항 검색
+            const { data: nData } = await supabase
+                .from("notices")
+                .select("id, title, author, content, created_at")
+                .or(`author.ilike.%${query}%,title.ilike.%${query}%,content.ilike.%${query}%`)
+                .limit(10);
+
+            // 자유게시판 검색
+            const { data: fData } = await supabase
+                .from("free_board")
+                .select("id, title, author, content, created_at")
+                .or(`author.ilike.%${query}%,title.ilike.%${query}%,content.ilike.%${query}%`)
+                .limit(10);
+
+            const merged = [
+                ...(nData || []).map(i => ({ ...i, board: "notice" })),
+                ...(fData || []).map(i => ({ ...i, board: "free-board" }))
+            ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+            setSearchResults(merged as any);
+        } catch (err) {
+            console.error("Search failed:", err);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
     const QUICK_LINKS = [
         {
             href: "/strategy/holy-sword",
@@ -508,6 +551,94 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             </div>
 
 
+
+            {/* ── [2] 통합 검색창 ── */}
+            <div className="mb-8">
+                <form
+                    onSubmit={handleSearch}
+                    className="relative group flex items-center gap-2"
+                >
+                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder={t.search.placeholder}
+                            className="w-full bg-slate-900/50 border border-slate-700/50 rounded-2xl px-5 py-3.5 text-sm text-white placeholder:text-slate-600 outline-none transition-all focus:border-cyan-500/50 focus:bg-slate-900/80"
+                            style={{ backdropFilter: "blur(8px)" }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={isSearching}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-cyan-400 transition-colors disabled:opacity-30"
+                        >
+                            {isSearching ? (
+                                <div className="w-4 h-4 border-2 border-slate-600 border-t-cyan-500 rounded-full animate-spin" />
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            )}
+                        </button>
+                    </div>
+                </form>
+
+                {/* 검색 결과 표시 섹션 */}
+                {searchTerm.trim() !== "" && (
+                    <div
+                        className="mt-4 rounded-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300"
+                        style={{
+                            background: "rgba(15,23,42,0.9)",
+                            borderColor: "rgba(6,182,212,0.3)",
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(6,182,212,0.1)",
+                        }}
+                    >
+                        <div className="px-5 py-2.5 bg-cyan-500/10 border-b border-cyan-500/20 flex items-center justify-between">
+                            <h3 className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                                🔍 {t.search.results}
+                                <span className="text-[10px] text-cyan-500/60 font-medium">({searchResults.length})</span>
+                            </h3>
+                            <span className="text-[10px] text-slate-500">{t.search.allBoards}</span>
+                        </div>
+                        {searchResults.length === 0 ? (
+                            <div className="px-5 py-10 text-center">
+                                <p className="text-sm text-slate-500 italic">{isSearching ? t.board.loading : t.search.noResults}</p>
+                            </div>
+                        ) : (
+                            <ul className="divide-y divide-slate-800/50">
+                                {searchResults.map((item) => (
+                                    <li key={`${item.board}-${item.id}`}>
+                                        <Link
+                                            href={`/${item.board}/${item.id}`}
+                                            className="flex flex-col gap-1 px-5 py-3 hover:bg-slate-800/40 transition-colors group"
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-sm font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors truncate">
+                                                    {item.title}
+                                                </span>
+                                                <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700">
+                                                    {item.board === "notice" ? t.nav.notice : t.nav.freeBoard}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] text-slate-600">
+                                                <span className="font-medium text-slate-500">👤 {item.author || "익명"}</span>
+                                                <span className="text-slate-800">|</span>
+                                                <span>{formatDate(item.created_at)}</span>
+                                            </div>
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <button
+                            onClick={() => { setSearchTerm(""); setSearchResults([]); }}
+                            className="w-full py-2 text-[10px] text-slate-600 hover:text-slate-400 transition-colors bg-slate-900/30"
+                        >
+                            닫기
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* ── [3] 최근 공지사항 ── */}
             <SectionCard

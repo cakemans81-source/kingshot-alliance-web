@@ -12,6 +12,13 @@ const zh: Dictionary = {
         kdhGrid: "坐标地图",
         allianceName: "KDH联盟",
     },
+    search: {
+        placeholder: "搜索 ID 或内容...",
+        submit: "搜索",
+        results: "搜索结果",
+        noResults: "未找到结果。",
+        allBoards: "所有板块的搜索结果",
+    },
     home: {
         badge: "官方联盟网站",
         titleBrand: "[ KDH ]",

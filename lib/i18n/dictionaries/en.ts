@@ -12,6 +12,13 @@ const en: Dictionary = {
         kdhGrid: "Grid Map",
         allianceName: "KDH Alliance",
     },
+    search: {
+        placeholder: "Search ID or content...",
+        submit: "Search",
+        results: "Search Results",
+        noResults: "No results found.",
+        allBoards: "Results from all boards",
+    },
     home: {
         badge: "Official Alliance Website",
         titleBrand: "[ KDH ]",

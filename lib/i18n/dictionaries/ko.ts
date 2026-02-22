@@ -13,6 +13,13 @@ export interface Dictionary {
         kdhGrid: string;
         allianceName: string;
     };
+    search: {
+        placeholder: string;
+        submit: string;
+        results: string;
+        noResults: string;
+        allBoards: string;
+    };
     home: {
         badge: string;
         titleBrand: string;
@@ -199,6 +206,13 @@ const ko: Dictionary = {
         diplomacy: "연맹원 명부 & 외교",
         kdhGrid: "좌표 그리드",
         allianceName: "킹샷 연맹",
+    },
+    search: {
+        placeholder: "아이디 또는 내용 검색...",
+        submit: "검색",
+        results: "전체 검색 결과",
+        noResults: "검색 결과가 없습니다.",
+        allBoards: "공지사항 & 자유게시판 결과",
     },
     home: {
         badge: "Official Alliance Website",
