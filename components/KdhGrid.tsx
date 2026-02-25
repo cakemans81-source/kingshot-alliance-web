@@ -131,13 +131,23 @@ export default function KdhGrid() {
 
     const hitIds = selectedId ? [selectedId] : searchMatches.map(p => p.id);
 
-    /* 검색 결과가 정확히 1개면 자동 선택 */
+    /* 검색 결과가 정확히 1개면 자동 선택 + 포커스 */
     useEffect(() => {
-        if (searchMatches.length === 1 && !selectedId) {
-            setSelectedId(searchMatches[0].id);
+        if (searchMatches.length === 1) {
+            const targetId = searchMatches[0].id;
+            setSelectedId(targetId);
             setShowDropdown(false);
+            // 즉시 포커스
+            const p = searchMatches[0];
+            if (!containerRef.current) return;
+            const { px, py } = toIso(p.x, p.y);
+            const rect = containerRef.current.getBoundingClientRect();
+            const zoomTo = 1.8;
+            setScale(zoomTo);
+            setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
         }
-    }, [searchMatches, selectedId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchMatches]);
 
     /* 드롭다운 바깥 클릭 시 닫기 */
     useEffect(() => {
@@ -161,10 +171,10 @@ export default function KdhGrid() {
         setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
     }, [players]);
 
-    /* selectedId 변경 시 포커스 */
+    /* 드롭다운에서 직접 선택 시 포커스 */
     useEffect(() => {
-        if (selectedId) focusOnPlayer(selectedId);
-    }, [selectedId, focusOnPlayer]);
+        if (selectedId && searchMatches.length !== 1) focusOnPlayer(selectedId);
+    }, [selectedId, focusOnPlayer, searchMatches.length]);
 
     /* 필터 */
     const filteredPlayers = (() => {
