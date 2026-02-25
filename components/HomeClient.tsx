@@ -146,12 +146,49 @@ function SectionCard({
     const [translations, setTranslations] = useState<Record<number, string>>({});
     const [loadingMap, setLoadingMap] = useState<Record<number, boolean>>({});
 
+    // 언어 변경 시 자동 번역
+    useEffect(() => {
+        if (targetLocale === "ko" || items.length === 0) return;
+        const translateAll = async () => {
+            for (const item of items) {
+                if (translations[item.id]) continue;
+                const isKo = guessLang(item.title) === "ko";
+                if (!isKo) continue;
+
+                const cacheKey = getCacheKey(targetLocale, item.id, type);
+                const cached = readCache(cacheKey);
+                if (cached) {
+                    setTranslations(prev => ({ ...prev, [item.id]: cached }));
+                    continue;
+                }
+
+                setLoadingMap(prev => ({ ...prev, [item.id]: true }));
+                try {
+                    const result = await translateText(item.title, targetLocale);
+                    writeCache(cacheKey, result);
+                    setTranslations(prev => ({ ...prev, [item.id]: result }));
+                } catch (err) {
+                    console.error("Auto translate error:", err);
+                } finally {
+                    setLoadingMap(prev => ({ ...prev, [item.id]: false }));
+                }
+            }
+        };
+        translateAll();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetLocale, items]);
+
     const handleItemTranslate = async (e: React.MouseEvent, item: Item) => {
         e.preventDefault();
         e.stopPropagation();
 
         if (translations[item.id]) {
-            // 이미 번역된 경우 원문으로 토글 (선택 사항, 여기서는 단순 번역 노출 유지)
+            // 번역 토글 (원문 복원)
+            setTranslations(prev => {
+                const copy = { ...prev };
+                delete copy[item.id];
+                return copy;
+            });
             return;
         }
 
