@@ -28,7 +28,7 @@ interface Structure {
 const STRUCTURES: Structure[] = [
     { id: "hq", label: "🏰 본부", x: 737, y: 757, size: 4, type: "hq" },
     { id: "trap1", label: "🪤 함정1", x: 730, y: 748, size: 3, type: "trap" },
-    { id: "trap2", label: "🪤 함정2", x: 742, y: 752, size: 4, type: "trap" },
+    { id: "trap2", label: "🪤 함정2", x: 742, y: 752, size: 3, type: "trap" },
 ];
 
 const INIT_PLAYERS: Player[] = [
