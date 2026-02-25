@@ -639,7 +639,7 @@ export default function KdhGrid() {
 
                         {/* 건물 오버레이 */}
                         {STRUCTURES.map(s => {
-                            const center = toIso(s.x + s.size / 2 - 0.5, s.y + s.size / 2 - 0.5);
+                            const center = toIso(s.x, s.y);
                             const isHQ = s.type === "hq";
                             return (
                                 <g key={s.id}
