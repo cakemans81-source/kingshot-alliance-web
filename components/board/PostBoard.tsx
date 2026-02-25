@@ -20,7 +20,7 @@ export interface Post {
 }
 
 export interface PostBoardConfig {
-    tableName: "notices" | "free_board";
+    tableName: "notices" | "free_board" | "staff_board";
     pageTitle: string;
     pageSubtitle: string;
     accentColor: string;
@@ -102,7 +102,7 @@ function guessLang(text: string): string {
 
 interface PostCardProps {
     post: Post;
-    tableName: "notices" | "free_board";
+    tableName: "notices" | "free_board" | "staff_board";
 }
 
 function PostCard({ post, tableName }: PostCardProps) {
@@ -118,7 +118,9 @@ function PostCard({ post, tableName }: PostCardProps) {
     // 상세 페이지 경로
     const detailHref = tableName === "notices"
         ? `/notice/${post.id}`
-        : `/free-board/${post.id}`;
+        : tableName === "staff_board"
+            ? `/staff-board/${post.id}`
+            : `/free-board/${post.id}`;
 
     /* 양방향 자동 번역:
      * 원문 언어를 폀지하여 locale과 다르면 번역 실행

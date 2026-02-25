@@ -140,8 +140,8 @@ function AuthMenuDesktop() {
         <>
             {/* 간부 전용 게시판 */}
             <Link
-                href="/strategy"
-                className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${pathname.startsWith("/strategy")
+                href="/staff-board"
+                className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${pathname.startsWith("/staff-board")
                     ? "text-indigo-300 bg-indigo-500/15"
                     : "text-indigo-300/70 hover:text-indigo-200 hover:bg-indigo-500/10"
                     }`}
@@ -239,7 +239,7 @@ function AuthMenuMobile() {
             {/* 간부 전용 (staff / admin) */}
             {user && (user.role === "staff" || user.role === "admin") && (
                 <Link
-                    href="/strategy"
+                    href="/staff-board"
                     className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-indigo-300 hover:bg-indigo-500/10 transition-colors"
                 >
                     ⭐ 간부 전용 게시판

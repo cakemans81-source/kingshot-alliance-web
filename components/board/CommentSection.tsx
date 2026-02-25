@@ -74,7 +74,7 @@ interface Comment {
 }
 
 interface CommentSectionProps {
-    boardId: "notices" | "free_board";
+    boardId: "notices" | "free_board" | "staff_board";
     postId: number | string;
 }
 

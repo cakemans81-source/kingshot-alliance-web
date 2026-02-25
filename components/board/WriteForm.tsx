@@ -49,7 +49,7 @@ async function uploadImage(
    ═══════════════════════════════════════ */
 
 interface WriteFormProps {
-    tableName: "notices" | "free_board";
+    tableName: "notices" | "free_board" | "staff_board";
     pageTitle: string;
     pageSubtitle: string;
     accentColor: string;

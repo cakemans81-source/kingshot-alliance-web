@@ -107,7 +107,7 @@ function formatDate(iso: string) {
    ═══════════════════════════════════════ */
 
 interface PostDetailClientProps {
-    tableName: "notices" | "free_board";
+    tableName: "notices" | "free_board" | "staff_board";
     listHref: string;
     accentColor: string;
 }
