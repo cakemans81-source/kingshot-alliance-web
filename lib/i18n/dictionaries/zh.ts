@@ -7,7 +7,6 @@ const zh: Dictionary = {
         strategy: "攻略",
         threeAlliances: "三联盟战斗",
         freeBoard: "自由论坛",
-        diplomacy: "成员与外交",
         kdhGrid: "坐标地图",
         allianceName: "KDH联盟",
     },
@@ -36,8 +35,6 @@ const zh: Dictionary = {
     quickLinks: {
         freeBoard: "自由论坛",
         freeBoardDesc: "与成员自由交流",
-        diplomacy: "外交状况",
-        diplomacyDesc: "同盟与敌对联盟信息",
     },
     features: {
         strategy: "联盟攻略",

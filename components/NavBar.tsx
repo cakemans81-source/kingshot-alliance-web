@@ -289,7 +289,6 @@ export default function NavBar() {
     const NAV_SIMPLE = [
         { key: "notice" as const, href: "/notice" },
         { key: "freeBoard" as const, href: "/free-board" },
-        { key: "diplomacy" as const, href: "/diplomacy" },
         { key: "kdhGrid" as const, href: "/kdh-grid" },
     ];
 

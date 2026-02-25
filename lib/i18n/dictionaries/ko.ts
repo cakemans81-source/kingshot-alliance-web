@@ -8,7 +8,6 @@ export interface Dictionary {
         strategy: string;
         threeAlliances: string;
         freeBoard: string;
-        diplomacy: string;
         kdhGrid: string;
         allianceName: string;
     };
@@ -37,8 +36,6 @@ export interface Dictionary {
     quickLinks: {
         freeBoard: string;
         freeBoardDesc: string;
-        diplomacy: string;
-        diplomacyDesc: string;
     };
     features: {
         strategy: string;
@@ -199,7 +196,6 @@ const ko: Dictionary = {
         strategy: "공략",
         threeAlliances: "삼대 연맹 전투",
         freeBoard: "자유 게시판",
-        diplomacy: "연맹원 명부 & 외교",
         kdhGrid: "좌표 그리드",
         allianceName: "킹샷 연맹",
     },
@@ -228,8 +224,6 @@ const ko: Dictionary = {
     quickLinks: {
         freeBoard: "자유 게시판",
         freeBoardDesc: "연맹원과 자유롭게 소통",
-        diplomacy: "외교 현황",
-        diplomacyDesc: "동맹 · 적대 연맹 정보",
     },
     features: {
         strategy: "연맹 공략",

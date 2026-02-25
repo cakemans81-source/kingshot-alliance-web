@@ -7,7 +7,6 @@ const de: Dictionary = {
         strategy: "Strategie",
         threeAlliances: "Drei-Allianz-Kampf",
         freeBoard: "Freies Forum",
-        diplomacy: "Mitglieder & Diplomatie",
         kdhGrid: "Koordinatengitter",
         allianceName: "KDH Allianz",
     },
@@ -36,8 +35,6 @@ const de: Dictionary = {
     quickLinks: {
         freeBoard: "Freies Forum",
         freeBoardDesc: "Frei mit Mitgliedern chatten",
-        diplomacy: "Diplomatie",
-        diplomacyDesc: "Verbündete & Feinde",
     },
     features: {
         strategy: "Allianz-Strategie",
