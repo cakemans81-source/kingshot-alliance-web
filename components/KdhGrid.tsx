@@ -35,16 +35,28 @@ const INIT_PLAYERS: Player[] = [
     { id: "p3", name: "Nightmare1870", x: 748, y: 750, memo: "" },
 ];
 
+/* 그리드 범위 */
 const MIN_X = 724, MAX_X = 758;
 const MIN_Y = 742, MAX_Y = 770;
 const COLS = MAX_X - MIN_X + 1;
 const ROWS = MAX_Y - MIN_Y + 1;
-const CELL = 22; // px per grid cell
+const CELL = 40; // 마름모 셀 크기
 
 const STORAGE_KEY = "kdh-players-v2";
 
-function toCol(gx: number) { return gx - MIN_X; }
-function toRow(gy: number, size: number = 1) { return MAX_Y - (gy + size - 1); } // Y 반전 (입력좌표는 오브젝트의 가장 아래쪽 기준)
+/* 마름모(isometric) 좌표 변환:
+   게임 좌표 (gx, gy) → 화면 좌표 (px, py)
+   X가 오른쪽-아래, Y가 왼쪽-아래로 향하는 다이아몬드 */
+const ISO_HALF = CELL / 2;
+
+function toIso(gx: number, gy: number) {
+    const col = gx - MIN_X;
+    const row = MAX_Y - gy; // Y 반전
+    return {
+        px: (col - row) * ISO_HALF,
+        py: (col + row) * ISO_HALF / 2,
+    };
+}
 
 /* ═══════════════════════════════════════════
    KdhGrid 컴포넌트
@@ -66,13 +78,20 @@ export default function KdhGrid() {
     const [showModal, setShowModal] = useState(false);
     const [tooltip, setTooltip] = useState<{ name: string; coord: string; memo: string; x: number; y: number } | null>(null);
 
-    // 추가 폼 상태
+    /* 추가 폼 */
     const [fName, setFName] = useState("");
     const [fX, setFX] = useState("");
     const [fY, setFY] = useState("");
     const [fMemo, setFMemo] = useState("");
 
-    const gridRef = useRef<HTMLDivElement>(null);
+    /* Pan & Zoom 상태 */
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(1);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const isDragging = useRef(false);
+    const dragStart = useRef({ x: 0, y: 0 });
+    const panStart = useRef({ x: 0, y: 0 });
+    const lastTouchDist = useRef(0);
 
     /* 저장 */
     const savePlayers = useCallback((list: Player[]) => {
@@ -80,7 +99,7 @@ export default function KdhGrid() {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* noop */ }
     }, []);
 
-    /* 검색 히트 */
+    /* 검색 */
     const hitIds = search
         ? players.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map(p => p.id)
         : [];
@@ -94,23 +113,87 @@ export default function KdhGrid() {
         );
     })();
 
-    /* 초기 스크롤: HQ 중심 */
+    /* 초기 중앙 정렬 (HQ 기준) */
     useEffect(() => {
-        const el = gridRef.current;
+        const el = containerRef.current;
         if (!el) return;
         const hq = STRUCTURES[0];
-        el.scrollLeft = toCol(hq.x) * CELL - 60;
-        el.scrollTop = toRow(hq.y, hq.size) * CELL - 40;
+        const { px, py } = toIso(hq.x, hq.y);
+        const rect = el.getBoundingClientRect();
+        setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
     }, []);
 
-    /* 검색 시 첫 히트로 스크롤 */
+    /* 검색 시 해당 유저로 이동 */
     useEffect(() => {
         if (hitIds.length === 0) return;
         const p = players.find(pl => pl.id === hitIds[0]);
-        if (!p || !gridRef.current) return;
-        gridRef.current.scrollLeft = toCol(p.x) * CELL - 60;
-        gridRef.current.scrollTop = toRow(p.y, 2) * CELL - 40;
-    }, [hitIds, players]);
+        if (!p || !containerRef.current) return;
+        const { px, py } = toIso(p.x, p.y);
+        const rect = containerRef.current.getBoundingClientRect();
+        setPan({ x: rect.width / 2 - px * scale, y: rect.height / 2 - py * scale });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hitIds]);
+
+    /* ── 마우스 Pan ── */
+    const onMouseDown = (e: React.MouseEvent) => {
+        if (e.button !== 0) return;
+        isDragging.current = true;
+        dragStart.current = { x: e.clientX, y: e.clientY };
+        panStart.current = { ...pan };
+    };
+    const onMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging.current) return;
+        setPan({
+            x: panStart.current.x + (e.clientX - dragStart.current.x),
+            y: panStart.current.y + (e.clientY - dragStart.current.y),
+        });
+    };
+    const onMouseUp = () => { isDragging.current = false; };
+
+    /* ── 마우스 휠 Zoom ── */
+    const onWheel = useCallback((e: WheelEvent) => {
+        e.preventDefault();
+        setScale(s => Math.min(Math.max(0.4, s + e.deltaY * -0.001), 3));
+    }, []);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        el.addEventListener("wheel", onWheel, { passive: false });
+        return () => el.removeEventListener("wheel", onWheel);
+    }, [onWheel]);
+
+    /* ── 터치 Pan + 핀치 Zoom ── */
+    const onTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 1) {
+            isDragging.current = true;
+            dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            panStart.current = { ...pan };
+        } else if (e.touches.length === 2) {
+            isDragging.current = false;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            lastTouchDist.current = Math.sqrt(dx * dx + dy * dy);
+        }
+    };
+    const onTouchMove = (e: React.TouchEvent) => {
+        if (e.touches.length === 1 && isDragging.current) {
+            setPan({
+                x: panStart.current.x + (e.touches[0].clientX - dragStart.current.x),
+                y: panStart.current.y + (e.touches[0].clientY - dragStart.current.y),
+            });
+        } else if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (lastTouchDist.current > 0) {
+                const delta = dist / lastTouchDist.current;
+                setScale(s => Math.min(Math.max(0.4, s * delta), 3));
+            }
+            lastTouchDist.current = dist;
+        }
+    };
+    const onTouchEnd = () => { isDragging.current = false; lastTouchDist.current = 0; };
 
     /* 유저 추가 */
     const addPlayer = () => {
@@ -118,8 +201,7 @@ export default function KdhGrid() {
         const x = parseInt(fX);
         const y = parseInt(fY);
         if (!name || isNaN(x) || isNaN(y)) return;
-        const newPlayer: Player = { id: "p" + Date.now(), name, x, y, memo: fMemo.trim() };
-        savePlayers([...players, newPlayer]);
+        savePlayers([...players, { id: "p" + Date.now(), name, x, y, memo: fMemo.trim() }]);
         setFName(""); setFX(""); setFY(""); setFMemo("");
         setShowModal(false);
     };
@@ -131,18 +213,47 @@ export default function KdhGrid() {
     };
 
     /* 툴팁 */
-    const showTip = (name: string, coord: string, memo: string, clientX: number, clientY: number) => {
-        setTooltip({ name, coord, memo, x: clientX + 10, y: clientY - 10 });
-    };
+    const showTip = (name: string, coord: string, memo: string, cx: number, cy: number) =>
+        setTooltip({ name, coord, memo, x: cx + 12, y: cy - 12 });
     const hideTip = () => setTooltip(null);
 
-    /* 오버레이 위치 스타일 */
-    const overlayStyle = (col: number, row: number, size: number) => ({
-        left: col * CELL,
-        top: row * CELL,
-        width: size * CELL,
-        height: size * CELL,
-    });
+    /* 마름모 그리드 라인 생성 */
+    const gridLines: React.ReactNode[] = [];
+    for (let c = 0; c <= COLS; c++) {
+        const p1 = toIso(MIN_X + c, MAX_Y);
+        const p2 = toIso(MIN_X + c, MIN_Y);
+        gridLines.push(
+            <line key={`c${c}`} x1={p1.px} y1={p1.py} x2={p2.px} y2={p2.py}
+                stroke="rgba(51,65,85,0.35)" strokeWidth={0.5} />
+        );
+    }
+    for (let r = 0; r <= ROWS; r++) {
+        const p1 = toIso(MIN_X, MIN_Y + r);
+        const p2 = toIso(MAX_X, MIN_Y + r);
+        gridLines.push(
+            <line key={`r${r}`} x1={p1.px} y1={p1.py} x2={p2.px} y2={p2.py}
+                stroke="rgba(51,65,85,0.35)" strokeWidth={0.5} />
+        );
+    }
+
+    /* SVG 뷰박스 계산 */
+    const corners = [
+        toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y),
+        toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y),
+    ];
+    const svgMinX = Math.min(...corners.map(c => c.px)) - 60;
+    const svgMinY = Math.min(...corners.map(c => c.py)) - 30;
+    const svgMaxX = Math.max(...corners.map(c => c.px)) + 60;
+    const svgMaxY = Math.max(...corners.map(c => c.py)) + 30;
+    const svgW = svgMaxX - svgMinX;
+    const svgH = svgMaxY - svgMinY;
+
+    /* 마름모 셀 (다이아몬드) 패스 생성 */
+    const diamondPath = (cx: number, cy: number, sz: number) => {
+        const hw = sz * ISO_HALF;
+        const hh = sz * ISO_HALF / 2;
+        return `M${cx},${cy - hh} L${cx + hw},${cy} L${cx},${cy + hh} L${cx - hw},${cy} Z`;
+    };
 
     return (
         <>
@@ -163,7 +274,7 @@ export default function KdhGrid() {
                 >
                     <div className="flex items-center gap-2">
                         <span className="text-sm">🗺️</span>
-                        <h2 className="text-sm font-bold text-slate-200">KDH 연맹 좌표 그리드</h2>
+                        <h2 className="text-sm font-bold text-slate-200">KDH 전략 지도</h2>
                         <span
                             className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                             style={{ background: "rgba(6,182,212,0.15)", color: "#22d3ee" }}
@@ -172,7 +283,6 @@ export default function KdhGrid() {
                         </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        {/* 검색 */}
                         <input
                             type="text"
                             value={search}
@@ -185,16 +295,12 @@ export default function KdhGrid() {
                                 color: "#e2e8f0",
                             }}
                         />
-                        {/* 추가 버튼 (관리자만 노출) */}
                         {isAdmin && (
                             <button
                                 type="button"
                                 onClick={() => setShowModal(true)}
                                 className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95"
-                                style={{
-                                    background: "linear-gradient(135deg,#06b6d4,#3b82f6)",
-                                    color: "#fff",
-                                }}
+                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
                             >
                                 ＋ 추가
                             </button>
@@ -219,172 +325,147 @@ export default function KdhGrid() {
                             onClick={() => setFilter(f.key)}
                             className="flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all"
                             style={{
-                                background: filter === f.key
-                                    ? "rgba(6,182,212,0.2)"
-                                    : "rgba(30,41,59,0.5)",
-                                border: filter === f.key
-                                    ? "1px solid rgba(6,182,212,0.5)"
-                                    : "1px solid rgba(51,65,85,0.3)",
+                                background: filter === f.key ? "rgba(6,182,212,0.2)" : "rgba(30,41,59,0.5)",
+                                border: filter === f.key ? "1px solid rgba(6,182,212,0.5)" : "1px solid rgba(51,65,85,0.3)",
                                 color: filter === f.key ? "#22d3ee" : "#64748b",
                             }}
                         >
                             {f.label}
                         </button>
                     ))}
-
-                    {/* 검색 없음 메시지 */}
                     {search && hitIds.length === 0 && (
                         <span className="ml-2 text-[10px] text-red-400 self-center">😔 찾을 수 없음</span>
                     )}
                 </div>
 
-                {/* ── 그리드 ── */}
+                {/* ── 줌 컨트롤 ── */}
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
+                    <button onClick={() => setScale(s => Math.min(s + 0.2, 3))}
+                        className="w-6 h-6 rounded text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                        style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>+</button>
+                    <button onClick={() => setScale(s => Math.max(s - 0.2, 0.4))}
+                        className="w-6 h-6 rounded text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                        style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>−</button>
+                    <span className="text-[10px] text-slate-600">{Math.round(scale * 100)}%</span>
+                    <button onClick={() => {
+                        setScale(1);
+                        const el = containerRef.current;
+                        if (!el) return;
+                        const hq = STRUCTURES[0];
+                        const { px, py } = toIso(hq.x, hq.y);
+                        const rect = el.getBoundingClientRect();
+                        setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
+                    }}
+                        className="text-[10px] text-slate-500 hover:text-cyan-400 transition-colors ml-1"
+                    >↺ 리셋</button>
+                    <span className="ml-auto text-[9px] text-slate-700">드래그: 이동 · 휠: 확대/축소</span>
+                </div>
+
+                {/* ── 마름모 지도 영역 ── */}
                 <div
-                    ref={gridRef}
-                    className="overflow-auto"
-                    style={{ height: 220, scrollbarWidth: "thin" }}
+                    ref={containerRef}
+                    className="relative overflow-hidden select-none"
+                    style={{
+                        height: 380,
+                        cursor: isDragging.current ? "grabbing" : "grab",
+                        background: "radial-gradient(ellipse at center, rgba(6,182,212,0.03) 0%, transparent 70%)",
+                        touchAction: "none",
+                    }}
+                    onMouseDown={onMouseDown}
+                    onMouseMove={onMouseMove}
+                    onMouseUp={onMouseUp}
+                    onMouseLeave={onMouseUp}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
                 >
-                    <div style={{ padding: "16px 24px 16px 32px" }}>
-                        {/* 좌표 그리드 컨테이너 */}
-                        <div
-                            style={{
-                                position: "relative",
-                                width: COLS * CELL,
-                                height: ROWS * CELL,
-                                backgroundImage: `
-                                    linear-gradient(rgba(51,65,85,0.22) 1px, transparent 1px),
-                                    linear-gradient(90deg, rgba(51,65,85,0.22) 1px, transparent 1px)
-                                `,
-                                backgroundSize: `${CELL}px ${CELL}px`,
-                                border: "1px solid rgba(51,65,85,0.3)",
-                                borderRadius: 4,
-                            }}
-                        >
-                            {/* X축 레이블 */}
-                            {Array.from({ length: COLS }, (_, c) => c).filter(c => c % 3 === 0).map(c => (
-                                <span
-                                    key={c}
-                                    style={{
-                                        position: "absolute",
-                                        left: c * CELL + 2,
-                                        top: -14,
-                                        fontSize: 8,
-                                        color: "rgba(100,116,139,0.7)",
-                                        fontFamily: "monospace",
-                                        whiteSpace: "nowrap",
-                                        pointerEvents: "none",
-                                    }}
-                                >
-                                    {MIN_X + c}
-                                </span>
-                            ))}
-                            {/* Y축 레이블 */}
-                            {Array.from({ length: ROWS }, (_, r) => r).filter(r => r % 3 === 0).map(r => (
-                                <span
-                                    key={r}
-                                    style={{
-                                        position: "absolute",
-                                        left: -26,
-                                        top: r * CELL + 4,
-                                        fontSize: 8,
-                                        color: "rgba(100,116,139,0.7)",
-                                        fontFamily: "monospace",
-                                        pointerEvents: "none",
-                                    }}
-                                >
-                                    {MAX_Y - r}
-                                </span>
-                            ))}
+                    <svg
+                        width={svgW}
+                        height={svgH}
+                        viewBox={`${svgMinX} ${svgMinY} ${svgW} ${svgH}`}
+                        style={{
+                            position: "absolute",
+                            left: pan.x,
+                            top: pan.y,
+                            transform: `scale(${scale})`,
+                            transformOrigin: "0 0",
+                        }}
+                    >
+                        {/* 그리드 라인 */}
+                        {gridLines}
 
-                            {/* 건물 오버레이 */}
-                            {STRUCTURES.map(s => {
-                                const col = toCol(s.x);
-                                const row = toRow(s.y, s.size);
-                                const isHQ = s.type === "hq";
-                                return (
-                                    <div
-                                        key={s.id}
-                                        style={{
-                                            ...overlayStyle(col, row, s.size),
-                                            position: "absolute",
-                                            borderRadius: 4,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            fontSize: 9,
-                                            fontWeight: 700,
-                                            textAlign: "center",
-                                            cursor: "default",
-                                            background: isHQ
-                                                ? "linear-gradient(135deg,rgba(6,182,212,0.3),rgba(99,102,241,0.3))"
-                                                : "linear-gradient(135deg,rgba(245,158,11,0.3),rgba(239,68,68,0.2))",
-                                            border: `2px solid ${isHQ ? "rgba(6,182,212,0.7)" : "rgba(245,158,11,0.6)"}`,
-                                            color: isHQ ? "#7dd3fc" : "#fcd34d",
-                                            boxShadow: isHQ ? "0 0 12px rgba(6,182,212,0.25)" : "none",
-                                            zIndex: 2,
-                                        }}
-                                        onMouseEnter={e => showTip(s.label, `X:${s.x}, Y:${s.y}`, `${s.size}×${s.size} 건물`, e.clientX, e.clientY)}
-                                        onMouseLeave={hideTip}
-                                    >
-                                        {s.label}
-                                    </div>
-                                );
-                            })}
+                        {/* 좌표 라벨 (X축) */}
+                        {Array.from({ length: COLS }, (_, i) => i).filter(i => i % 4 === 0).map(i => {
+                            const gx = MIN_X + i;
+                            const { px, py } = toIso(gx, MAX_Y);
+                            return <text key={`lx${i}`} x={px} y={py + 12} fill="rgba(100,116,139,0.6)" fontSize={8} textAnchor="middle" fontFamily="monospace">{gx}</text>;
+                        })}
+                        {/* 좌표 라벨 (Y축) */}
+                        {Array.from({ length: ROWS }, (_, i) => i).filter(i => i % 4 === 0).map(i => {
+                            const gy = MIN_Y + i;
+                            const { px, py } = toIso(MIN_X, gy);
+                            return <text key={`ly${i}`} x={px - 12} y={py + 3} fill="rgba(100,116,139,0.6)" fontSize={8} textAnchor="end" fontFamily="monospace">{gy}</text>;
+                        })}
 
-                            {/* 플레이어 오버레이 */}
-                            {filteredPlayers.map(p => {
-                                const col = toCol(p.x);
-                                const row = toRow(p.y, 2);
-                                const isHit = hitIds.includes(p.id);
-                                return (
-                                    <div
-                                        key={p.id}
-                                        style={{
-                                            ...overlayStyle(col, row, 2),
-                                            position: "absolute",
-                                            borderRadius: 4,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            fontSize: 7,
-                                            fontWeight: 700,
-                                            textAlign: "center",
-                                            overflow: "hidden",
-                                            cursor: "pointer",
-                                            background: isHit ? "rgba(6,182,212,0.2)" : "rgba(20,30,50,0.85)",
-                                            border: `1.5px solid ${isHit ? "#06b6d4" : "rgba(99,102,241,0.5)"}`,
-                                            color: isHit ? "#fff" : "#a5b4fc",
-                                            boxShadow: isHit
-                                                ? "0 0 0 3px rgba(6,182,212,0.3), 0 0 14px rgba(6,182,212,0.5)"
-                                                : "none",
-                                            animation: isHit ? "kdhPulse 1.2s ease-in-out infinite" : "none",
-                                            zIndex: isHit ? 10 : 3,
-                                            padding: 1,
-                                            lineHeight: 1.1,
-                                        }}
-                                        onMouseEnter={e => showTip(p.name, `X:${p.x}, Y:${p.y}`, p.memo, e.clientX, e.clientY)}
-                                        onMouseLeave={hideTip}
-                                    >
-                                        {p.name.length > 6 ? p.name.slice(0, 5) + "…" : p.name}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+                        {/* 건물 오버레이 */}
+                        {STRUCTURES.map(s => {
+                            const center = toIso(s.x + s.size / 2 - 0.5, s.y + s.size / 2 - 0.5);
+                            const isHQ = s.type === "hq";
+                            return (
+                                <g key={s.id}
+                                    onMouseEnter={e => showTip(s.label, `X:${s.x} Y:${s.y}`, `${s.size}×${s.size} 건물`, e.clientX, e.clientY)}
+                                    onMouseLeave={hideTip}
+                                    style={{ cursor: "default" }}
+                                >
+                                    <path
+                                        d={diamondPath(center.px, center.py, s.size)}
+                                        fill={isHQ ? "rgba(6,182,212,0.25)" : "rgba(245,158,11,0.2)"}
+                                        stroke={isHQ ? "#06b6d4" : "#f59e0b"}
+                                        strokeWidth={2}
+                                    />
+                                    {isHQ && <path d={diamondPath(center.px, center.py, s.size)} fill="none" stroke="rgba(6,182,212,0.4)" strokeWidth={4} />}
+                                    <text x={center.px} y={center.py + 1} fill={isHQ ? "#7dd3fc" : "#fcd34d"} fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{s.label}</text>
+                                </g>
+                            );
+                        })}
+
+                        {/* 플레이어 오버레이 */}
+                        {filteredPlayers.map(p => {
+                            const center = toIso(p.x + 0.5, p.y + 0.5);
+                            const isHit = hitIds.includes(p.id);
+                            const displayName = p.name.length > 7 ? p.name.slice(0, 6) + "…" : p.name;
+                            return (
+                                <g key={p.id}
+                                    onMouseEnter={e => showTip(p.name, `X:${p.x} Y:${p.y}`, p.memo, e.clientX, e.clientY)}
+                                    onMouseLeave={hideTip}
+                                    style={{ cursor: "pointer" }}
+                                >
+                                    {isHit && (
+                                        <path d={diamondPath(center.px, center.py, 2)} fill="none" stroke="#06b6d4" strokeWidth={3} opacity={0.5}>
+                                            <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.5s" repeatCount="indefinite" />
+                                        </path>
+                                    )}
+                                    <path
+                                        d={diamondPath(center.px, center.py, 2)}
+                                        fill={isHit ? "rgba(6,182,212,0.3)" : "rgba(99,102,241,0.2)"}
+                                        stroke={isHit ? "#06b6d4" : "rgba(99,102,241,0.6)"}
+                                        strokeWidth={1.5}
+                                    />
+                                    <text x={center.px} y={center.py + 1} fill={isHit ? "#fff" : "#a5b4fc"} fontSize={7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
+                                </g>
+                            );
+                        })}
+                    </svg>
                 </div>
 
                 {/* ── 범례 + 플레이어 목록 ── */}
-                <div
-                    className="border-t px-4 py-3"
-                    style={{ borderColor: "rgba(51,65,85,0.4)" }}
-                >
-                    {/* 범례 */}
+                <div className="border-t px-4 py-3" style={{ borderColor: "rgba(51,65,85,0.4)" }}>
                     <div className="flex items-center gap-3 mb-2.5 flex-wrap">
                         {[
-                            { color: "rgba(6,182,212,0.5)", border: "#06b6d4", label: "본부 HQ" },
-                            { color: "rgba(245,158,11,0.35)", border: "#f59e0b", label: "함정" },
-                            { color: "rgba(20,30,50,0.85)", border: "rgba(99,102,241,0.5)", label: "유저 (2×2)" },
-                            { color: "rgba(6,182,212,0.2)", border: "#06b6d4", glow: true, label: "검색 강조" },
+                            { color: "rgba(6,182,212,0.25)", border: "#06b6d4", label: "본부 HQ" },
+                            { color: "rgba(245,158,11,0.2)", border: "#f59e0b", label: "함정" },
+                            { color: "rgba(99,102,241,0.2)", border: "rgba(99,102,241,0.6)", label: "유저" },
+                            { color: "rgba(6,182,212,0.3)", border: "#06b6d4", glow: true, label: "검색 강조" },
                         ].map(l => (
                             <div key={l.label} className="flex items-center gap-1">
                                 <div
@@ -393,6 +474,7 @@ export default function KdhGrid() {
                                         background: l.color,
                                         border: `1.5px solid ${l.border}`,
                                         boxShadow: l.glow ? "0 0 5px rgba(6,182,212,0.6)" : "none",
+                                        transform: "rotate(45deg)",
                                     }}
                                 />
                                 <span className="text-[9px] text-slate-500">{l.label}</span>
@@ -400,7 +482,6 @@ export default function KdhGrid() {
                         ))}
                     </div>
 
-                    {/* 플레이어 목록 (스크롤) */}
                     <div className="flex flex-col gap-1 max-h-28 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
                         {filteredPlayers.length === 0 ? (
                             <p className="text-xs text-slate-600 text-center py-2">해당 구역에 유저 없음</p>
@@ -427,9 +508,7 @@ export default function KdhGrid() {
                                                 onClick={() => deletePlayer(p.id)}
                                                 className="text-[11px] text-slate-700 hover:text-red-400 transition-colors"
                                                 title="삭제"
-                                            >
-                                                ✕
-                                            </button>
+                                            >✕</button>
                                         )}
                                     </div>
                                 </div>
@@ -448,78 +527,44 @@ export default function KdhGrid() {
                 >
                     <div
                         className="w-80 rounded-2xl p-6"
-                        style={{
-                            background: "#0d1829",
-                            border: "1px solid rgba(6,182,212,0.35)",
-                            boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
-                        }}
+                        style={{ background: "#0d1829", border: "1px solid rgba(6,182,212,0.35)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}
                     >
                         <h3 className="text-base font-bold text-cyan-400 mb-4">➕ 유저 추가</h3>
                         <div className="space-y-3">
                             <div>
                                 <label className="block text-[11px] text-slate-500 font-bold mb-1">게임 아이디</label>
-                                <input
-                                    type="text"
-                                    value={fName}
-                                    onChange={e => setFName(e.target.value)}
-                                    placeholder="예: 만두몬mandu"
+                                <input type="text" value={fName} onChange={e => setFName(e.target.value)} placeholder="예: 만두몬mandu"
                                     className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                                    style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                                />
+                                    style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                             </div>
                             <div className="flex gap-2">
                                 <div className="flex-1">
                                     <label className="block text-[11px] text-slate-500 font-bold mb-1">X 좌표</label>
-                                    <input
-                                        type="number"
-                                        value={fX}
-                                        onChange={e => setFX(e.target.value)}
-                                        placeholder="740"
+                                    <input type="number" value={fX} onChange={e => setFX(e.target.value)} placeholder="740"
                                         className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                                        style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                                    />
+                                        style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                                 </div>
                                 <div className="flex-1">
                                     <label className="block text-[11px] text-slate-500 font-bold mb-1">Y 좌표</label>
-                                    <input
-                                        type="number"
-                                        value={fY}
-                                        onChange={e => setFY(e.target.value)}
-                                        placeholder="755"
+                                    <input type="number" value={fY} onChange={e => setFY(e.target.value)} placeholder="755"
                                         className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                                        style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                                    />
+                                        style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-[11px] text-slate-500 font-bold mb-1">메모 (선택)</label>
-                                <input
-                                    type="text"
-                                    value={fMemo}
-                                    onChange={e => setFMemo(e.target.value)}
-                                    placeholder="R5, 공격대장..."
+                                <input type="text" value={fMemo} onChange={e => setFMemo(e.target.value)} placeholder="R5, 공격대장..."
                                     className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                                    style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                                />
+                                    style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                             </div>
                         </div>
                         <div className="flex gap-2 mt-5">
-                            <button
-                                type="button"
-                                onClick={addPlayer}
+                            <button type="button" onClick={addPlayer}
                                 className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
-                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
-                            >
-                                추가
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowModal(false)}
+                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}>추가</button>
+                            <button type="button" onClick={() => setShowModal(false)}
                                 className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}
-                            >
-                                취소
-                            </button>
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}>취소</button>
                         </div>
                     </div>
                 </div>
@@ -527,36 +572,16 @@ export default function KdhGrid() {
 
             {/* ── 툴팁 ── */}
             {tooltip && (
-                <div
-                    style={{
-                        position: "fixed",
-                        left: tooltip.x,
-                        top: tooltip.y,
-                        background: "rgba(13,24,41,0.96)",
-                        border: "1px solid rgba(6,182,212,0.3)",
-                        borderRadius: 8,
-                        padding: "7px 12px",
-                        fontSize: 11,
-                        color: "#e2e8f0",
-                        pointerEvents: "none",
-                        zIndex: 9999,
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                        minWidth: 110,
-                    }}
-                >
+                <div style={{
+                    position: "fixed", left: tooltip.x, top: tooltip.y, background: "rgba(13,24,41,0.96)",
+                    border: "1px solid rgba(6,182,212,0.3)", borderRadius: 8, padding: "7px 12px", fontSize: 11,
+                    color: "#e2e8f0", pointerEvents: "none", zIndex: 9999, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", minWidth: 110,
+                }}>
                     <div style={{ fontWeight: 700, color: "#22d3ee", fontSize: 12 }}>{tooltip.name}</div>
                     <div style={{ color: "#64748b", fontSize: 10, fontFamily: "monospace" }}>{tooltip.coord}</div>
                     {tooltip.memo && <div style={{ color: "#94a3b8", fontSize: 10, marginTop: 2 }}>{tooltip.memo}</div>}
                 </div>
             )}
-
-            {/* 애니메이션 키프레임 */}
-            <style>{`
-                @keyframes kdhPulse {
-                    0%, 100% { box-shadow: 0 0 0 3px rgba(6,182,212,0.3), 0 0 14px rgba(6,182,212,0.5); }
-                    50%       { box-shadow: 0 0 0 6px rgba(6,182,212,0.15), 0 0 26px rgba(6,182,212,0.7); }
-                }
-            `}</style>
         </>
     );
 }
