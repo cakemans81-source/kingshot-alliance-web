@@ -154,7 +154,7 @@ export default function KdhGrid() {
     const focusOnPlayer = useCallback((playerId: string) => {
         const p = players.find(pl => pl.id === playerId);
         if (!p || !containerRef.current) return;
-        const { px, py } = toIso(p.x + 0.5, p.y + 0.5);
+        const { px, py } = toIso(p.x, p.y);
         const rect = containerRef.current.getBoundingClientRect();
         const zoomTo = 1.8;
         setScale(zoomTo);
@@ -269,8 +269,9 @@ export default function KdhGrid() {
     /* ── 엑셀 양식 다운로드 ── */
     const downloadTemplate = () => {
         const header = "이름,X좌표,Y좌표,메모";
+        const note = "# 좌표 기준: 2x2 마름모의 오른쪽 셀 (게임 내 표시 좌표 그대로 입력)";
         const example = "홍길동,735,755,본부 근처\n유저2,740,748,함정1";
-        const csv = header + "\n" + example;
+        const csv = note + "\n" + header + "\n" + example;
         const bom = "\uFEFF";
         const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
@@ -287,7 +288,7 @@ export default function KdhGrid() {
         const file = e.target.files?.[0];
         if (!file) return;
         const text = await file.text();
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith("#"));
         // 첫 줄이 헤더면 건너뜀
         const startIdx = lines[0]?.includes("이름") || lines[0]?.toLowerCase().includes("name") ? 1 : 0;
         const toInsert: { name: string; x: number; y: number; memo: string | null }[] = [];
@@ -624,9 +625,11 @@ export default function KdhGrid() {
                             );
                         })}
 
-                        {/* 플레이어 오버레이 */}
+                        {/* 플레이어 오버레이 (2x2 마름모 — 좌표는 오른쪽 셀 기준) */}
                         {filteredPlayers.map(p => {
-                            const center = toIso(p.x + 0.5, p.y + 0.5);
+                            // 2x2 오브젝트: 좌표(X,Y)가 마름모 오른쪽 셀
+                            // → 2x2 중심 = toIso(X, Y) (셀 꼭짓점 = 2x2 중심)
+                            const center = toIso(p.x, p.y);
                             const isHit = hitIds.includes(p.id);
                             const displayName = p.name.length > 7 ? p.name.slice(0, 6) + "…" : p.name;
                             return (
@@ -649,7 +652,7 @@ export default function KdhGrid() {
                                             </path>
                                         </>
                                     )}
-                                    {/* 메인 다이아몬드 */}
+                                    {/* 메인 2x2 다이아몬드 */}
                                     <path
                                         d={diamondPath(center.px, center.py, 2)}
                                         fill={isHit ? "rgba(251,191,36,0.35)" : "rgba(99,102,241,0.2)"}
