@@ -131,20 +131,12 @@ export default function KdhGrid() {
 
     const hitIds = selectedId ? [selectedId] : searchMatches.map(p => p.id);
 
-    /* 검색 결과가 정확히 1개면 자동 선택 + 포커스 */
+    /* 검색 결과가 정확히 1개면 자동 선택 */
     useEffect(() => {
         if (searchMatches.length === 1) {
             const targetId = searchMatches[0].id;
             setSelectedId(targetId);
             setShowDropdown(false);
-            // 즉시 포커스
-            const p = searchMatches[0];
-            if (!containerRef.current) return;
-            const { px, py } = toIso(p.x, p.y);
-            const rect = containerRef.current.getBoundingClientRect();
-            const zoomTo = 1.8;
-            setScale(zoomTo);
-            setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchMatches]);
@@ -166,15 +158,28 @@ export default function KdhGrid() {
         if (!p || !containerRef.current) return;
         const { px, py } = toIso(p.x, p.y);
         const rect = containerRef.current.getBoundingClientRect();
-        const zoomTo = 1.8;
+        const zoomTo = 2.2;
+
+        // SVG viewBox offset 계산 — toIso 좌표를 SVG 엘리먼트 내 실제 위치로 변환
+        const allCorners = [
+            toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y),
+            toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y),
+        ];
+        const vbMinX = Math.min(...allCorners.map(c => c.px)) - 60;
+        const vbMinY = Math.min(...allCorners.map(c => c.py)) - 30;
+
+        // SVG 내부 좌표 → 화면 pixel 위치
+        const screenX = (px - vbMinX) * zoomTo;
+        const screenY = (py - vbMinY) * zoomTo;
+
         setScale(zoomTo);
-        setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
+        setPan({ x: rect.width / 2 - screenX, y: rect.height / 2 - screenY });
     }, [players]);
 
-    /* 드롭다운에서 직접 선택 시 포커스 */
+    /* selectedId 변경 시 포커스 */
     useEffect(() => {
-        if (selectedId && searchMatches.length !== 1) focusOnPlayer(selectedId);
-    }, [selectedId, focusOnPlayer, searchMatches.length]);
+        if (selectedId) focusOnPlayer(selectedId);
+    }, [selectedId, focusOnPlayer]);
 
     /* 필터 */
     const filteredPlayers = (() => {
@@ -191,7 +196,14 @@ export default function KdhGrid() {
         const hq = STRUCTURES[0];
         const { px, py } = toIso(hq.x, hq.y);
         const rect = el.getBoundingClientRect();
-        setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
+        // viewBox offset
+        const allCorners = [
+            toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y),
+            toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y),
+        ];
+        const vbMinX = Math.min(...allCorners.map(c => c.px)) - 60;
+        const vbMinY = Math.min(...allCorners.map(c => c.py)) - 30;
+        setPan({ x: rect.width / 2 - (px - vbMinX), y: rect.height / 2 - (py - vbMinY) });
     }, []);
 
     /* ── 마우스 Pan ── */
@@ -454,7 +466,10 @@ export default function KdhGrid() {
                                 const hq = STRUCTURES[0];
                                 const { px, py } = toIso(hq.x, hq.y);
                                 const rect = el.getBoundingClientRect();
-                                setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
+                                const allC = [toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y), toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y)];
+                                const vbX = Math.min(...allC.map(c => c.px)) - 60;
+                                const vbY = Math.min(...allC.map(c => c.py)) - 30;
+                                setPan({ x: rect.width / 2 - (px - vbX), y: rect.height / 2 - (py - vbY) });
                             }}
                                 className="h-7 w-7 rounded-lg text-xs font-bold text-slate-500 hover:text-red-400 transition-colors flex items-center justify-center"
                                 style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
@@ -550,7 +565,10 @@ export default function KdhGrid() {
                         const hq = STRUCTURES[0];
                         const { px, py } = toIso(hq.x, hq.y);
                         const rect = el.getBoundingClientRect();
-                        setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
+                        const allC = [toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y), toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y)];
+                        const vbX = Math.min(...allC.map(c => c.px)) - 60;
+                        const vbY = Math.min(...allC.map(c => c.py)) - 30;
+                        setPan({ x: rect.width / 2 - (px - vbX), y: rect.height / 2 - (py - vbY) });
                     }}
                         className="text-[10px] text-slate-500 hover:text-cyan-400 transition-colors ml-1"
                     >↺ 리셋</button>
