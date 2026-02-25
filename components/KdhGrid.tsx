@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { supabase } from "@/lib/supabase/client";
 
 /* ═══════════════════════════════════════════
    타입 & 상수
@@ -42,8 +43,6 @@ const COLS = MAX_X - MIN_X + 1;
 const ROWS = MAX_Y - MIN_Y + 1;
 const CELL = 40; // 마름모 셀 크기
 
-const STORAGE_KEY = "kdh-players-v2";
-
 /* 마름모(isometric) 좌표 변환:
    게임 좌표 (gx, gy) → 화면 좌표 (px, py)
    X가 오른쪽-아래, Y가 왼쪽-아래로 향하는 다이아몬드 */
@@ -65,13 +64,8 @@ export default function KdhGrid() {
     const { user } = useAuth();
     const isAdmin = user?.role === "admin";
 
-    const [players, setPlayers] = useState<Player[]>(() => {
-        if (typeof window === "undefined") return INIT_PLAYERS;
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            return saved ? JSON.parse(saved) : INIT_PLAYERS;
-        } catch { return INIT_PLAYERS; }
-    });
+    const [players, setPlayers] = useState<Player[]>(INIT_PLAYERS);
+    const [loading, setLoading] = useState(true);
 
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<"all" | "hq" | "trap1" | "trap2">("all");
@@ -93,11 +87,26 @@ export default function KdhGrid() {
     const panStart = useRef({ x: 0, y: 0 });
     const lastTouchDist = useRef(0);
 
-    /* 저장 */
-    const savePlayers = useCallback((list: Player[]) => {
-        setPlayers(list);
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* noop */ }
+    /* Supabase에서 데이터 로드 */
+    const fetchPlayers = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from("kdh_players")
+            .select("*")
+            .order("created_at", { ascending: true });
+        if (!error && data && data.length > 0) {
+            setPlayers(data.map((d: { id: number; name: string; x: number; y: number; memo: string | null }) => ({
+                id: String(d.id),
+                name: d.name,
+                x: d.x,
+                y: d.y,
+                memo: d.memo || "",
+            })));
+        }
+        setLoading(false);
     }, []);
+
+    useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
 
     /* 퍼지 검색: 부분 일치 + 순서 유지 서브시퀀스 */
     const hitIds = (() => {
@@ -211,21 +220,25 @@ export default function KdhGrid() {
     };
     const onTouchEnd = () => { isDragging.current = false; lastTouchDist.current = 0; };
 
-    /* 유저 추가 */
-    const addPlayer = () => {
+    /* 유저 추가 (Supabase) */
+    const addPlayer = async () => {
         const name = fName.trim();
         const x = parseInt(fX);
         const y = parseInt(fY);
         if (!name || isNaN(x) || isNaN(y)) return;
-        savePlayers([...players, { id: "p" + Date.now(), name, x, y, memo: fMemo.trim() }]);
+        const { error } = await supabase.from("kdh_players").insert({ name, x, y, memo: fMemo.trim() || null });
+        if (error) { alert("추가 실패: " + error.message); return; }
         setFName(""); setFX(""); setFY(""); setFMemo("");
         setShowModal(false);
+        fetchPlayers();
     };
 
-    /* 유저 삭제 */
-    const deletePlayer = (id: string) => {
+    /* 유저 삭제 (Supabase) */
+    const deletePlayer = async (id: string) => {
         if (!window.confirm("정말 삭제하시겠습니까?")) return;
-        savePlayers(players.filter(p => p.id !== id));
+        const { error } = await supabase.from("kdh_players").delete().eq("id", parseInt(id));
+        if (error) { alert("삭제 실패: " + error.message); return; }
+        fetchPlayers();
     };
 
     /* 툴팁 */
