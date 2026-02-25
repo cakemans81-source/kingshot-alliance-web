@@ -64,12 +64,13 @@ function LanguageSelector() {
           border transition-all duration-200
           ${isOpen
                         ? "bg-slate-700/80 border-cyan-500/50 text-white"
-                        : "bg-slate-800/60 border-slate-700/50 text-slate-300 hover:bg-slate-700/60 hover:text-white hover:border-slate-600/60"
+                        : "bg-slate-800/60 border-cyan-500/30 text-slate-200 hover:bg-slate-700/60 hover:text-white hover:border-cyan-400/60"
                     }
         `}
-                aria-label="언어 선택"
+                aria-label="Language / 언어 선택"
                 aria-expanded={isOpen}
             >
+                <span className="text-sm">🌐</span>
                 <span className="text-base">{selectedLang.flag}</span>
                 <span className="hidden sm:inline">{selectedLang.label}</span>
                 <svg
