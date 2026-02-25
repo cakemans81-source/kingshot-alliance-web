@@ -5,7 +5,6 @@ const zh: Dictionary = {
     nav: {
         notice: "公告",
         strategy: "攻略",
-        holySword: "圣剑战斗",
         threeAlliances: "三联盟战斗",
         freeBoard: "自由论坛",
         diplomacy: "成员与外交",
@@ -35,8 +34,6 @@ const zh: Dictionary = {
         writeHint: " 按钮发布第一条内容！",
     },
     quickLinks: {
-        holySword: "圣剑战斗攻略",
-        holySwordDesc: "战略模拟地图",
         freeBoard: "自由论坛",
         freeBoardDesc: "与成员自由交流",
         diplomacy: "外交状况",

@@ -12,12 +12,6 @@ import { useAuth } from "@/lib/auth/AuthContext";
    타입 정의
    ═══════════════════════════════════════════════ */
 
-interface SubItem {
-    href: string;
-    icon: string;
-    labelKey: "holySword" | "threeAlliances";
-}
-
 interface Language {
     code: LocaleCode;
     label: string;
@@ -28,79 +22,12 @@ interface Language {
    상수 데이터
    ═══════════════════════════════════════════════ */
 
-const SUB_ITEMS: SubItem[] = [
-    { href: "/strategy/holy-sword", icon: "⚔️", labelKey: "holySword" },
-    { href: "/strategy/three-alliances", icon: "🛡️", labelKey: "threeAlliances" },
-];
-
 const LANGUAGES: Language[] = [
     { code: "ko", label: "한국어", flag: "🇰🇷" },
     { code: "en", label: "English", flag: "🇺🇸" },
     { code: "de", label: "Deutsch", flag: "🇩🇪" },
     { code: "zh", label: "中文", flag: "🇨🇳" },
 ];
-
-/* ═══════════════════════════════════════════════
-   서브 컴포넌트 — 공략 드롭다운 메뉴
-   ═══════════════════════════════════════════════ */
-
-function StrategyDropdown({
-    items,
-    isOpen,
-}: {
-    items: SubItem[];
-    isOpen: boolean;
-}) {
-    const pathname = usePathname();
-    const { t } = useLocale();
-
-    return (
-        <div
-            className={`
-        absolute top-full left-1/2 -translate-x-1/2 mt-2
-        w-52 rounded-xl overflow-hidden
-        bg-slate-900/95 backdrop-blur-xl
-        border border-slate-700/60
-        shadow-2xl shadow-black/60
-        transition-all duration-200 origin-top
-        ${isOpen
-                    ? "opacity-100 scale-y-100 pointer-events-auto translate-y-0"
-                    : "opacity-0 scale-y-95 pointer-events-none -translate-y-1"
-                }
-      `}
-            style={{ zIndex: 100 }}
-        >
-            <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-l border-t border-slate-700/60 rotate-45" />
-            <div className="p-1.5 space-y-0.5">
-                {items.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`
-                flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium
-                transition-all duration-150 group
-                ${isActive
-                                    ? "bg-cyan-500/20 text-cyan-300"
-                                    : "text-slate-300 hover:bg-slate-700/60 hover:text-white"
-                                }
-              `}
-                        >
-                            <span className="text-base group-hover:scale-110 transition-transform duration-150">
-                                {item.icon}
-                            </span>
-                            <span>{t.nav[item.labelKey]}</span>
-                            {isActive && (
-                                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                            )}
-                        </Link>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
 
 /* ═══════════════════════════════════════════════
    서브 컴포넌트 — 언어 선택 드롭다운 (실제 동작)
@@ -341,7 +268,6 @@ export default function NavBar() {
     const { t } = useLocale();
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [mobileStrategyOpen, setMobileStrategyOpen] = useState(false);
     const strategyRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -441,40 +367,6 @@ export default function NavBar() {
                         );
                     })}
 
-                    {/* 공략 드롭다운 */}
-                    <div ref={strategyRef} className="relative">
-                        <button
-                            onMouseEnter={() => setOpenDropdown("strategy")}
-                            onMouseLeave={() =>
-                                setTimeout(() => {
-                                    if (strategyRef.current && !strategyRef.current.matches(":hover")) {
-                                        setOpenDropdown(null);
-                                    }
-                                }, 80)
-                            }
-                            onClick={() => setOpenDropdown(openDropdown === "strategy" ? null : "strategy")}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${SUB_ITEMS.some((s) => pathname === s.href) || openDropdown === "strategy"
-                                ? "text-cyan-300 bg-cyan-500/10"
-                                : "text-slate-300 hover:text-white hover:bg-slate-700/50"
-                                }`}
-                            aria-expanded={openDropdown === "strategy"}
-                        >
-                            {t.nav.strategy}
-                            <svg
-                                className={`w-3.5 h-3.5 transition-transform duration-200 ${openDropdown === "strategy" ? "rotate-180" : ""}`}
-                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-                            </svg>
-                        </button>
-                        <div
-                            onMouseEnter={() => setOpenDropdown("strategy")}
-                            onMouseLeave={() => setOpenDropdown(null)}
-                        >
-                            <StrategyDropdown items={SUB_ITEMS} isOpen={openDropdown === "strategy"} />
-                        </div>
-                    </div>
-
                     {/* 자유게시판, 외교, 좌표그리드 */}
                     {NAV_SIMPLE.slice(1).map(({ key, href }) => {
                         const isActive = pathname === href;
@@ -526,38 +418,6 @@ export default function NavBar() {
                     >
                         {t.nav.notice}
                     </Link>
-
-                    {/* 공략 (아코디언) */}
-                    <div>
-                        <button
-                            onClick={() => setMobileStrategyOpen((v) => !v)}
-                            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 hover:text-white transition-colors"
-                        >
-                            {t.nav.strategy}
-                            <svg
-                                className={`w-3.5 h-3.5 transition-transform duration-200 ${mobileStrategyOpen ? "rotate-180" : ""}`}
-                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-                            </svg>
-                        </button>
-                        {mobileStrategyOpen && (
-                            <div className="ml-4 mt-1 space-y-1 border-l-2 border-slate-700/50 pl-4">
-                                {SUB_ITEMS.map((item) => (
-                                    <Link
-                                        key={item.href}
-                                        href={item.href}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-150 ${pathname === item.href
-                                            ? "text-cyan-300 bg-cyan-500/10 font-semibold"
-                                            : "text-slate-400 hover:text-white hover:bg-slate-700/40"
-                                            }`}
-                                    >
-                                        {item.icon} {t.nav[item.labelKey]}
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
 
                     {/* 자유게시판, 외교, 좌표그리드 */}
                     {NAV_SIMPLE.slice(1).map(({ key, href }) => (

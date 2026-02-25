@@ -585,15 +585,6 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
 
     const QUICK_LINKS = [
         {
-            href: "/strategy/holy-sword",
-            icon: "⚔️",
-            label: t.quickLinks.holySword,
-            description: t.quickLinks.holySwordDesc,
-            gradient: "from-violet-500 to-purple-600",
-            glow: "rgba(139,92,246,0.35)",
-            border: "rgba(139,92,246,0.3)",
-        },
-        {
             href: "/kdh-grid",
             icon: "🗺️",
             label: "KDH 좌표 그리드",
@@ -772,7 +763,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 type="free"
             />
 
-            {/* ── [5] 성검 전투 공략 퀵 링크 ── */}
+            {/* ── [5] 퀵 링크 ── */}
             {QUICK_LINKS.map((link) => (
                 <Link
                     key={link.href}

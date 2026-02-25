@@ -5,7 +5,6 @@ const en: Dictionary = {
     nav: {
         notice: "Notice",
         strategy: "Strategy",
-        holySword: "Holy Sword Battle",
         threeAlliances: "Three Alliances Battle",
         freeBoard: "Free Board",
         diplomacy: "Members & Diplomacy",
@@ -35,8 +34,6 @@ const en: Dictionary = {
         writeHint: " button on the bottom right to write!",
     },
     quickLinks: {
-        holySword: "Holy Sword Strategy",
-        holySwordDesc: "Strategy Simulation Map",
         freeBoard: "Free Board",
         freeBoardDesc: "Chat freely with members",
         diplomacy: "Diplomacy",

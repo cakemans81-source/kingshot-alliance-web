@@ -6,7 +6,6 @@ export interface Dictionary {
     nav: {
         notice: string;
         strategy: string;
-        holySword: string;
         threeAlliances: string;
         freeBoard: string;
         diplomacy: string;
@@ -36,8 +35,6 @@ export interface Dictionary {
         writeHint: string;
     };
     quickLinks: {
-        holySword: string;
-        holySwordDesc: string;
         freeBoard: string;
         freeBoardDesc: string;
         diplomacy: string;
@@ -200,7 +197,6 @@ const ko: Dictionary = {
     nav: {
         notice: "공지사항",
         strategy: "공략",
-        holySword: "성검 전투",
         threeAlliances: "삼대 연맹 전투",
         freeBoard: "자유 게시판",
         diplomacy: "연맹원 명부 & 외교",
@@ -230,8 +226,6 @@ const ko: Dictionary = {
         writeHint: " 버튼으로 첫 글을 작성해 보세요!",
     },
     quickLinks: {
-        holySword: "성검 전투 공략",
-        holySwordDesc: "전략 시뮬레이션 맵",
         freeBoard: "자유 게시판",
         freeBoardDesc: "연맹원과 자유롭게 소통",
         diplomacy: "외교 현황",

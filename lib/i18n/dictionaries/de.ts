@@ -5,7 +5,6 @@ const de: Dictionary = {
     nav: {
         notice: "Ankündigung",
         strategy: "Strategie",
-        holySword: "Heiliges Schwert",
         threeAlliances: "Drei-Allianz-Kampf",
         freeBoard: "Freies Forum",
         diplomacy: "Mitglieder & Diplomatie",
@@ -35,8 +34,6 @@ const de: Dictionary = {
         writeHint: " Button unten rechts!",
     },
     quickLinks: {
-        holySword: "Heiliges Schwert Strategie",
-        holySwordDesc: "Strategie-Simulationskarte",
         freeBoard: "Freies Forum",
         freeBoardDesc: "Frei mit Mitgliedern chatten",
         diplomacy: "Diplomatie",
