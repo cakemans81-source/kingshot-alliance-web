@@ -587,8 +587,8 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
         {
             href: "/kdh-grid",
             icon: "🗺️",
-            label: "KDH 좌표 그리드",
-            description: "연맹원 위치 · 본부/함정 좌표 관리",
+            label: t.quickLinks.kdhGrid,
+            description: t.quickLinks.kdhGridDesc,
             gradient: "from-cyan-500 to-blue-600",
             glow: "rgba(6,182,212,0.35)",
             border: "rgba(6,182,212,0.3)",

@@ -35,6 +35,8 @@ const zh: Dictionary = {
     quickLinks: {
         freeBoard: "自由论坛",
         freeBoardDesc: "与成员自由交流",
+        kdhGrid: "KDH 坐标网格",
+        kdhGridDesc: "成员位置 · 总部/陷阱坐标管理",
     },
     features: {
         strategy: "联盟攻略",

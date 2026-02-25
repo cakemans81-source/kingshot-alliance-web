@@ -35,6 +35,8 @@ const en: Dictionary = {
     quickLinks: {
         freeBoard: "Free Board",
         freeBoardDesc: "Chat freely with members",
+        kdhGrid: "KDH Coordinate Grid",
+        kdhGridDesc: "Member locations · HQ/Trap coordinates",
     },
     features: {
         strategy: "Alliance Strategy",

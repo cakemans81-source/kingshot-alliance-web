@@ -36,6 +36,8 @@ export interface Dictionary {
     quickLinks: {
         freeBoard: string;
         freeBoardDesc: string;
+        kdhGrid: string;
+        kdhGridDesc: string;
     };
     features: {
         strategy: string;
@@ -224,6 +226,8 @@ const ko: Dictionary = {
     quickLinks: {
         freeBoard: "자유 게시판",
         freeBoardDesc: "연맹원과 자유롭게 소통",
+        kdhGrid: "KDH 좌표 그리드",
+        kdhGridDesc: "연맹원 위치 · 본부/함정 좌표 관리",
     },
     features: {
         strategy: "연맹 공략",
