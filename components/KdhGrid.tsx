@@ -99,10 +99,24 @@ export default function KdhGrid() {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* noop */ }
     }, []);
 
-    /* 검색 */
-    const hitIds = search
-        ? players.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map(p => p.id)
-        : [];
+    /* 퍼지 검색: 부분 일치 + 순서 유지 서브시퀀스 */
+    const hitIds = (() => {
+        if (!search) return [] as string[];
+        const q = search.toLowerCase();
+        // 1차: 부분 문자열 매칭
+        const exact = players.filter(p => p.name.toLowerCase().includes(q));
+        if (exact.length > 0) return exact.map(p => p.id);
+        // 2차: 순서 유지 서브시퀀스 (예: "mdu" → "mandu")
+        const fuzzy = players.filter(p => {
+            const name = p.name.toLowerCase();
+            let qi = 0;
+            for (let i = 0; i < name.length && qi < q.length; i++) {
+                if (name[i] === q[qi]) qi++;
+            }
+            return qi === q.length;
+        });
+        return fuzzy.map(p => p.id);
+    })();
 
     /* 필터 */
     const filteredPlayers = (() => {
