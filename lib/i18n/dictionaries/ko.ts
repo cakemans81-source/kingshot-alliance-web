@@ -190,6 +190,48 @@ export interface Dictionary {
         worldBossSub: string;
         worldBossTime: string;
     };
+    kdhPage: {
+        pageTitle: string;         /* 🗺️ 연맹 좌표 그리드 */
+        pageDesc: string;          /* 본부·함정 위치 확인 ... */
+        mapTitle: string;          /* KDH 전략 지도 */
+        playerCount: string;       /* 명 */
+        searchPlaceholder: string; /* 🔍 검색... */
+        searchReset: string;       /* 검색 초기화 */
+        addBtn: string;            /* ＋ 추가 */
+        downloadBtn: string;       /* 📥 양식 다운로드 */
+        uploadBtn: string;         /* 📤 업로드 */
+        filterAll: string;         /* 🌐 전체 */
+        filterHq: string;          /* 🏰 본부 인근 */
+        filterTrap1: string;       /* 🪤 함정1 인근 */
+        filterTrap2: string;       /* 🪤 함정2 인근 */
+        notFound: string;          /* 😔 찾을 수 없음 */
+        found: string;             /* 🎯 {n}명 발견 */
+        matchCount: string;        /* 건 매칭 · 클릭하여 선택 */
+        zoomReset: string;         /* ↺ 리셋 */
+        dragHint: string;          /* 드래그: 이동 · 휠: 확대/축소 */
+        legendHq: string;          /* 본부 HQ */
+        legendTrap: string;        /* 함정 */
+        legendUser: string;        /* 유저 */
+        legendHighlight: string;   /* 검색 강조 */
+        playerListTitle: string;   /* ▾ 유저 좌표 목록 */
+        deleteConfirm: string;     /* 정말 삭제하시겠습니까? */
+        addFailed: string;         /* 추가 실패: */
+        deleteFailed: string;      /* 삭제 실패: */
+        uploadConfirm: string;     /* {n}명의 좌표를 업로드하시겠습니까? */
+        uploadFailed: string;      /* 업로드 실패: */
+        uploadSuccess: string;     /* {n}명 업로드 완료! */
+        noValidData: string;       /* 유효한 데이터가 없습니다. */
+        modalTitle: string;        /* 📍 좌표 추가 */
+        modalName: string;         /* 닉네임 */
+        modalX: string;            /* X좌표 */
+        modalY: string;            /* Y좌표 */
+        modalMemo: string;         /* 메모 */
+        modalCancel: string;       /* 취소 */
+        modalAdd: string;          /* 추가 */
+        structHq: string;          /* 🏰 본부 */
+        structTrap1: string;       /* 🪤 함정1 */
+        structTrap2: string;       /* 🪤 함정2 */
+    };
 }
 
 const ko: Dictionary = {
@@ -376,6 +418,48 @@ const ko: Dictionary = {
         worldBoss: "월드 보스",
         worldBossSub: "공통 공격 이벤트",
         worldBossTime: "수·토 19:30",
+    },
+    kdhPage: {
+        pageTitle: "🗺️ 연맹 좌표 그리드",
+        pageDesc: "본부·함정 위치 확인 · 유저 검색 · 구역 필터 · 좌표 추가/삭제",
+        mapTitle: "KDH 전략 지도",
+        playerCount: "명",
+        searchPlaceholder: "🔍 검색...",
+        searchReset: "검색 초기화",
+        addBtn: "＋ 추가",
+        downloadBtn: "📥 양식 다운로드",
+        uploadBtn: "📤 업로드",
+        filterAll: "🌐 전체",
+        filterHq: "🏰 본부 인근",
+        filterTrap1: "🪤 함정1 인근",
+        filterTrap2: "🪤 함정2 인근",
+        notFound: "😔 찾을 수 없음",
+        found: "🎯 {n}명 발견",
+        matchCount: "건 매칭 · 클릭하여 선택",
+        zoomReset: "↺ 리셋",
+        dragHint: "드래그: 이동 · 휠: 확대/축소",
+        legendHq: "본부 HQ",
+        legendTrap: "함정",
+        legendUser: "유저",
+        legendHighlight: "검색 강조",
+        playerListTitle: "▾ 유저 좌표 목록",
+        deleteConfirm: "정말 삭제하시겠습니까?",
+        addFailed: "추가 실패: ",
+        deleteFailed: "삭제 실패: ",
+        uploadConfirm: "{n}명의 좌표를 업로드하시겠습니까?",
+        uploadFailed: "업로드 실패: ",
+        uploadSuccess: "{n}명 업로드 완료!",
+        noValidData: "유효한 데이터가 없습니다.",
+        modalTitle: "📍 좌표 추가",
+        modalName: "닉네임",
+        modalX: "X좌표",
+        modalY: "Y좌표",
+        modalMemo: "메모",
+        modalCancel: "취소",
+        modalAdd: "추가",
+        structHq: "🏰 본부",
+        structTrap1: "🪤 함정1",
+        structTrap2: "🪤 함정2",
     },
 };
 

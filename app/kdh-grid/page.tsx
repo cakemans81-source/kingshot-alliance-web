@@ -1,12 +1,11 @@
-import type { Metadata } from "next";
-import KdhGrid from "@/components/KdhGrid";
+"use client";
 
-export const metadata: Metadata = {
-    title: "[ KDH ] 좌표 그리드 | 연맹 영토 관리",
-    description: "KDH 연맹 연맹원 좌표 그리드 — 본부·함정 위치 확인, 유저 검색, 구역 필터",
-};
+import KdhGrid from "@/components/KdhGrid";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 
 export default function KdhGridPage() {
+    const { t } = useLocale();
+
     return (
         <div className="relative min-h-screen bg-slate-950 text-white">
             {/* 배경 그라데이션 */}
@@ -45,11 +44,11 @@ export default function KdhGridPage() {
                                 filter: "drop-shadow(0 0 14px rgba(6,182,212,0.4))",
                             }}
                         >
-                            🗺️ 연맹 좌표 그리드
+                            {t.kdhPage.pageTitle}
                         </span>
                     </h1>
                     <p className="mt-2 text-sm text-slate-400">
-                        본부·함정 위치 확인 · 유저 검색 · 구역 필터 · 좌표 추가/삭제
+                        {t.kdhPage.pageDesc}
                     </p>
                 </div>
 

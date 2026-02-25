@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 import { supabase } from "@/lib/supabase/client";
 
 /* ═══════════════════════════════════════════
@@ -62,6 +63,7 @@ function toIso(gx: number, gy: number) {
    ═══════════════════════════════════════════ */
 export default function KdhGrid() {
     const { user } = useAuth();
+    const { t } = useLocale();
     const isAdmin = user?.role === "admin";
 
     const [players, setPlayers] = useState<Player[]>(INIT_PLAYERS);
@@ -274,7 +276,7 @@ export default function KdhGrid() {
         const y = parseInt(fY);
         if (!name || isNaN(x) || isNaN(y)) return;
         const { error } = await supabase.from("kdh_players").insert({ name, x, y, memo: fMemo.trim() || null });
-        if (error) { alert("추가 실패: " + error.message); return; }
+        if (error) { alert(t.kdhPage.addFailed + error.message); return; }
         setFName(""); setFX(""); setFY(""); setFMemo("");
         setShowModal(false);
         fetchPlayers();
@@ -282,9 +284,9 @@ export default function KdhGrid() {
 
     /* 유저 삭제 (Supabase) */
     const deletePlayer = async (id: string) => {
-        if (!window.confirm("정말 삭제하시겠습니까?")) return;
+        if (!window.confirm(t.kdhPage.deleteConfirm)) return;
         const { error } = await supabase.from("kdh_players").delete().eq("id", parseInt(id));
-        if (error) { alert("삭제 실패: " + error.message); return; }
+        if (error) { alert(t.kdhPage.deleteFailed + error.message); return; }
         fetchPlayers();
     };
 
@@ -324,11 +326,11 @@ export default function KdhGrid() {
                 toInsert.push({ name, x, y, memo });
             }
         }
-        if (toInsert.length === 0) { alert("유효한 데이터가 없습니다."); return; }
-        if (!window.confirm(`${toInsert.length}명의 좌표를 업로드하시겠습니까?`)) return;
+        if (toInsert.length === 0) { alert(t.kdhPage.noValidData); return; }
+        if (!window.confirm(t.kdhPage.uploadConfirm.replace("{n}", String(toInsert.length)))) return;
         const { error } = await supabase.from("kdh_players").insert(toInsert);
-        if (error) { alert("업로드 실패: " + error.message); return; }
-        alert(`${toInsert.length}명 업로드 완료!`);
+        if (error) { alert(t.kdhPage.uploadFailed + error.message); return; }
+        alert(t.kdhPage.uploadSuccess.replace("{n}", String(toInsert.length)));
         fetchPlayers();
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
@@ -397,12 +399,12 @@ export default function KdhGrid() {
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-shrink-0">
                             <span className="text-sm">🗺️</span>
-                            <h2 className="text-sm font-bold text-slate-200 whitespace-nowrap">KDH 전략 지도</h2>
+                            <h2 className="text-sm font-bold text-slate-200 whitespace-nowrap">{t.kdhPage.mapTitle}</h2>
                             <span
                                 className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
                                 style={{ background: "rgba(6,182,212,0.15)", color: "#22d3ee" }}
                             >
-                                {players.length}명
+                                {players.length}{t.kdhPage.playerCount}
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -417,7 +419,7 @@ export default function KdhGrid() {
                                         setShowDropdown(true);
                                     }}
                                     onFocus={() => search && setShowDropdown(true)}
-                                    placeholder="🔍 검색..."
+                                    placeholder={t.kdhPage.searchPlaceholder}
                                     className="h-7 rounded-lg px-2.5 text-xs outline-none w-28 sm:w-40"
                                     style={{
                                         background: "rgba(7,13,26,0.8)",
@@ -453,7 +455,7 @@ export default function KdhGrid() {
                                             ))}
                                         </div>
                                         <div className="px-3 py-1.5 text-[9px] text-slate-600 border-t" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
-                                            {searchMatches.length}건 매칭 · 클릭하여 선택
+                                            {searchMatches.length}{t.kdhPage.matchCount}
                                         </div>
                                     </div>
                                 )}
@@ -475,7 +477,7 @@ export default function KdhGrid() {
                                 }}
                                     className="h-7 w-7 rounded-lg text-xs font-bold text-slate-500 hover:text-red-400 transition-colors flex items-center justify-center flex-shrink-0"
                                     style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
-                                    title="검색 초기화"
+                                    title={t.kdhPage.searchReset}
                                 >✕</button>
                             )}
                         </div>
@@ -489,7 +491,7 @@ export default function KdhGrid() {
                                 className="h-7 px-3 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap flex-shrink-0"
                                 style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
                             >
-                                ＋ 추가
+                                {t.kdhPage.addBtn}
                             </button>
                             <button
                                 type="button"
@@ -498,7 +500,7 @@ export default function KdhGrid() {
                                 style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
                                 title="CSV 양식 다운로드"
                             >
-                                📥 양식 다운로드
+                                {t.kdhPage.downloadBtn}
                             </button>
                             <button
                                 type="button"
@@ -507,7 +509,7 @@ export default function KdhGrid() {
                                 style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
                                 title="CSV 파일 업로드"
                             >
-                                📤 업로드
+                                {t.kdhPage.uploadBtn}
                             </button>
                             <input
                                 ref={fileInputRef}
@@ -526,10 +528,10 @@ export default function KdhGrid() {
                     style={{ borderColor: "rgba(51,65,85,0.35)", scrollbarWidth: "none" }}
                 >
                     {([
-                        { key: "all", label: "🌐 전체" },
-                        { key: "hq", label: "🏰 본부 인근" },
-                        { key: "trap1", label: "🪤 함정1 인근" },
-                        { key: "trap2", label: "🪤 함정2 인근" },
+                        { key: "all", label: t.kdhPage.filterAll },
+                        { key: "hq", label: t.kdhPage.filterHq },
+                        { key: "trap1", label: t.kdhPage.filterTrap1 },
+                        { key: "trap2", label: t.kdhPage.filterTrap2 },
                     ] as const).map(f => (
                         <button
                             key={f.key}
@@ -546,10 +548,10 @@ export default function KdhGrid() {
                         </button>
                     ))}
                     {search && hitIds.length === 0 && (
-                        <span className="ml-2 text-[10px] text-red-400 self-center whitespace-nowrap flex-shrink-0">😔 찾을 수 없음</span>
+                        <span className="ml-2 text-[10px] text-red-400 self-center whitespace-nowrap flex-shrink-0">{t.kdhPage.notFound}</span>
                     )}
                     {search && hitIds.length > 0 && (
-                        <span className="ml-2 text-[10px] text-cyan-400 self-center font-bold whitespace-nowrap flex-shrink-0">🎯 {hitIds.length}명 발견</span>
+                        <span className="ml-2 text-[10px] text-cyan-400 self-center font-bold whitespace-nowrap flex-shrink-0">{t.kdhPage.found.replace("{n}", String(hitIds.length))}</span>
                     )}
                 </div>
 
@@ -575,8 +577,8 @@ export default function KdhGrid() {
                         setPan({ x: rect.width / 2 - (px - vbX), y: rect.height / 2 - (py - vbY) });
                     }}
                         className="text-[10px] text-slate-500 hover:text-cyan-400 transition-colors ml-1"
-                    >↺ 리셋</button>
-                    <span className="ml-auto text-[9px] text-slate-700">드래그: 이동 · 휠: 확대/축소</span>
+                    >{t.kdhPage.zoomReset}</button>
+                    <span className="ml-auto text-[9px] text-slate-700">{t.kdhPage.dragHint}</span>
                 </div>
 
                 {/* ── 마름모 지도 영역 ── */}
@@ -708,10 +710,10 @@ export default function KdhGrid() {
                 <div className="border-t px-4 py-3" style={{ borderColor: "rgba(51,65,85,0.4)" }}>
                     <div className="flex items-center gap-3 mb-2.5 flex-wrap">
                         {[
-                            { color: "rgba(6,182,212,0.25)", border: "#06b6d4", label: "본부 HQ" },
-                            { color: "rgba(245,158,11,0.2)", border: "#f59e0b", label: "함정" },
-                            { color: "rgba(99,102,241,0.2)", border: "rgba(99,102,241,0.6)", label: "유저" },
-                            { color: "rgba(6,182,212,0.3)", border: "#06b6d4", glow: true, label: "검색 강조" },
+                            { color: "rgba(6,182,212,0.25)", border: "#06b6d4", label: t.kdhPage.legendHq },
+                            { color: "rgba(245,158,11,0.2)", border: "#f59e0b", label: t.kdhPage.legendTrap },
+                            { color: "rgba(99,102,241,0.2)", border: "rgba(99,102,241,0.6)", label: t.kdhPage.legendUser },
+                            { color: "rgba(6,182,212,0.3)", border: "#06b6d4", glow: true, label: t.kdhPage.legendHighlight },
                         ].map(l => (
                             <div key={l.label} className="flex items-center gap-1">
                                 <div
@@ -775,30 +777,30 @@ export default function KdhGrid() {
                         className="w-80 rounded-2xl p-6"
                         style={{ background: "#0d1829", border: "1px solid rgba(6,182,212,0.35)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}
                     >
-                        <h3 className="text-base font-bold text-cyan-400 mb-4">➕ 유저 추가</h3>
+                        <h3 className="text-base font-bold text-cyan-400 mb-4">{t.kdhPage.modalTitle}</h3>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-[11px] text-slate-500 font-bold mb-1">게임 아이디</label>
+                                <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.kdhPage.modalName}</label>
                                 <input type="text" value={fName} onChange={e => setFName(e.target.value)} placeholder="예: 만두몬mandu"
                                     className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
                                     style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                             </div>
                             <div className="flex gap-2">
                                 <div className="flex-1">
-                                    <label className="block text-[11px] text-slate-500 font-bold mb-1">X 좌표</label>
+                                    <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.kdhPage.modalX}</label>
                                     <input type="number" value={fX} onChange={e => setFX(e.target.value)} placeholder="740"
                                         className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
                                         style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="block text-[11px] text-slate-500 font-bold mb-1">Y 좌표</label>
+                                    <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.kdhPage.modalY}</label>
                                     <input type="number" value={fY} onChange={e => setFY(e.target.value)} placeholder="755"
                                         className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
                                         style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-[11px] text-slate-500 font-bold mb-1">메모 (선택)</label>
+                                <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.kdhPage.modalMemo}</label>
                                 <input type="text" value={fMemo} onChange={e => setFMemo(e.target.value)} placeholder="R5, 공격대장..."
                                     className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
                                     style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }} />
@@ -807,10 +809,10 @@ export default function KdhGrid() {
                         <div className="flex gap-2 mt-5">
                             <button type="button" onClick={addPlayer}
                                 className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
-                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}>추가</button>
+                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}>{t.kdhPage.modalAdd}</button>
                             <button type="button" onClick={() => setShowModal(false)}
                                 className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}>취소</button>
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}>{t.kdhPage.modalCancel}</button>
                         </div>
                     </div>
                 </div>
