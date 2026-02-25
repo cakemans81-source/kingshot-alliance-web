@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { supabase } from "@/lib/supabase/client";
 
@@ -68,6 +68,9 @@ export default function KdhGrid() {
     const [loading, setLoading] = useState(true);
 
     const [search, setSearch] = useState("");
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
     const [filter, setFilter] = useState<"all" | "hq" | "trap1" | "trap2">("all");
     const [showModal, setShowModal] = useState(false);
     const [tooltip, setTooltip] = useState<{ name: string; coord: string; memo: string; x: number; y: number } | null>(null);
@@ -109,14 +112,14 @@ export default function KdhGrid() {
     useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
 
     /* 퍼지 검색: 부분 일치 + 순서 유지 서브시퀀스 */
-    const hitIds = (() => {
-        if (!search) return [] as string[];
+    const searchMatches = useMemo(() => {
+        if (!search) return [] as Player[];
         const q = search.toLowerCase();
         // 1차: 부분 문자열 매칭
         const exact = players.filter(p => p.name.toLowerCase().includes(q));
-        if (exact.length > 0) return exact.map(p => p.id);
+        if (exact.length > 0) return exact;
         // 2차: 순서 유지 서브시퀀스 (예: "mdu" → "mandu")
-        const fuzzy = players.filter(p => {
+        return players.filter(p => {
             const name = p.name.toLowerCase();
             let qi = 0;
             for (let i = 0; i < name.length && qi < q.length; i++) {
@@ -124,16 +127,51 @@ export default function KdhGrid() {
             }
             return qi === q.length;
         });
-        return fuzzy.map(p => p.id);
-    })();
+    }, [search, players]);
+
+    const hitIds = selectedId ? [selectedId] : searchMatches.map(p => p.id);
+
+    /* 검색 결과가 정확히 1개면 자동 선택 */
+    useEffect(() => {
+        if (searchMatches.length === 1 && !selectedId) {
+            setSelectedId(searchMatches[0].id);
+            setShowDropdown(false);
+        }
+    }, [searchMatches, selectedId]);
+
+    /* 드롭다운 바깥 클릭 시 닫기 */
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    /* 유저 선택 시 해당 위치로 줌인 이동 */
+    const focusOnPlayer = useCallback((playerId: string) => {
+        const p = players.find(pl => pl.id === playerId);
+        if (!p || !containerRef.current) return;
+        const { px, py } = toIso(p.x + 0.5, p.y + 0.5);
+        const rect = containerRef.current.getBoundingClientRect();
+        const zoomTo = 1.8;
+        setScale(zoomTo);
+        setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
+    }, [players]);
+
+    /* selectedId 변경 시 포커스 */
+    useEffect(() => {
+        if (selectedId) focusOnPlayer(selectedId);
+    }, [selectedId, focusOnPlayer]);
 
     /* 필터 */
     const filteredPlayers = (() => {
         if (filter === "all") return players;
         const struct = STRUCTURES.find(s => s.id === filter)!;
-        return players.filter(p =>
-            Math.abs(p.x - struct.x) <= 6 && Math.abs(p.y - struct.y) <= 6
-        );
+        const r = struct.size;
+        return players.filter(p => Math.abs(p.x - struct.x) <= r && Math.abs(p.y - struct.y) <= r);
     })();
 
     /* 초기 중앙 정렬 (HQ 기준) */
@@ -145,19 +183,6 @@ export default function KdhGrid() {
         const rect = el.getBoundingClientRect();
         setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
     }, []);
-
-    /* 검색 시 해당 유저로 자동 줌인 + 이동 */
-    useEffect(() => {
-        if (hitIds.length === 0) return;
-        const p = players.find(pl => pl.id === hitIds[0]);
-        if (!p || !containerRef.current) return;
-        const { px, py } = toIso(p.x + 0.5, p.y + 0.5);
-        const rect = containerRef.current.getBoundingClientRect();
-        const zoomTo = 1.8;
-        setScale(zoomTo);
-        setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hitIds]);
 
     /* ── 마우스 Pan ── */
     const onMouseDown = (e: React.MouseEvent) => {
@@ -241,6 +266,50 @@ export default function KdhGrid() {
         fetchPlayers();
     };
 
+    /* ── 엑셀 양식 다운로드 ── */
+    const downloadTemplate = () => {
+        const header = "이름,X좌표,Y좌표,메모";
+        const example = "홍길동,735,755,본부 근처\n유저2,740,748,함정1";
+        const csv = header + "\n" + example;
+        const bom = "\uFEFF";
+        const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "KDH_좌표_양식.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    /* ── 엑셀(CSV) 업로드 ── */
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        // 첫 줄이 헤더면 건너뜀
+        const startIdx = lines[0]?.includes("이름") || lines[0]?.toLowerCase().includes("name") ? 1 : 0;
+        const toInsert: { name: string; x: number; y: number; memo: string | null }[] = [];
+        for (let i = startIdx; i < lines.length; i++) {
+            const cols = lines[i].split(",");
+            const name = cols[0]?.trim();
+            const x = parseInt(cols[1]?.trim());
+            const y = parseInt(cols[2]?.trim());
+            const memo = cols[3]?.trim() || null;
+            if (name && !isNaN(x) && !isNaN(y)) {
+                toInsert.push({ name, x, y, memo });
+            }
+        }
+        if (toInsert.length === 0) { alert("유효한 데이터가 없습니다."); return; }
+        if (!window.confirm(`${toInsert.length}명의 좌표를 업로드하시겠습니까?`)) return;
+        const { error } = await supabase.from("kdh_players").insert(toInsert);
+        if (error) { alert("업로드 실패: " + error.message); return; }
+        alert(`${toInsert.length}명 업로드 완료!`);
+        fetchPlayers();
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
     /* 툴팁 */
     const showTip = (name: string, coord: string, memo: string, cx: number, cy: number) =>
         setTooltip({ name, coord, memo, x: cx + 12, y: cy - 12 });
@@ -312,21 +381,62 @@ export default function KdhGrid() {
                         </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="아이디 검색..."
-                            className="h-7 rounded-lg px-2.5 text-xs outline-none w-32"
-                            style={{
-                                background: "rgba(7,13,26,0.8)",
-                                border: "1px solid rgba(6,182,212,0.3)",
-                                color: "#e2e8f0",
-                            }}
-                        />
+                        {/* 검색 자동완성 */}
+                        <div ref={searchRef} className="relative">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={e => {
+                                    setSearch(e.target.value);
+                                    setSelectedId(null);
+                                    setShowDropdown(true);
+                                }}
+                                onFocus={() => search && setShowDropdown(true)}
+                                placeholder="🔍 아이디 검색..."
+                                className="h-7 rounded-lg px-2.5 text-xs outline-none w-40"
+                                style={{
+                                    background: "rgba(7,13,26,0.8)",
+                                    border: `1px solid ${search ? (searchMatches.length > 0 ? "rgba(34,211,238,0.5)" : "rgba(239,68,68,0.5)") : "rgba(6,182,212,0.3)"}`,
+                                    color: "#e2e8f0",
+                                }}
+                            />
+                            {/* 자동완성 드롭다운 */}
+                            {showDropdown && search && searchMatches.length > 0 && !selectedId && (
+                                <div className="absolute top-full left-0 mt-1 w-64 rounded-xl overflow-hidden z-50"
+                                    style={{
+                                        background: "rgba(15,23,42,0.97)",
+                                        border: "1px solid rgba(6,182,212,0.3)",
+                                        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                                        backdropFilter: "blur(12px)",
+                                    }}
+                                >
+                                    <div className="p-1.5 max-h-48 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                                        {searchMatches.map(p => (
+                                            <button
+                                                key={p.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedId(p.id);
+                                                    setSearch(p.name);
+                                                    setShowDropdown(false);
+                                                }}
+                                                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-all hover:bg-cyan-500/15 text-left"
+                                            >
+                                                <span className="font-semibold text-white truncate">{p.name}</span>
+                                                <span className="text-[10px] text-slate-500 flex-shrink-0">X:{p.x} Y:{p.y}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="px-3 py-1.5 text-[9px] text-slate-600 border-t" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
+                                        {searchMatches.length}건 매칭 · 클릭하여 선택
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         {search && (
                             <button type="button" onClick={() => {
                                 setSearch("");
+                                setSelectedId(null);
                                 setScale(1);
                                 const el = containerRef.current;
                                 if (!el) return;
@@ -341,14 +451,41 @@ export default function KdhGrid() {
                             >✕</button>
                         )}
                         {isAdmin && (
-                            <button
-                                type="button"
-                                onClick={() => setShowModal(true)}
-                                className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95"
-                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
-                            >
-                                ＋ 추가
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(true)}
+                                    className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95"
+                                    style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
+                                >
+                                    ＋ 추가
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={downloadTemplate}
+                                    className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1"
+                                    style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
+                                    title="CSV 양식 다운로드"
+                                >
+                                    📥 양식
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1"
+                                    style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
+                                    title="CSV 파일 업로드"
+                                >
+                                    📤 업로드
+                                </button>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".csv,.txt"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                />
+                            </>
                         )}
                     </div>
                 </div>
