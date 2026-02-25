@@ -82,6 +82,7 @@ interface Officer {
     role: string;
     icon: string;
     color: string;
+    sort_order?: number;
 }
 
 const DEFAULT_OFFICERS: Officer[] = [
@@ -115,7 +116,7 @@ const DEFAULT_OFFICERS: Officer[] = [
     },
 ];
 
-const OFFICERS_STORAGE_KEY = "kdh-officers-v1";
+/* Supabase 테이블: kdh_officers */
 
 /* 관리자 비밀번호 */
 const ADMIN_PASSWORD = "3741";
@@ -324,13 +325,26 @@ function OfficersSection() {
         return map[key] ?? key;
     };
 
-    const [officers, setOfficers] = useState<Officer[]>(() => {
-        if (typeof window === "undefined") return DEFAULT_OFFICERS;
-        try {
-            const saved = localStorage.getItem(OFFICERS_STORAGE_KEY);
-            return saved ? JSON.parse(saved) : DEFAULT_OFFICERS;
-        } catch { return DEFAULT_OFFICERS; }
-    });
+    const [officers, setOfficers] = useState<Officer[]>(DEFAULT_OFFICERS);
+
+    /* Supabase에서 간부 데이터 로드 */
+    useEffect(() => {
+        (async () => {
+            const { data, error } = await supabase
+                .from("kdh_officers")
+                .select("*")
+                .order("sort_order", { ascending: true });
+            if (!error && data && data.length > 0) {
+                setOfficers(data.map((d: { id: string; name: string; role: string; icon: string; color: string }) => ({
+                    id: d.id,
+                    name: d.name,
+                    role: d.role,
+                    icon: d.icon,
+                    color: d.color,
+                })));
+            }
+        })();
+    }, []);
     const [isAdmin, setIsAdmin] = useState(false);
     const [editDraft, setEditDraft] = useState<Officer[]>([]);
     const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -358,12 +372,21 @@ function OfficersSection() {
         );
     };
 
-    const handleSave = () => {
-        const newList = editDraft.map((of) => ({ ...of }));
+    const handleSave = async () => {
+        const newList = editDraft.map((of, i) => ({ ...of, sort_order: i }));
         setOfficers(newList);
-        try {
-            localStorage.setItem(OFFICERS_STORAGE_KEY, JSON.stringify(newList));
-        } catch (e) { console.error("Save officers failed:", e); }
+
+        // Supabase에 저장 (upsert)
+        for (const of2 of newList) {
+            await supabase.from("kdh_officers").upsert({
+                id: of2.id,
+                name: of2.name,
+                role: of2.role,
+                icon: of2.icon,
+                color: of2.color,
+                sort_order: of2.sort_order,
+            }, { onConflict: "id" });
+        }
 
         setIsAdmin(false);
         setEditDraft([]);
