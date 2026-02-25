@@ -123,14 +123,16 @@ export default function KdhGrid() {
         setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
     }, []);
 
-    /* 검색 시 해당 유저로 이동 */
+    /* 검색 시 해당 유저로 자동 줌인 + 이동 */
     useEffect(() => {
         if (hitIds.length === 0) return;
         const p = players.find(pl => pl.id === hitIds[0]);
         if (!p || !containerRef.current) return;
-        const { px, py } = toIso(p.x, p.y);
+        const { px, py } = toIso(p.x + 0.5, p.y + 0.5);
         const rect = containerRef.current.getBoundingClientRect();
-        setPan({ x: rect.width / 2 - px * scale, y: rect.height / 2 - py * scale });
+        const zoomTo = 1.8;
+        setScale(zoomTo);
+        setPan({ x: rect.width / 2 - px * zoomTo, y: rect.height / 2 - py * zoomTo });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hitIds]);
 
@@ -295,6 +297,22 @@ export default function KdhGrid() {
                                 color: "#e2e8f0",
                             }}
                         />
+                        {search && (
+                            <button type="button" onClick={() => {
+                                setSearch("");
+                                setScale(1);
+                                const el = containerRef.current;
+                                if (!el) return;
+                                const hq = STRUCTURES[0];
+                                const { px, py } = toIso(hq.x, hq.y);
+                                const rect = el.getBoundingClientRect();
+                                setPan({ x: rect.width / 2 - px, y: rect.height / 2 - py });
+                            }}
+                                className="h-7 w-7 rounded-lg text-xs font-bold text-slate-500 hover:text-red-400 transition-colors flex items-center justify-center"
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                                title="검색 초기화"
+                            >✕</button>
+                        )}
                         {isAdmin && (
                             <button
                                 type="button"
@@ -335,6 +353,9 @@ export default function KdhGrid() {
                     ))}
                     {search && hitIds.length === 0 && (
                         <span className="ml-2 text-[10px] text-red-400 self-center">😔 찾을 수 없음</span>
+                    )}
+                    {search && hitIds.length > 0 && (
+                        <span className="ml-2 text-[10px] text-cyan-400 self-center font-bold">🎯 {hitIds.length}명 발견</span>
                     )}
                 </div>
 
@@ -391,6 +412,16 @@ export default function KdhGrid() {
                             transformOrigin: "0 0",
                         }}
                     >
+                        {/* SVG 필터 정의 */}
+                        <defs>
+                            <filter id="hitGlow" x="-50%" y="-50%" width="200%" height="200%">
+                                <feGaussianBlur stdDeviation="4" result="blur" />
+                                <feMerge>
+                                    <feMergeNode in="blur" />
+                                    <feMergeNode in="SourceGraphic" />
+                                </feMerge>
+                            </filter>
+                        </defs>
                         {/* 그리드 라인 */}
                         {gridLines}
 
@@ -440,18 +471,34 @@ export default function KdhGrid() {
                                     onMouseLeave={hideTip}
                                     style={{ cursor: "pointer" }}
                                 >
+                                    {/* 하이라이트: 3중 파동 링 */}
                                     {isHit && (
-                                        <path d={diamondPath(center.px, center.py, 2)} fill="none" stroke="#06b6d4" strokeWidth={3} opacity={0.5}>
-                                            <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.5s" repeatCount="indefinite" />
-                                        </path>
+                                        <>
+                                            <path d={diamondPath(center.px, center.py, 3.5)} fill="none" stroke="#fbbf24" strokeWidth={1.5} opacity={0}>
+                                                <animate attributeName="opacity" values="0;0.6;0" dur="2s" repeatCount="indefinite" />
+                                            </path>
+                                            <path d={diamondPath(center.px, center.py, 3)} fill="none" stroke="#22d3ee" strokeWidth={2} opacity={0}>
+                                                <animate attributeName="opacity" values="0;0.8;0" dur="2s" begin="0.3s" repeatCount="indefinite" />
+                                            </path>
+                                            <path d={diamondPath(center.px, center.py, 2.5)} fill="none" stroke="#fbbf24" strokeWidth={2.5} opacity={0}>
+                                                <animate attributeName="opacity" values="0.2;1;0.2" dur="1.5s" repeatCount="indefinite" />
+                                            </path>
+                                        </>
                                     )}
+                                    {/* 메인 다이아몬드 */}
                                     <path
                                         d={diamondPath(center.px, center.py, 2)}
-                                        fill={isHit ? "rgba(6,182,212,0.3)" : "rgba(99,102,241,0.2)"}
-                                        stroke={isHit ? "#06b6d4" : "rgba(99,102,241,0.6)"}
-                                        strokeWidth={1.5}
+                                        fill={isHit ? "rgba(251,191,36,0.35)" : "rgba(99,102,241,0.2)"}
+                                        stroke={isHit ? "#fbbf24" : "rgba(99,102,241,0.6)"}
+                                        strokeWidth={isHit ? 2.5 : 1.5}
+                                        filter={isHit ? "url(#hitGlow)" : undefined}
                                     />
-                                    <text x={center.px} y={center.py + 1} fill={isHit ? "#fff" : "#a5b4fc"} fontSize={7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
+                                    {/* 이름 */}
+                                    <text x={center.px} y={center.py - 2} fill={isHit ? "#fff" : "#a5b4fc"} fontSize={isHit ? 8 : 7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
+                                    {/* 하이라이트 좌표 뱃지 */}
+                                    {isHit && (
+                                        <text x={center.px} y={center.py + 8} fill="#fbbf24" fontSize={6} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({p.x},{p.y})</text>
+                                    )}
                                 </g>
                             );
                         })}
