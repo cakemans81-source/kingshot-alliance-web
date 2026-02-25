@@ -390,130 +390,134 @@ export default function KdhGrid() {
             >
                 {/* ── 헤더 ── */}
                 <div
-                    className="flex items-center justify-between px-4 py-3 border-b flex-wrap gap-2"
+                    className="px-4 py-3 border-b space-y-2"
                     style={{ borderColor: "rgba(51,65,85,0.45)" }}
                 >
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm">🗺️</span>
-                        <h2 className="text-sm font-bold text-slate-200">KDH 전략 지도</h2>
-                        <span
-                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                            style={{ background: "rgba(6,182,212,0.15)", color: "#22d3ee" }}
-                        >
-                            {players.length}명
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        {/* 검색 자동완성 */}
-                        <div ref={searchRef} className="relative">
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={e => {
-                                    setSearch(e.target.value);
-                                    setSelectedId(null);
-                                    setShowDropdown(true);
-                                }}
-                                onFocus={() => search && setShowDropdown(true)}
-                                placeholder="🔍 아이디 검색..."
-                                className="h-7 rounded-lg px-2.5 text-xs outline-none w-40"
-                                style={{
-                                    background: "rgba(7,13,26,0.8)",
-                                    border: `1px solid ${search ? (searchMatches.length > 0 ? "rgba(34,211,238,0.5)" : "rgba(239,68,68,0.5)") : "rgba(6,182,212,0.3)"}`,
-                                    color: "#e2e8f0",
-                                }}
-                            />
-                            {/* 자동완성 드롭다운 */}
-                            {showDropdown && search && searchMatches.length > 0 && !selectedId && (
-                                <div className="absolute top-full left-0 mt-1 w-64 rounded-xl overflow-hidden z-50"
-                                    style={{
-                                        background: "rgba(15,23,42,0.97)",
-                                        border: "1px solid rgba(6,182,212,0.3)",
-                                        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-                                        backdropFilter: "blur(12px)",
+                    {/* 1줄: 타이틀 + 검색 */}
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-sm">🗺️</span>
+                            <h2 className="text-sm font-bold text-slate-200 whitespace-nowrap">KDH 전략 지도</h2>
+                            <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                                style={{ background: "rgba(6,182,212,0.15)", color: "#22d3ee" }}
+                            >
+                                {players.length}명
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {/* 검색 자동완성 */}
+                            <div ref={searchRef} className="relative">
+                                <input
+                                    type="text"
+                                    value={search}
+                                    onChange={e => {
+                                        setSearch(e.target.value);
+                                        setSelectedId(null);
+                                        setShowDropdown(true);
                                     }}
-                                >
-                                    <div className="p-1.5 max-h-48 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-                                        {searchMatches.map(p => (
-                                            <button
-                                                key={p.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    setSelectedId(p.id);
-                                                    setSearch(p.name);
-                                                    setShowDropdown(false);
-                                                }}
-                                                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-all hover:bg-cyan-500/15 text-left"
-                                            >
-                                                <span className="font-semibold text-white truncate">{p.name}</span>
-                                                <span className="text-[10px] text-slate-500 flex-shrink-0">X:{p.x} Y:{p.y}</span>
-                                            </button>
-                                        ))}
+                                    onFocus={() => search && setShowDropdown(true)}
+                                    placeholder="🔍 검색..."
+                                    className="h-7 rounded-lg px-2.5 text-xs outline-none w-28 sm:w-40"
+                                    style={{
+                                        background: "rgba(7,13,26,0.8)",
+                                        border: `1px solid ${search ? (searchMatches.length > 0 ? "rgba(34,211,238,0.5)" : "rgba(239,68,68,0.5)") : "rgba(6,182,212,0.3)"}`,
+                                        color: "#e2e8f0",
+                                    }}
+                                />
+                                {/* 자동완성 드롭다운 */}
+                                {showDropdown && search && searchMatches.length > 0 && !selectedId && (
+                                    <div className="absolute top-full left-0 mt-1 w-64 rounded-xl overflow-hidden z-50"
+                                        style={{
+                                            background: "rgba(15,23,42,0.97)",
+                                            border: "1px solid rgba(6,182,212,0.3)",
+                                            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                                            backdropFilter: "blur(12px)",
+                                        }}
+                                    >
+                                        <div className="p-1.5 max-h-48 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                                            {searchMatches.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedId(p.id);
+                                                        setSearch(p.name);
+                                                        setShowDropdown(false);
+                                                    }}
+                                                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-all hover:bg-cyan-500/15 text-left"
+                                                >
+                                                    <span className="font-semibold text-white truncate">{p.name}</span>
+                                                    <span className="text-[10px] text-slate-500 flex-shrink-0">X:{p.x} Y:{p.y}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="px-3 py-1.5 text-[9px] text-slate-600 border-t" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
+                                            {searchMatches.length}건 매칭 · 클릭하여 선택
+                                        </div>
                                     </div>
-                                    <div className="px-3 py-1.5 text-[9px] text-slate-600 border-t" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
-                                        {searchMatches.length}건 매칭 · 클릭하여 선택
-                                    </div>
-                                </div>
+                                )}
+                            </div>
+                            {search && (
+                                <button type="button" onClick={() => {
+                                    setSearch("");
+                                    setSelectedId(null);
+                                    setScale(1);
+                                    const el = containerRef.current;
+                                    if (!el) return;
+                                    const hq = STRUCTURES[0];
+                                    const { px, py } = toIso(hq.x, hq.y);
+                                    const rect = el.getBoundingClientRect();
+                                    const allC = [toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y), toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y)];
+                                    const vbX = Math.min(...allC.map(c => c.px)) - 60;
+                                    const vbY = Math.min(...allC.map(c => c.py)) - 30;
+                                    setPan({ x: rect.width / 2 - (px - vbX), y: rect.height / 2 - (py - vbY) });
+                                }}
+                                    className="h-7 w-7 rounded-lg text-xs font-bold text-slate-500 hover:text-red-400 transition-colors flex items-center justify-center flex-shrink-0"
+                                    style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                                    title="검색 초기화"
+                                >✕</button>
                             )}
                         </div>
-                        {search && (
-                            <button type="button" onClick={() => {
-                                setSearch("");
-                                setSelectedId(null);
-                                setScale(1);
-                                const el = containerRef.current;
-                                if (!el) return;
-                                const hq = STRUCTURES[0];
-                                const { px, py } = toIso(hq.x, hq.y);
-                                const rect = el.getBoundingClientRect();
-                                const allC = [toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y), toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y)];
-                                const vbX = Math.min(...allC.map(c => c.px)) - 60;
-                                const vbY = Math.min(...allC.map(c => c.py)) - 30;
-                                setPan({ x: rect.width / 2 - (px - vbX), y: rect.height / 2 - (py - vbY) });
-                            }}
-                                className="h-7 w-7 rounded-lg text-xs font-bold text-slate-500 hover:text-red-400 transition-colors flex items-center justify-center"
-                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
-                                title="검색 초기화"
-                            >✕</button>
-                        )}
-                        {isAdmin && (
-                            <>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowModal(true)}
-                                    className="h-7 px-2.5 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95"
-                                    style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
-                                >
-                                    ＋ 추가
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={downloadTemplate}
-                                    className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1"
-                                    style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
-                                    title="CSV 양식 다운로드"
-                                >
-                                    📥 양식
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1"
-                                    style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
-                                    title="CSV 파일 업로드"
-                                >
-                                    📤 업로드
-                                </button>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".csv,.txt"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                />
-                            </>
-                        )}
                     </div>
+                    {/* 2줄: 관리자 버튼 (관리자만 표시) */}
+                    {isAdmin && (
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => setShowModal(true)}
+                                className="h-7 px-3 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap flex-shrink-0"
+                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
+                            >
+                                ＋ 추가
+                            </button>
+                            <button
+                                type="button"
+                                onClick={downloadTemplate}
+                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
+                                style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
+                                title="CSV 양식 다운로드"
+                            >
+                                📥 양식 다운로드
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
+                                style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
+                                title="CSV 파일 업로드"
+                            >
+                                📤 업로드
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".csv,.txt"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* ── 필터 탭 ── */}
@@ -542,10 +546,10 @@ export default function KdhGrid() {
                         </button>
                     ))}
                     {search && hitIds.length === 0 && (
-                        <span className="ml-2 text-[10px] text-red-400 self-center">😔 찾을 수 없음</span>
+                        <span className="ml-2 text-[10px] text-red-400 self-center whitespace-nowrap flex-shrink-0">😔 찾을 수 없음</span>
                     )}
                     {search && hitIds.length > 0 && (
-                        <span className="ml-2 text-[10px] text-cyan-400 self-center font-bold">🎯 {hitIds.length}명 발견</span>
+                        <span className="ml-2 text-[10px] text-cyan-400 self-center font-bold whitespace-nowrap flex-shrink-0">🎯 {hitIds.length}명 발견</span>
                     )}
                 </div>
 
