@@ -19,16 +19,17 @@ interface Player {
 interface Structure {
     id: string;
     label: string;
-    x: number;
-    y: number;
-    size: number;
-    type: "hq" | "trap";
+    x: number;   // 중심 X
+    y: number;   // 중심 Y
+    size: number; // 4=4×4 건물, 1=깃발
+    type: "hq" | "trap" | "flag";
 }
 
-const STRUCTURES: Structure[] = [
+const DEFAULT_STRUCTURES: Structure[] = [
     { id: "hq", label: "🏰 본부", x: 737, y: 757, size: 4, type: "hq" },
-    { id: "trap1", label: "🪤 함정1", x: 730, y: 748, size: 3, type: "trap" },
-    { id: "trap2", label: "🪤 함정2", x: 742, y: 752, size: 3, type: "trap" },
+    { id: "trap1", label: "🪤 함정1", x: 730, y: 748, size: 4, type: "trap" },
+    { id: "trap2", label: "🪤 함정2", x: 742, y: 752, size: 4, type: "trap" },
+    { id: "flag", label: "🚩 깃발", x: 738, y: 757, size: 1, type: "flag" },
 ];
 
 const INIT_PLAYERS: Player[] = [
@@ -98,12 +99,17 @@ export default function KdhGrid() {
 
     /* 좌표 테이블 입력 모달 */
     const [showCoordModal, setShowCoordModal] = useState(false);
+    const [coordTab, setCoordTab] = useState<"player" | "structure">("player");
     const [coordName, setCoordName] = useState("");
     const [coordMemo, setCoordMemo] = useState("");
     const [coordPairs, setCoordPairs] = useState([
         { x: "", y: "" }, { x: "", y: "" },
         { x: "", y: "" }, { x: "", y: "" },
     ]);
+    /* 특수건물 입력 */
+    const [structTarget, setStructTarget] = useState<"hq" | "trap1" | "trap2" | "flag">("hq");
+    const [structXmin, setStructXmin] = useState("");
+    const [structYmin, setStructYmin] = useState("");
 
     /* Pan & Zoom 상태 */
     const containerRef = useRef<HTMLDivElement>(null);
@@ -143,7 +149,55 @@ export default function KdhGrid() {
         setLoading(false);
     }, []);
 
-    useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
+    /* 건물(구조옵) 상태 */
+    const [structures, setStructures] = useState<Structure[]>(DEFAULT_STRUCTURES);
+    const [hoveredStructureId, setHoveredStructureId] = useState<string | null>(null);
+
+    /* Supabase에서 구조물 로드 */
+    const fetchStructures = useCallback(async () => {
+        const { data, error } = await supabase
+            .from("kdh_structures")
+            .select("*");
+        if (!error && data && data.length > 0) {
+            setStructures(data.map((d: { struct_id: string; struct_type: string; label: string; x: number; y: number; size: number }) => ({
+                id: d.struct_id,
+                label: d.label,
+                x: d.x,
+                y: d.y,
+                size: d.size,
+                type: d.struct_type as "hq" | "trap" | "flag",
+            })));
+        }
+    }, []);
+
+    /* 구조물 삭제 */
+    const deleteStructure = async (id: string) => {
+        if (!window.confirm(`해당 건물을 삭제하시가요?`)) return;
+        await supabase.from("kdh_structures").delete().eq("struct_id", id);
+        setStructures(prev => prev.filter(s => s.id !== id));
+    };
+
+    /* 구조물 Upsert (x,y는 중심 좌표) */
+    const upsertStructure = async (s: Structure) => {
+        const { error } = await supabase.from("kdh_structures").upsert({
+            struct_id: s.id,
+            struct_type: s.type,
+            label: s.label,
+            x: s.x,
+            y: s.y,
+            size: s.size,
+        }, { onConflict: "struct_id" });
+        if (!error) {
+            setStructures(prev => {
+                const exists = prev.find(p => p.id === s.id);
+                return exists ? prev.map(p => p.id === s.id ? s : p) : [...prev, s];
+            });
+        }
+        return !error;
+    };
+
+    useEffect(() => { fetchPlayers(); fetchStructures(); }, [fetchPlayers, fetchStructures]);
+
 
     /* 퍼지 검색: 부분 일치 + 순서 유지 서브시퀀스 */
     const searchMatches = useMemo(() => {
@@ -219,7 +273,8 @@ export default function KdhGrid() {
     /* 필터 */
     const filteredPlayers = (() => {
         if (filter === "all") return players;
-        const struct = STRUCTURES.find(s => s.id === filter)!;
+        const struct = structures.find((s: Structure) => s.id === filter);
+        if (!struct) return players;
         const r = struct.size;
         // 2×2 오브젝트 4개 셀 점유: (x,y) (x+1,y) (x,y+1) (x+1,y+1)
         // 4개 셀 중 하나라도 구조물 범위 안에 있으면 포함
@@ -240,7 +295,7 @@ export default function KdhGrid() {
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
-        const hq = STRUCTURES[0];
+        const hq = structures.find((s: Structure) => s.type === "hq") ?? structures[0];
         const { px, py } = toIso(hq.x, hq.y);
         const rect = el.getBoundingClientRect();
         // viewBox offset
@@ -596,7 +651,7 @@ export default function KdhGrid() {
                                     setScale(1);
                                     const el = containerRef.current;
                                     if (!el) return;
-                                    const hq = STRUCTURES[0];
+                                    const hq = structures.find((s: Structure) => s.type === "hq") ?? structures[0];
                                     const { px, py } = toIso(hq.x, hq.y);
                                     const rect = el.getBoundingClientRect();
                                     const allC = [toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y), toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y)];
@@ -706,7 +761,7 @@ export default function KdhGrid() {
                         setScale(1);
                         const el = containerRef.current;
                         if (!el) return;
-                        const hq = STRUCTURES[0];
+                        const hq = structures.find((s: Structure) => s.type === "hq") ?? structures[0];
                         const { px, py } = toIso(hq.x, hq.y);
                         const rect = el.getBoundingClientRect();
                         const allC = [toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y), toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y)];
@@ -791,23 +846,55 @@ export default function KdhGrid() {
                         })}
 
                         {/* 건물 오버레이 */}
-                        {STRUCTURES.map(s => {
-                            const center = toIso(s.x, s.y);
+                        {structures.map((s: Structure) => {
                             const isHQ = s.type === "hq";
+                            const isFlag = s.type === "flag";
+                            const isTrap = s.type === "trap";
+                            const center = toIso(s.x, s.y);
+                            const isStructHovered = hoveredStructureId === s.id;
+                            // 툴팁 텍스트 생성
+                            let tipDetail = `${s.size}×${s.size} 건물`;
+                            if (isFlag) tipDetail = "깃발 (1×1)";
                             return (
                                 <g key={s.id}
-                                    onMouseEnter={e => showTip(s.label, `X:${s.x} Y:${s.y}`, `${s.size}×${s.size} 건물`, e.clientX, e.clientY)}
-                                    onMouseLeave={hideTip}
-                                    style={{ cursor: "default" }}
+                                    onMouseEnter={e => { setHoveredStructureId(s.id); showTip(s.label, `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
+                                    onMouseLeave={() => { setHoveredStructureId(null); hideTip(); }}
+                                    style={{ cursor: isAdmin ? "pointer" : "default" }}
                                 >
-                                    <path
-                                        d={diamondPath(center.px, center.py, s.size)}
-                                        fill={isHQ ? "rgba(6,182,212,0.25)" : "rgba(245,158,11,0.2)"}
-                                        stroke={isHQ ? "#06b6d4" : "#f59e0b"}
-                                        strokeWidth={2}
-                                    />
-                                    {isHQ && <path d={diamondPath(center.px, center.py, s.size)} fill="none" stroke="rgba(6,182,212,0.4)" strokeWidth={4} />}
-                                    <text x={center.px} y={center.py + 1} fill={isHQ ? "#7dd3fc" : "#fcd34d"} fontSize={10} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{s.label}</text>
+                                    {isFlag ? (
+                                        /* 깃발: 작은 다이아몬드 */
+                                        <path
+                                            d={diamondPath(center.px, center.py, 1.2)}
+                                            fill="rgba(239,68,68,0.35)"
+                                            stroke="#ef4444"
+                                            strokeWidth={2}
+                                        />
+                                    ) : (
+                                        <>
+                                            <path
+                                                d={diamondPath(center.px, center.py, s.size)}
+                                                fill={isHQ ? "rgba(6,182,212,0.25)" : isTrap ? "rgba(245,158,11,0.2)" : "rgba(99,102,241,0.2)"}
+                                                stroke={isHQ ? "#06b6d4" : isTrap ? "#f59e0b" : "#a5b4fc"}
+                                                strokeWidth={2}
+                                            />
+                                            {isHQ && <path d={diamondPath(center.px, center.py, s.size)} fill="none" stroke="rgba(6,182,212,0.4)" strokeWidth={4} />}
+                                        </>
+                                    )}
+                                    <text x={center.px} y={center.py + 1}
+                                        fill={isHQ ? "#7dd3fc" : isFlag ? "#fca5a5" : "#fcd34d"}
+                                        fontSize={isFlag ? 9 : 10} fontWeight={700}
+                                        textAnchor="middle" dominantBaseline="middle"
+                                    >{s.label}</text>
+                                    {/* 관리자 hover 시 삭제 버튼 */}
+                                    {isAdmin && isStructHovered && (
+                                        <g
+                                            onClick={e => { e.stopPropagation(); deleteStructure(s.id); }}
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            <circle cx={center.px + 14} cy={center.py - 14} r={7} fill="rgba(239,68,68,0.9)" stroke="#fff" strokeWidth={1} />
+                                            <text x={center.px + 14} y={center.py - 14} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill="white" fontWeight={900}>×</text>
+                                        </g>
+                                    )}
                                 </g>
                             );
                         })}
@@ -1021,132 +1108,229 @@ export default function KdhGrid() {
                     onClick={e => { if (e.target === e.currentTarget) setShowCoordModal(false); }}
                 >
                     <div
-                        className="w-96 rounded-2xl p-6"
-                        style={{ background: "#0d1829", border: "1px solid rgba(139,92,246,0.4)", boxShadow: "0 24px 64px rgba(0,0,0,0.7)" }}
+                        className="w-[420px] rounded-2xl p-6"
+                        style={{ background: "#0d1829", border: "1px solid rgba(139,92,246,0.4)", boxShadow: "0 24px 64px rgba(0,0,0,0.7)", maxHeight: "90vh", overflowY: "auto" }}
                     >
-                        <h3 className="text-base font-bold mb-1" style={{ color: "#c4b5fd" }}>📍 좌표 입력</h3>
-                        <p className="text-[11px] text-slate-500 mb-4">2×2 오브젝트의 4개 좌표쌍을 모두 입력하세요</p>
+                        <h3 className="text-base font-bold mb-3" style={{ color: "#c4b5fd" }}>📍 좌표 입력</h3>
 
-                        {/* 이름 */}
-                        <div className="mb-4">
-                            <label className="block text-[11px] text-slate-500 font-bold mb-1">연맹원 ID</label>
-                            <input
-                                type="text" value={coordName}
-                                onChange={e => setCoordName(e.target.value)}
-                                placeholder="예: Halley's_헬리혜성"
-                                className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                                style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                            />
-                        </div>
-
-                        {/* 좌표 테이블 */}
-                        <div className="rounded-xl overflow-hidden border mb-3" style={{ borderColor: "rgba(139,92,246,0.3)" }}>
-                            {/* 헤더 */}
-                            <div
-                                className="grid text-[10px] font-bold px-3 py-2 border-b"
-                                style={{
-                                    gridTemplateColumns: "2.5rem 1fr 5rem 5rem",
-                                    background: "rgba(139,92,246,0.12)",
-                                    borderColor: "rgba(139,92,246,0.25)",
-                                    color: "#c4b5fd",
-                                }}
-                            >
-                                <span className="text-center">No</span>
-                                <span className="pl-1">ID</span>
-                                <span className="text-center">X</span>
-                                <span className="text-center">Y</span>
-                            </div>
-
-                            {/* 4개 좌표 입력 행 */}
-                            {coordPairs.map((pair, idx) => (
-                                <div
-                                    key={idx}
-                                    className="grid items-center px-3 py-2 border-b"
+                        {/* 탭 선택 */}
+                        <div className="flex gap-1 mb-5 rounded-xl p-1" style={{ background: "rgba(15,23,42,0.8)" }}>
+                            {(["player", "structure"] as const).map(tab => (
+                                <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setCoordTab(tab)}
+                                    className="flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all"
                                     style={{
-                                        gridTemplateColumns: "2.5rem 1fr 5rem 5rem",
-                                        borderColor: "rgba(51,65,85,0.25)",
-                                        background: idx % 2 === 0 ? "rgba(7,13,26,0.6)" : "rgba(15,23,42,0.3)",
+                                        background: coordTab === tab ? "rgba(139,92,246,0.3)" : "transparent",
+                                        color: coordTab === tab ? "#c4b5fd" : "#64748b",
+                                        border: coordTab === tab ? "1px solid rgba(139,92,246,0.4)" : "1px solid transparent",
                                     }}
                                 >
-                                    {idx === 0
-                                        ? <span className="text-[10px] text-slate-500 text-center font-mono">1</span>
-                                        : <span />}
-                                    {idx === 0
-                                        ? <span className="text-[11px] pl-1 truncate font-medium" style={{ color: "#a78bfa" }}>{coordName || "—"}</span>
-                                        : <span />}
-                                    <input
-                                        type="number" value={pair.x}
-                                        onChange={e => {
-                                            const u = [...coordPairs];
-                                            u[idx] = { ...u[idx], x: e.target.value };
-                                            setCoordPairs(u);
-                                        }}
-                                        placeholder="745"
-                                        className="text-center text-xs text-white rounded-md px-1 py-1.5 outline-none mx-1"
-                                        style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)" }}
-                                    />
-                                    <input
-                                        type="number" value={pair.y}
-                                        onChange={e => {
-                                            const u = [...coordPairs];
-                                            u[idx] = { ...u[idx], y: e.target.value };
-                                            setCoordPairs(u);
-                                        }}
-                                        placeholder="753"
-                                        className="text-center text-xs text-white rounded-md px-1 py-1.5 outline-none mx-1"
-                                        style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)" }}
-                                    />
-                                </div>
+                                    {tab === "player" ? "👤 연맹원" : "🏰 특수건물"}
+                                </button>
                             ))}
                         </div>
 
-                        {/* 실시간 유효성 미리보기 */}
-                        {coordPairs.every(p => p.x && p.y) && (() => {
-                            const result = validateCoordPairs();
-                            return result ? (
-                                <div className="text-[10px] rounded-lg px-3 py-2 mb-3 flex items-center gap-2"
-                                    style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
-                                >
-                                    <span>✓ 유효한 2×2 좌표</span>
-                                    <span className="font-mono ml-auto" style={{ color: "#6ee7b7" }}>저장 기준 → X:{result.x} Y:{result.y}</span>
+                        {/* ── 연맹원 탭 ── */}
+                        {coordTab === "player" && (
+                            <>
+                                <p className="text-[11px] text-slate-500 mb-4">2×2 오브제트의 4개 좌표쌍을 모두 입력하세요</p>
+                                {/* 이름 */}
+                                <div className="mb-4">
+                                    <label className="block text-[11px] text-slate-500 font-bold mb-1">연맹원 ID</label>
+                                    <input
+                                        type="text" value={coordName}
+                                        onChange={e => setCoordName(e.target.value)}
+                                        placeholder="예: Halley's_헬리혜성"
+                                        className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                                        style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
+                                    />
                                 </div>
-                            ) : (
-                                <div className="text-[10px] rounded-lg px-3 py-2 mb-3"
-                                    style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
-                                >
-                                    ✗ X 2개 · Y 2개가 각각 연속(차이=1)되어야 합니다
+                                {/* 좌표 테이블 */}
+                                <div className="rounded-xl overflow-hidden border mb-3" style={{ borderColor: "rgba(139,92,246,0.3)" }}>
+                                    <div className="grid text-[10px] font-bold px-3 py-2 border-b"
+                                        style={{ gridTemplateColumns: "2.5rem 1fr 5rem 5rem", background: "rgba(139,92,246,0.12)", borderColor: "rgba(139,92,246,0.25)", color: "#c4b5fd" }}
+                                    >
+                                        <span className="text-center">No</span><span className="pl-1">ID</span>
+                                        <span className="text-center">X</span><span className="text-center">Y</span>
+                                    </div>
+                                    {coordPairs.map((pair, idx) => (
+                                        <div key={idx} className="grid items-center px-3 py-2 border-b"
+                                            style={{ gridTemplateColumns: "2.5rem 1fr 5rem 5rem", borderColor: "rgba(51,65,85,0.25)", background: idx % 2 === 0 ? "rgba(7,13,26,0.6)" : "rgba(15,23,42,0.3)" }}
+                                        >
+                                            {idx === 0 ? <span className="text-[10px] text-slate-500 text-center font-mono">1</span> : <span />}
+                                            {idx === 0 ? <span className="text-[11px] pl-1 truncate font-medium" style={{ color: "#a78bfa" }}>{coordName || "—"}</span> : <span />}
+                                            <input type="number" value={pair.x}
+                                                onChange={e => { const u = [...coordPairs]; u[idx] = { ...u[idx], x: e.target.value }; setCoordPairs(u); }}
+                                                placeholder="745"
+                                                className="text-center text-xs text-white rounded-md px-1 py-1.5 outline-none mx-1"
+                                                style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)" }}
+                                            />
+                                            <input type="number" value={pair.y}
+                                                onChange={e => { const u = [...coordPairs]; u[idx] = { ...u[idx], y: e.target.value }; setCoordPairs(u); }}
+                                                placeholder="753"
+                                                className="text-center text-xs text-white rounded-md px-1 py-1.5 outline-none mx-1"
+                                                style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)" }}
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
+                                {/* 유효성 프리뷰 */}
+                                {coordPairs.every(p => p.x && p.y) && (() => {
+                                    const result = validateCoordPairs();
+                                    return result ? (
+                                        <div className="text-[10px] rounded-lg px-3 py-2 mb-3 flex items-center gap-2"
+                                            style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
+                                        >
+                                            <span>✓ 유효한 2×2 좌표</span>
+                                            <span className="font-mono ml-auto" style={{ color: "#6ee7b7" }}>저장 기준 → X:{result.x} Y:{result.y}</span>
+                                        </div>
+                                    ) : (
+                                        <div className="text-[10px] rounded-lg px-3 py-2 mb-3"
+                                            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+                                        >✗ X 2개 · Y 2개가 각각 연속(차이=1)되어야 합니다</div>
+                                    );
+                                })()}
+                                {/* 메모 */}
+                                <div className="mb-5">
+                                    <label className="block text-[11px] text-slate-500 font-bold mb-1">메모 (선택)</label>
+                                    <input type="text" value={coordMemo} onChange={e => setCoordMemo(e.target.value)}
+                                        placeholder="R5, 공격대장..."
+                                        className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                                        style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={addPlayerFromCoords}
+                                        className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
+                                        style={{ background: "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "#fff" }}
+                                    >등록</button>
+                                    <button type="button" onClick={() => setShowCoordModal(false)}
+                                        className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                                        style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}
+                                    >취소</button>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ── 특수건물 탭 ── */}
+                        {coordTab === "structure" && (() => {
+                            const STRUCT_OPTS = [
+                                { id: "hq" as const, label: "🏰 평원 본부", type: "hq" as const, size: 4 },
+                                { id: "trap1" as const, label: "🩤 곰덟 함정숴1", type: "trap" as const, size: 4 },
+                                { id: "trap2" as const, label: "🩤 곰덟 함정숴2", type: "trap" as const, size: 4 },
+                                { id: "flag" as const, label: "🚩 깃발", type: "flag" as const, size: 1 },
+                            ];
+                            const sel = STRUCT_OPTS.find(o => o.id === structTarget)!;
+                            const isFlag = sel.size === 1;
+                            const xn = parseInt(structXmin);
+                            const yn = parseInt(structYmin);
+                            const validInputs = !isNaN(xn) && !isNaN(yn);
+                            // 4×4 건물: 중심 = xmin+2, ymin+2
+                            // 깃발: 중심 = xmin, ymin
+                            const cx = isFlag ? xn : xn + 2;
+                            const cy = isFlag ? yn : yn + 2;
+
+                            const save = async () => {
+                                if (!validInputs) return;
+                                const ok = await upsertStructure({
+                                    id: sel.id,
+                                    label: sel.label,
+                                    x: cx,
+                                    y: cy,
+                                    size: sel.size,
+                                    type: sel.type,
+                                });
+                                if (ok) { setStructXmin(""); setStructYmin(""); setShowCoordModal(false); }
+                            };
+
+                            return (
+                                <>
+                                    <p className="text-[11px] text-slate-500 mb-4">건물 종류를 선택하고 최소(xmin, ymin) 좌표를 입력하세요</p>
+                                    {/* 건물 종류 선택 */}
+                                    <div className="grid grid-cols-2 gap-2 mb-4">
+                                        {STRUCT_OPTS.map(o => (
+                                            <button
+                                                key={o.id}
+                                                type="button"
+                                                onClick={() => setStructTarget(o.id)}
+                                                className="py-2 rounded-xl text-[11px] font-bold transition-all hover:brightness-110"
+                                                style={{
+                                                    background: structTarget === o.id ? "rgba(139,92,246,0.25)" : "rgba(15,23,42,0.6)",
+                                                    border: structTarget === o.id ? "1px solid rgba(139,92,246,0.5)" : "1px solid rgba(51,65,85,0.4)",
+                                                    color: structTarget === o.id ? "#c4b5fd" : "#64748b",
+                                                }}
+                                            >{o.label}</button>
+                                        ))}
+                                    </div>
+                                    {/* 좌표 입력 */}
+                                    <div className="rounded-xl p-4 mb-3" style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(51,65,85,0.5)" }}>
+                                        <p className="text-[10px] text-slate-600 mb-3">
+                                            {isFlag ? "깃발 좌표 (1×1)" : `${sel.label} 최소 좌표 — 건물이 점유하는 ${sel.size * sel.size}개 셀의 좌하단 좌표`}
+                                        </p>
+                                        <div className="flex gap-3">
+                                            <div className="flex-1">
+                                                <label className="block text-[10px] text-slate-500 mb-1">X최소</label>
+                                                <input type="number" value={structXmin} onChange={e => setStructXmin(e.target.value)}
+                                                    placeholder="735"
+                                                    className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none text-center"
+                                                    style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(139,92,246,0.4)" }}
+                                                />
+                                            </div>
+                                            <div className="flex-1">
+                                                <label className="block text-[10px] text-slate-500 mb-1">Y최소</label>
+                                                <input type="number" value={structYmin} onChange={e => setStructYmin(e.target.value)}
+                                                    placeholder="755"
+                                                    className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none text-center"
+                                                    style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(139,92,246,0.4)" }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* 프리뷰 */}
+                                    {validInputs && (
+                                        <div className="rounded-xl p-3 mb-4 text-[10px]" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)", color: "#34d399" }}>
+                                            <p className="font-bold mb-1">✓ {sel.label} 저장 미리보기</p>
+                                            {isFlag ? (
+                                                <p className="font-mono text-[9px]">X:{xn}  Y:{yn}</p>
+                                            ) : (
+                                                <>
+                                                    <p className="font-mono text-[9px]">X: {xn} ~ {xn + sel.size - 1}  ({sel.size}칸)</p>
+                                                    <p className="font-mono text-[9px]">Y: {yn} ~ {yn + sel.size - 1}  ({sel.size}칸)</p>
+                                                    <p className="font-mono text-[9px] mt-1" style={{ color: "#6ee7b7" }}>중심 → X:{cx} Y:{cy}</p>
+                                                    <div className="mt-2 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${sel.size}, 1fr)` }}>
+                                                        {Array.from({ length: sel.size * sel.size }, (_, i) => {
+                                                            const col = i % sel.size;
+                                                            const row = Math.floor(i / sel.size);
+                                                            return (
+                                                                <div key={i} className="text-center rounded text-[8px] py-0.5"
+                                                                    style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7" }}>
+                                                                    {xn + col},{yn + row}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={save} disabled={!validInputs}
+                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110 disabled:opacity-40"
+                                            style={{ background: "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "#fff" }}
+                                        >저장</button>
+                                        <button type="button" onClick={() => setShowCoordModal(false)}
+                                            className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                                            style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}
+                                        >취소</button>
+                                    </div>
+                                </>
                             );
                         })()}
-
-                        {/* 메모 */}
-                        <div className="mb-5">
-                            <label className="block text-[11px] text-slate-500 font-bold mb-1">메모 (선택)</label>
-                            <input
-                                type="text" value={coordMemo}
-                                onChange={e => setCoordMemo(e.target.value)}
-                                placeholder="R5, 공격대장..."
-                                className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                                style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
-                            />
-                        </div>
-
-                        <div className="flex gap-2">
-                            <button
-                                type="button" onClick={addPlayerFromCoords}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
-                                style={{ background: "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "#fff" }}
-                            >등록</button>
-                            <button
-                                type="button" onClick={() => setShowCoordModal(false)}
-                                className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
-                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}
-                            >취소</button>
-                        </div>
                     </div>
                 </div>
             )}
-
             {/* ── 툴팁 ── */}
             {tooltip && (
                 <div style={{
