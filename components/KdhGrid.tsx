@@ -865,7 +865,7 @@ export default function KdhGrid() {
                                     className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
                                     style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#22d3ee" }}
                                 >
-                                    ✌️ 드래그 편집
+                                    🗑️ 삭제
                                 </button>
                             ) : (
                                 <button
@@ -1162,8 +1162,8 @@ export default function KdhGrid() {
                                             </g>
                                         );
                                     })()}
-                                    {/* 삭제 버튼 (관리자 hover 시) */}
-                                    {isAdmin && isHovered && !isDraggingThis && (
+                                    {/* 삭제 버튼 — 삭제 모드(isDragEditMode) + 관리자 hover 시만 표시 */}
+                                    {isAdmin && isDragEditMode && isHovered && !isDraggingThis && (
                                         <g
                                             onClick={e => { e.stopPropagation(); deletePlayer(p.id); }}
                                             style={{ cursor: "pointer" }}
