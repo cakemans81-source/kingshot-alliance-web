@@ -153,33 +153,69 @@ export default function KdhGrid() {
     const [structures, setStructures] = useState<Structure[]>(DEFAULT_STRUCTURES);
     const [hoveredStructureId, setHoveredStructureId] = useState<string | null>(null);
 
-    /* Supabase에서 구조물 로드 */
+    /* localStorage 헬퍼 */
+    const STRUCT_KEY = "kdh_structures_v1";
+    const saveStructures = (list: Structure[]) => {
+        try { localStorage.setItem(STRUCT_KEY, JSON.stringify(list)); } catch { }
+    };
+    const loadStructures = (): Structure[] | null => {
+        try {
+            const raw = localStorage.getItem(STRUCT_KEY);
+            return raw ? (JSON.parse(raw) as Structure[]) : null;
+        } catch { return null; }
+    };
+
+    /* Supabase에서 구조물 로드 (실패 시 localStorage → DEFAULT 순으로 fallback) */
     const fetchStructures = useCallback(async () => {
         const { data, error } = await supabase
             .from("kdh_structures")
             .select("*");
         if (!error && data && data.length > 0) {
-            setStructures(data.map((d: { struct_id: string; struct_type: string; label: string; x: number; y: number; size: number }) => ({
+            const mapped = data.map((d: { struct_id: string; struct_type: string; label: string; x: number; y: number; size: number }) => ({
                 id: d.struct_id,
                 label: d.label,
                 x: d.x,
                 y: d.y,
                 size: d.size,
                 type: d.struct_type as "hq" | "trap" | "flag",
-            })));
+            }));
+            setStructures(mapped);
+            saveStructures(mapped); // Supabase 데이터 → localStorage 동기화
+        } else {
+            // Supabase 테이블 없음 → localStorage에서 복원
+            const stored = loadStructures();
+            if (stored !== null) {
+                setStructures(stored);
+            }
+            // 없으면 DEFAULT_STRUCTURES 유지
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    /* 구조물 삭제 */
+    /* 구조물 삭제 — localStorage + Supabase 동시 저장 */
     const deleteStructure = async (id: string) => {
-        if (!window.confirm(`해당 건물을 삭제하시가요?`)) return;
+        if (!window.confirm("해당 건물을 삭제하시겠어요?")) return;
+        // 로컬 즉시 반영 + localStorage 저장
+        setStructures(prev => {
+            const next = prev.filter(s => s.id !== id);
+            saveStructures(next);
+            return next;
+        });
+        // Supabase (테이블 존재 시에만 반영, 없어도 에러 무시)
         await supabase.from("kdh_structures").delete().eq("struct_id", id);
-        setStructures(prev => prev.filter(s => s.id !== id));
     };
 
-    /* 구조물 Upsert (x,y는 중심 좌표) */
+    /* 구조물 Upsert — localStorage + Supabase 동시 저장 */
     const upsertStructure = async (s: Structure) => {
-        const { error } = await supabase.from("kdh_structures").upsert({
+        // 로컬 즉시 반영 + localStorage 저장
+        setStructures(prev => {
+            const exists = prev.find(p => p.id === s.id);
+            const next = exists ? prev.map(p => p.id === s.id ? s : p) : [...prev, s];
+            saveStructures(next);
+            return next;
+        });
+        // Supabase 저장 시도 (테이블 없으면 무시)
+        await supabase.from("kdh_structures").upsert({
             struct_id: s.id,
             struct_type: s.type,
             label: s.label,
@@ -187,13 +223,7 @@ export default function KdhGrid() {
             y: s.y,
             size: s.size,
         }, { onConflict: "struct_id" });
-        if (!error) {
-            setStructures(prev => {
-                const exists = prev.find(p => p.id === s.id);
-                return exists ? prev.map(p => p.id === s.id ? s : p) : [...prev, s];
-            });
-        }
-        return !error;
+        return true; // localStorage에 저장됐으므로 항상 성공
     };
 
     useEffect(() => { fetchPlayers(); fetchStructures(); }, [fetchPlayers, fetchStructures]);
