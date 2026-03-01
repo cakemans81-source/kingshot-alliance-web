@@ -612,40 +612,44 @@ export default function KdhGrid() {
                     </div>
                     {/* 2줄: 관리자 버튼 (관리자만 표시) */}
                     {isAdmin && (
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                type="button"
-                                onClick={() => setShowModal(true)}
-                                className="h-7 px-3 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap flex-shrink-0"
-                                style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
+                        <div className="flex items-center gap-2 pt-0.5">
+                            {/* 관리자 레이블 배지 */}
+                            <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap flex-shrink-0"
+                                style={{ background: "rgba(51,65,85,0.5)", color: "#64748b", border: "1px solid rgba(51,65,85,0.6)" }}
                             >
-                                {t.kdhPage.addBtn}
-                            </button>
+                                관리자
+                            </span>
+                            {/* 구분선 */}
+                            <div className="h-4 w-px flex-shrink-0" style={{ background: "rgba(51,65,85,0.6)" }} />
+                            {/* 📍 좌표 입력 */}
                             <button
                                 type="button"
                                 onClick={() => setShowCoordModal(true)}
-                                className="h-7 px-3 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
                                 style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)", color: "#c4b5fd" }}
                             >
                                 📍 좌표 입력
                             </button>
+                            {/* 📥 양식 다운로드 */}
                             <button
                                 type="button"
                                 onClick={downloadTemplate}
-                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
+                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
                                 style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
                                 title="CSV 양식 다운로드"
                             >
-                                {t.kdhPage.downloadBtn}
+                                📥 {t.kdhPage.downloadBtn}
                             </button>
+                            {/* 📤 업로드 */}
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
+                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
                                 style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
                                 title="CSV 파일 업로드"
                             >
-                                {t.kdhPage.uploadBtn}
+                                📤 {t.kdhPage.uploadBtn}
                             </button>
                             <input
                                 ref={fileInputRef}
