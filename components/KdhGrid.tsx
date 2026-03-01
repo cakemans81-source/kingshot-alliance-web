@@ -668,7 +668,7 @@ export default function KdhGrid() {
                     </div>
                     {/* 2줄: 관리자 버튼 (관리자만 표시) */}
                     {isAdmin && (
-                        <div className="flex items-center gap-2 pt-0.5">
+                        <div className="flex items-center gap-2 pt-0.5 flex-wrap">
                             {/* 관리자 레이블 배지 */}
                             <span
                                 className="text-[10px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap flex-shrink-0"
@@ -687,6 +687,30 @@ export default function KdhGrid() {
                             >
                                 📍 좌표 입력
                             </button>
+                            {/* 🗑️ 건물 삭제 — HTML 버튼으로 SVG 이벤트 충돌 방지 */}
+                            <div className="relative flex-shrink-0">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-slate-600 font-bold whitespace-nowrap">🗑️ 건물:</span>
+                                    {structures.map((s: Structure) => (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => deleteStructure(s.id)}
+                                            className="h-6 px-2 rounded-md text-[10px] font-semibold transition-all hover:brightness-125 active:scale-95 flex items-center gap-0.5 whitespace-nowrap"
+                                            style={{
+                                                background: "rgba(239,68,68,0.12)",
+                                                border: "1px solid rgba(239,68,68,0.3)",
+                                                color: "#fca5a5",
+                                            }}
+                                            title={`${s.label} 삭제`}
+                                        >
+                                            {s.label} <span style={{ color: "#ef4444", fontWeight: 900 }}>✕</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {/* 구분선 */}
+                            <div className="h-4 w-px flex-shrink-0" style={{ background: "rgba(51,65,85,0.6)" }} />
                             {/* ✌️ 드래그 편집 / ✓ 편집완료 토글 */}
                             {!isDragEditMode ? (
                                 <button
@@ -885,16 +909,7 @@ export default function KdhGrid() {
                                         fontSize={isFlag ? 9 : 10} fontWeight={700}
                                         textAnchor="middle" dominantBaseline="middle"
                                     >{s.label}</text>
-                                    {/* 관리자 hover 시 삭제 버튼 */}
-                                    {isAdmin && isStructHovered && (
-                                        <g
-                                            onClick={e => { e.stopPropagation(); deleteStructure(s.id); }}
-                                            style={{ cursor: "pointer" }}
-                                        >
-                                            <circle cx={center.px + 14} cy={center.py - 14} r={7} fill="rgba(239,68,68,0.9)" stroke="#fff" strokeWidth={1} />
-                                            <text x={center.px + 14} y={center.py - 14} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill="white" fontWeight={900}>×</text>
-                                        </g>
-                                    )}
+                                    {/* 관리자 모드: 건물 클릭 시 삭제는 툴바 버튼으로 처리 */}
                                 </g>
                             );
                         })}
