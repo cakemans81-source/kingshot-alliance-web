@@ -195,27 +195,25 @@ export default function KdhGrid() {
     /* 구조물 삭제 — localStorage + Supabase 동시 저장 */
     const deleteStructure = async (id: string) => {
         if (!window.confirm("해당 건물을 삭제하시겠어요?")) return;
-        // 로컬 즉시 반영 + localStorage 저장
+        // ① Supabase 먼저 삭제
+        const { error } = await supabase.from("kdh_structures").delete().eq("struct_id", id);
+        if (error) {
+            console.error("구조물 삭제 실패:", error.message);
+            alert(`삭제 실패: ${error.message}\n\nSupabase SQL Editor에서 아래를 실행해주세요:\nDROP POLICY IF EXISTS "allow_auth_write" ON kdh_structures;\nCREATE POLICY "allow_all_write" ON kdh_structures FOR ALL USING (true) WITH CHECK (true);`);
+            return;
+        }
+        // ② Supabase 성공 → 로컬 + localStorage 반영
         setStructures(prev => {
             const next = prev.filter(s => s.id !== id);
             saveStructures(next);
             return next;
         });
-        // Supabase (테이블 존재 시에만 반영, 없어도 에러 무시)
-        await supabase.from("kdh_structures").delete().eq("struct_id", id);
     };
 
-    /* 구조물 Upsert — localStorage + Supabase 동시 저장 */
+    /* 구조물 Upsert — Supabase 먼저, 성공 시 로컬 반영 */
     const upsertStructure = async (s: Structure) => {
-        // 로컬 즉시 반영 + localStorage 저장
-        setStructures(prev => {
-            const exists = prev.find(p => p.id === s.id);
-            const next = exists ? prev.map(p => p.id === s.id ? s : p) : [...prev, s];
-            saveStructures(next);
-            return next;
-        });
-        // Supabase 저장 시도 (테이블 없으면 무시)
-        await supabase.from("kdh_structures").upsert({
+        // ① Supabase 저장
+        const { error } = await supabase.from("kdh_structures").upsert({
             struct_id: s.id,
             struct_type: s.type,
             label: s.label,
@@ -223,7 +221,18 @@ export default function KdhGrid() {
             y: s.y,
             size: s.size,
         }, { onConflict: "struct_id" });
-        return true; // localStorage에 저장됐으므로 항상 성공
+        if (error) {
+            console.error("구조물 저장 실패:", error.message);
+            // Supabase 실패해도 localStorage에는 저장 (오프라인 fallback)
+        }
+        // ② 로컬 + localStorage 반영 (Supabase 실패해도 UI는 즉시 반영)
+        setStructures(prev => {
+            const exists = prev.find(p => p.id === s.id);
+            const next = exists ? prev.map(p => p.id === s.id ? s : p) : [...prev, s];
+            saveStructures(next);
+            return next;
+        });
+        return true;
     };
 
     useEffect(() => { fetchPlayers(); fetchStructures(); }, [fetchPlayers, fetchStructures]);
