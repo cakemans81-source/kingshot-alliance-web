@@ -1105,24 +1105,45 @@ export default function KdhGrid() {
                                     />
                                     {/* 이름 */}
                                     <text x={center.px} y={center.py - 2} fill={isDraggingThis ? "#22d3ee" : isHit ? "#fff" : "#a5b4fc"} fontSize={isHit ? 8 : 7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
-                                    {/* 하이라이트 좌표 배지 — 다이아몰드 아래 pill 스타일 */}
+                                    {/* 하이라이트 좌표 배지 — 4개 셀 2×2 그리드 */}
                                     {isHit && (() => {
-                                        const label = `X ${activePosX}~${activePosX + 1}  Y ${activePosY}~${activePosY + 1}`;
-                                        const bw = label.length * 4.6 + 12;
-                                        const bh = 14;
-                                        const by = center.py + 22;
+                                        const gx = activePosX, gy = activePosY;
+                                        const cells = [
+                                            { lbl: "↙", x: gx, y: gy },
+                                            { lbl: "↘", x: gx + 1, y: gy },
+                                            { lbl: "↖", x: gx, y: gy + 1 },
+                                            { lbl: "↗", x: gx + 1, y: gy + 1 },
+                                        ];
+                                        const cw = 44, ch = 18, gap = 2;
+                                        const totalW = cw * 2 + gap + 8;
+                                        const totalH = ch * 2 + gap + 8;
+                                        const bx = center.px - totalW / 2;
+                                        const by = center.py + 24;
                                         return (
                                             <g>
-                                                <rect x={center.px - bw / 2} y={by - bh / 2} width={bw} height={bh}
-                                                    rx={4} ry={4}
-                                                    fill="rgba(10,18,35,0.88)" stroke="#fbbf24" strokeWidth={1}
-                                                />
-                                                <text x={center.px} y={by} fill="#fde68a" fontSize={7.5} fontWeight={700}
-                                                    textAnchor="middle" dominantBaseline="middle" fontFamily="monospace"
-                                                >{label}</text>
+                                                {/* 배경 패널 */}
+                                                <rect x={bx - 2} y={by - 2} width={totalW + 4} height={totalH + 4}
+                                                    rx={6} ry={6} fill="rgba(7,13,26,0.92)" stroke="#fbbf24" strokeWidth={1} />
+                                                {cells.map((c, i) => {
+                                                    const col = i % 2, row = Math.floor(i / 2);
+                                                    const cx2 = bx + 4 + col * (cw + gap);
+                                                    const cy2 = by + 4 + row * (ch + gap);
+                                                    return (
+                                                        <g key={i}>
+                                                            <rect x={cx2} y={cy2} width={cw} height={ch} rx={3} ry={3}
+                                                                fill="rgba(6,182,212,0.08)" stroke="rgba(6,182,212,0.3)" strokeWidth={0.8} />
+                                                            <text x={cx2 + 3} y={cy2 + 5} fill="#64748b" fontSize={5} fontWeight={600}>{c.lbl}</text>
+                                                            <text x={cx2 + cw / 2} y={cy2 + ch / 2 + 2} fill="#67e8f9" fontSize={6.5} fontWeight={700}
+                                                                textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">
+                                                                {c.x},{c.y}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })}
                                             </g>
                                         );
                                     })()}
+
                                     {/* 드래그 중 좌표 표시 — pill 스타일 */}
                                     {isDraggingThis && (() => {
                                         const label = `X ${activePosX}~${activePosX + 1}  Y ${activePosY}~${activePosY + 1}`;
