@@ -293,6 +293,10 @@ export default function NavBar() {
         { key: "kdhGrid" as const, href: "/kdh-grid" },
     ];
 
+    const NAV_EXTRA = [
+        { href: "/event-attendance", label: "📋 연맹 이벤트" },
+    ];
+
     return (
         <nav
             className="fixed top-0 left-0 right-0 z-50 h-16"
@@ -382,6 +386,21 @@ export default function NavBar() {
                         );
                     })}
 
+                    {/* 이벤트 참여 현황 */}
+                    {NAV_EXTRA.map(({ href, label }) => {
+                        const isActive = pathname === href;
+                        return (
+                            <Link
+                                key={href}
+                                href={href}
+                                className={`relative px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive ? "text-amber-300 bg-amber-500/10" : "text-slate-300 hover:text-white hover:bg-slate-700/50"}`}
+                            >
+                                {label}
+                                {isActive && <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-400" />}
+                            </Link>
+                        );
+                    })}
+
                     {/* ── 간부 전용 게시판 (staff / admin) ── */}
                     <AuthMenuDesktop />
                 </div>
@@ -427,6 +446,14 @@ export default function NavBar() {
                             className={`block px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150 ${pathname === href ? "text-cyan-300 bg-cyan-500/10" : "text-slate-300 hover:bg-slate-700/50 hover:text-white"}`}
                         >
                             {key === "kdhGrid" ? "🗺️ " : ""}{t.nav[key]}
+                        </Link>
+                    ))}
+
+                    {/* 이벤트 참여 현황 (mobile) */}
+                    {NAV_EXTRA.map(({ href, label }) => (
+                        <Link key={href} href={href}
+                            className={`block px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-150 ${pathname === href ? "text-amber-300 bg-amber-500/10" : "text-slate-300 hover:bg-slate-700/50 hover:text-white"}`}>
+                            {label}
                         </Link>
                     ))}
 
