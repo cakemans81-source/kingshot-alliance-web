@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 import type { LocaleCode } from "@/lib/i18n/LocaleContext";
 import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 /* ═══════════════════════════════════════════════
    타입
@@ -600,6 +601,7 @@ function OfficersSection() {
 
 export default function HomeClient({ notices, freePosts }: HomeClientProps) {
     const { t } = useLocale();
+    const { user, logout } = useAuth();
 
     /* ── 검색 엔진 ── */
     const [searchTerm, setSearchTerm] = useState("");
@@ -699,13 +701,84 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                         {t.home.titleLine2}
                     </span>
                 </h1>
-
                 <p className="mt-2 text-sm sm:text-base text-slate-400 leading-relaxed">
                     {t.home.subtitle}{" "}
                     <span className="font-semibold text-cyan-400">{t.home.subtitleHighlight}</span>
                     {t.home.subtitleEnd}
                 </p>
             </div>
+
+            {/* ── [1.5] 사용자 환영 & 로그아웃 (로그인 시 노출) ── */}
+            {user ? (
+                <div
+                    className="mb-8 flex items-center justify-between gap-4 p-4 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-500"
+                    style={{
+                        background: "rgba(30, 41, 59, 0.4)",
+                        borderColor: "rgba(51, 65, 85, 0.5)",
+                        backdropFilter: "blur(4px)",
+                    }}
+                >
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold overflow-hidden flex-shrink-0"
+                            style={{
+                                background: "linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(99, 102, 241, 0.2))",
+                                border: "1px solid rgba(6, 182, 212, 0.3)",
+                            }}
+                        >
+                            {user.avatar_url ? (
+                                <img src={user.avatar_url} alt="p" className="w-full h-full object-cover" />
+                            ) : (
+                                "👤"
+                            )}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold text-white truncate">
+                                {user.nickname}
+                                <span className="ml-1.5 text-[10px] text-cyan-400 font-medium uppercase tracking-wider">
+                                    {user.role}
+                                </span>
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">환영합니다! 오늘 하루도 건승하세요.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href="/profile"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all border border-slate-700/50"
+                        >
+                            정보 수정
+                        </Link>
+                        <button
+                            onClick={() => { if (confirm("로그아웃 하시겠습니까?")) logout(); }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/10 transition-all border border-red-500/20"
+                        >
+                            로그아웃
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div
+                    className="mb-8 p-6 rounded-2xl border text-center animate-in fade-in duration-500"
+                    style={{
+                        background: "linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(30, 41, 59, 0.4))",
+                        borderColor: "rgba(6, 182, 212, 0.2)",
+                    }}
+                >
+                    <p className="text-sm text-slate-400 mb-4">로그인하시면 연맹 소식을 더욱 빠르게 확인하고 활동할 수 있습니다.</p>
+                    <Link
+                        href="/auth"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black text-white hover:brightness-110 transition-all active:scale-95"
+                        style={{
+                            background: "linear-gradient(135deg, #06b6d4, #6366f1)",
+                            boxShadow: "0 4px 15px rgba(6, 182, 212, 0.3)",
+                        }}
+                    >
+                        🔑 로그인하여 시작하기
+                    </Link>
+                </div>
+            )
+            }
 
 
 
@@ -824,44 +897,78 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             />
 
             {/* ── [5] 퀵 링크 ── */}
-            {QUICK_LINKS.map((link) => (
-                <Link
-                    key={link.href}
-                    href={link.href}
-                    className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-5 py-4 mb-4 transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5"
-                    style={{
-                        background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.75))",
-                        border: `1px solid ${link.border}`,
-                        boxShadow: `0 4px 20px ${link.glow}`,
-                    }}
-                >
-                    <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                        style={{ background: `linear-gradient(135deg, ${link.glow.replace("0.35", "0.10")}, transparent)` }}
-                    />
-                    <span
-                        className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl bg-gradient-to-br ${link.gradient} transition-transform duration-300 group-hover:scale-110`}
-                        style={{ boxShadow: `0 3px 10px ${link.glow}` }}
+            {
+                QUICK_LINKS.map((link) => (
+                    <Link
+                        key={link.href}
+                        href={link.href}
+                        className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-5 py-4 mb-4 transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5"
+                        style={{
+                            background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.75))",
+                            border: `1px solid ${link.border}`,
+                            boxShadow: `0 4px 20px ${link.glow}`,
+                        }}
                     >
-                        {link.icon}
-                    </span>
-                    <div className="relative flex flex-col text-left min-w-0 flex-1">
-                        <span className="text-sm font-bold text-white">{link.label}</span>
-                        <span className="text-xs text-slate-400">{link.description}</span>
-                    </div>
-                    <div className="relative ml-auto text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:text-white flex-shrink-0">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
-                    </div>
-                </Link>
-            ))}
+                        <div
+                            className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                            style={{ background: `linear-gradient(135deg, ${link.glow.replace("0.35", "0.10")}, transparent)` }}
+                        />
+                        <span
+                            className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl bg-gradient-to-br ${link.gradient} transition-transform duration-300 group-hover:scale-110`}
+                            style={{ boxShadow: `0 3px 10px ${link.glow}` }}
+                        >
+                            {link.icon}
+                        </span>
+                        <div className="relative flex flex-col text-left min-w-0 flex-1">
+                            <span className="text-sm font-bold text-white">{link.label}</span>
+                            <span className="text-xs text-slate-400">{link.description}</span>
+                        </div>
+                        <div className="relative ml-auto text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:text-white flex-shrink-0">
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </Link>
+                ))
+            }
+
+            {/* ── [5-2] 연맹 이벤트 참여 현황 카드 (KDH 그리드 아래) ── */}
+            <Link
+                href="/event-attendance"
+                className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-5 py-4 mb-4 transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5"
+                style={{
+                    background: "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.75))",
+                    border: "1px solid rgba(245,158,11,0.3)",
+                    boxShadow: "0 4px 20px rgba(245,158,11,0.12)",
+                }}
+            >
+                {/* hover glow overlay */}
+                <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.08), transparent)" }} />
+                {/* 아이콘 */}
+                <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl transition-transform duration-300 group-hover:scale-110"
+                    style={{ background: "linear-gradient(135deg,rgba(245,158,11,0.7),rgba(251,191,36,0.7))", boxShadow: "0 3px 10px rgba(245,158,11,0.35)" }}>
+                    📋
+                </span>
+                {/* 텍스트 */}
+                <div className="relative flex flex-col text-left min-w-0 flex-1">
+                    <span className="text-sm font-bold text-white">연맹 이벤트 참여 현황</span>
+                    <span className="text-xs text-slate-400">이벤트별 출석 · 참석/불참 현황 관리</span>
+                </div>
+                {/* 화살표 */}
+                <div className="relative ml-auto text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:text-amber-400 flex-shrink-0">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </Link>
 
             {/* ══════════════════════════════════════════
                 [6] 👑 간부 (R4) 명단 — 최하단 배치
                 관리자 비밀번호: 3741
                 ══════════════════════════════════════════ */}
             <OfficersSection />
+
 
         </section>
     );

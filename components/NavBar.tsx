@@ -172,7 +172,7 @@ function AuthMenuDesktop() {
    ═══════════════════════════════════════════════ */
 
 function AuthButtonDesktop() {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     if (!user) {
         return (
             <Link
@@ -188,27 +188,37 @@ function AuthButtonDesktop() {
             </Link>
         );
     }
-    <Link
-        href="/profile"
-        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
-        style={{
-            background: "rgba(30,41,59,0.8)",
-            border: "1px solid rgba(71,85,105,0.5)",
-            color: "#94a3b8",
-        }}
-    >
-        <div
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold overflow-hidden"
-            style={{ background: "rgba(6,182,212,0.3)", color: "#22d3ee", border: "1px solid rgba(6,182,212,0.4)" }}
-        >
-            {user.avatar_url ? (
-                <img src={user.avatar_url} alt="p" className="w-full h-full object-cover" />
-            ) : (
-                user.nickname[0]?.toUpperCase() ?? "?"
-            )}
+    return (
+        <div className="hidden md:flex items-center gap-2">
+            <Link
+                href="/profile"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5"
+                style={{
+                    background: "rgba(30,41,59,0.8)",
+                    border: "1px solid rgba(71,85,105,0.5)",
+                    color: "#94a3b8",
+                }}
+            >
+                <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold overflow-hidden"
+                    style={{ background: "rgba(6,182,212,0.3)", color: "#22d3ee", border: "1px solid rgba(6,182,212,0.4)" }}
+                >
+                    {user.avatar_url ? (
+                        <img src={user.avatar_url} alt="p" className="w-full h-full object-cover" />
+                    ) : (
+                        user.nickname[0]?.toUpperCase() ?? "?"
+                    )}
+                </div>
+                <span className="text-slate-300 max-w-[80px] truncate">{user.nickname}</span>
+            </Link>
+            <button
+                onClick={() => { if (confirm("로그아웃 하시겠습니까?")) logout(); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-bold text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all border border-slate-800 hover:border-red-500/30"
+            >
+                🚪 로그아웃
+            </button>
         </div>
-        <span className="text-slate-300 max-w-[80px] truncate">{user.nickname}</span>
-    </Link>
+    );
 }
 
 /* ═══════════════════════════════════════════════
@@ -216,7 +226,7 @@ function AuthButtonDesktop() {
    ═══════════════════════════════════════════════ */
 
 function AuthMenuMobile() {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
 
     return (
         <>
@@ -229,12 +239,20 @@ function AuthMenuMobile() {
                     🔑 로그인 / 가입
                 </Link>
             ) : (
-                <Link
-                    href="/profile"
-                    className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 transition-colors"
-                >
-                    👤 내 프로필 ({user.nickname})
-                </Link>
+                <div className="space-y-1">
+                    <Link
+                        href="/profile"
+                        className="block px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 transition-colors"
+                    >
+                        👤 내 프로필 ({user.nickname})
+                    </Link>
+                    <button
+                        onClick={() => { if (confirm("로그아웃 하시겠습니까?")) logout(); }}
+                        className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                        🚪 로그아웃
+                    </button>
+                </div>
             )}
 
             {/* 간부 전용 (staff / admin) */}

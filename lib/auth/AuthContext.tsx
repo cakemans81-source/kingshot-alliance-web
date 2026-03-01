@@ -47,13 +47,29 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
 
-    /* 저장된 세션 복원 */
+    /* 저장된 세션 복원 + DB에서 최신 role 재확인 */
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem(LS_KEY);
-            if (raw) setUser(JSON.parse(raw) as AuthUser);
-        } catch { /* ignore */ }
+        (async () => {
+            try {
+                const raw = localStorage.getItem(LS_KEY);
+                if (!raw) return;
+                const cached = JSON.parse(raw) as AuthUser;
+                setUser(cached); // 우선 캐시로 빠르게 복원
+
+                // DB에서 최신 role 확인 (관리자가 바꿨을 경우를 위해)
+                const { data } = await import("@/lib/supabase/client").then(m =>
+                    m.supabase.from("users").select("role").eq("id", cached.id).maybeSingle()
+                );
+                if (data && data.role !== cached.role) {
+                    // role이 바뀌었으면 업데이트
+                    const updated = { ...cached, role: data.role as UserRole };
+                    setUser(updated);
+                    try { localStorage.setItem(LS_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+                }
+            } catch { /* ignore */ }
+        })();
     }, []);
+
 
     const login = useCallback((u: AuthUser) => {
         setUser(u);
