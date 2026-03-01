@@ -59,6 +59,18 @@ function toIso(gx: number, gy: number) {
     };
 }
 
+/* toIso 역변환: SVG 좌표 (px, py) → 게임 좌표 (gx, gy) */
+function fromIso(px: number, py: number) {
+    // px = (col+row)*ISO_HALF/2, py = (row-col)*ISO_HALF/2
+    // 풀기: col=(px-py)/ISO_HALF, row=(px+py)/ISO_HALF
+    const col = (px - py) / ISO_HALF;
+    const row = (px + py) / ISO_HALF;
+    return {
+        gx: col + MIN_X,
+        gy: MAX_Y - row,
+    };
+}
+
 /* ═══════════════════════════════════════════
    KdhGrid 컴포넌트
    ═══════════════════════════════════════════ */
@@ -101,6 +113,15 @@ export default function KdhGrid() {
     const dragStart = useRef({ x: 0, y: 0 });
     const panStart = useRef({ x: 0, y: 0 });
     const lastTouchDist = useRef(0);
+
+    /* 플레이어 드래그 (관리자 전용) */
+    const playerDragRef = useRef<{ id: string; startClientX: number; startClientY: number; origGx: number; origGy: number } | null>(null);
+    const [dragGamePos, setDragGamePos] = useState<{ id: string; gx: number; gy: number } | null>(null);
+    const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+    const panRef = useRef(pan);
+    const scaleRef = useRef(scale);
+    useEffect(() => { panRef.current = pan; }, [pan]);
+    useEffect(() => { scaleRef.current = scale; }, [scale]);
 
     /* Supabase에서 데이터 로드 */
     const fetchPlayers = useCallback(async () => {
@@ -231,21 +252,70 @@ export default function KdhGrid() {
         setPan({ x: rect.width / 2 - (px - vbMinX), y: rect.height / 2 - (py - vbMinY) });
     }, []);
 
+    /* screen 좌표 → 게임 좌표 변환 */
+    const screenToGame = useCallback((clientX: number, clientY: number) => {
+        if (!containerRef.current) return null;
+        const rect = containerRef.current.getBoundingClientRect();
+        const corners = [
+            toIso(MIN_X, MIN_Y), toIso(MAX_X, MIN_Y),
+            toIso(MIN_X, MAX_Y), toIso(MAX_X, MAX_Y),
+        ];
+        const vbMinX = Math.min(...corners.map(c => c.px)) - 60;
+        const vbMinY = Math.min(...corners.map(c => c.py)) - 30;
+        const curPan = panRef.current;
+        const curScale = scaleRef.current;
+        // screen → SVG 좌표
+        const svgPx = (clientX - rect.left - curPan.x) / curScale + vbMinX;
+        const svgPy = (clientY - rect.top - curPan.y) / curScale + vbMinY;
+        // SVG → 게임 좌표 (좌하단 기준: x-0.5, y-0.5)
+        const { gx, gy } = fromIso(svgPx, svgPy);
+        return {
+            gx: Math.max(MIN_X, Math.min(MAX_X - 1, Math.round(gx - 0.5))),
+            gy: Math.max(MIN_Y, Math.min(MAX_Y - 1, Math.round(gy - 0.5))),
+        };
+    }, []);
+
     /* ── 마우스 Pan ── */
     const onMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return;
+        if (playerDragRef.current) return; // 플레이어 드래그 중에는 패닝 무시
         isDragging.current = true;
         dragStart.current = { x: e.clientX, y: e.clientY };
         panStart.current = { ...pan };
     };
     const onMouseMove = (e: React.MouseEvent) => {
+        // 플레이어 드래그 중
+        if (playerDragRef.current) {
+            const game = screenToGame(e.clientX, e.clientY);
+            if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
+            return;
+        }
         if (!isDragging.current) return;
         setPan({
             x: panStart.current.x + (e.clientX - dragStart.current.x),
             y: panStart.current.y + (e.clientY - dragStart.current.y),
         });
     };
-    const onMouseUp = () => { isDragging.current = false; };
+    const onMouseUp = async () => {
+        // 플레이어 드래그 종료 → Supabase 저장
+        if (playerDragRef.current && dragGamePos) {
+            const { id } = playerDragRef.current;
+            const { gx, gy } = dragGamePos;
+            const { error } = await supabase
+                .from("kdh_players")
+                .update({ x: gx, y: gy })
+                .eq("id", parseInt(id));
+            if (!error) {
+                setPlayers(prev => prev.map(p =>
+                    p.id === id ? { ...p, x: gx, y: gy } : p
+                ));
+            }
+            playerDragRef.current = null;
+            setDragGamePos(null);
+            return;
+        }
+        isDragging.current = false;
+    };
 
     /* ── 마우스 휠 Zoom ── */
     const onWheel = useCallback((e: WheelEvent) => {
@@ -727,16 +797,25 @@ export default function KdhGrid() {
 
                         {/* 플레이어 오버레이 (2×2 오브젝트 — x,y는 좌하단 최소좌표 기준) */}
                         {filteredPlayers.map(p => {
-                            // 4개 점유셀: (x,y) (x+1,y) (x,y+1) (x+1,y+1)
-                            // 시각적 중심 = 4개 셀의 정중앙 → toIso(x+0.5, y+0.5)
-                            const center = toIso(p.x + 0.5, p.y + 0.5);
+                            // 드래그 중이면 dragGamePos 위치로 오버라이드
+                            const activePosX = (dragGamePos?.id === p.id) ? dragGamePos.gx : p.x;
+                            const activePosY = (dragGamePos?.id === p.id) ? dragGamePos.gy : p.y;
+                            const center = toIso(activePosX + 0.5, activePosY + 0.5);
                             const isHit = hitIds.includes(p.id);
+                            const isDraggingThis = dragGamePos?.id === p.id;
+                            const isHovered = hoveredPlayerId === p.id;
                             const displayName = p.name.length > 7 ? p.name.slice(0, 6) + "…" : p.name;
                             return (
                                 <g key={p.id}
-                                    onMouseEnter={e => showTip(p.name, `X:${p.x}~${p.x + 1}  Y:${p.y}~${p.y + 1}`, p.memo, e.clientX, e.clientY)}
-                                    onMouseLeave={hideTip}
-                                    style={{ cursor: "pointer" }}
+                                    onMouseEnter={e => {
+                                        setHoveredPlayerId(p.id);
+                                        showTip(p.name, `X:${p.x}~${p.x + 1}  Y:${p.y}~${p.y + 1}`, p.memo, e.clientX, e.clientY);
+                                    }}
+                                    onMouseLeave={() => {
+                                        setHoveredPlayerId(null);
+                                        hideTip();
+                                    }}
+                                    style={{ cursor: isAdmin ? (isDraggingThis ? "grabbing" : "grab") : "pointer" }}
                                 >
                                     {/* 하이라이트: 3중 파동 링 */}
                                     {isHit && (
@@ -752,19 +831,52 @@ export default function KdhGrid() {
                                             </path>
                                         </>
                                     )}
-                                    {/* 메인 2x2 다이아몬드 */}
+                                    {/* 메인 2×2 다이아몬드 */}
                                     <path
                                         d={diamondPath(center.px, center.py, 2)}
-                                        fill={isHit ? "rgba(251,191,36,0.35)" : "rgba(99,102,241,0.2)"}
-                                        stroke={isHit ? "#fbbf24" : "rgba(99,102,241,0.6)"}
-                                        strokeWidth={isHit ? 2.5 : 1.5}
+                                        fill={
+                                            isDraggingThis ? "rgba(34,211,238,0.35)" :
+                                                isHit ? "rgba(251,191,36,0.35)" : "rgba(99,102,241,0.2)"
+                                        }
+                                        stroke={
+                                            isDraggingThis ? "#22d3ee" :
+                                                isHit ? "#fbbf24" : "rgba(99,102,241,0.6)"
+                                        }
+                                        strokeWidth={isDraggingThis ? 2.5 : isHit ? 2.5 : 1.5}
+                                        strokeDasharray={isDraggingThis ? "4 2" : undefined}
                                         filter={isHit ? "url(#hitGlow)" : undefined}
+                                        onMouseDown={isAdmin ? (e) => {
+                                            e.stopPropagation();
+                                            hideTip();
+                                            playerDragRef.current = {
+                                                id: p.id,
+                                                startClientX: e.clientX,
+                                                startClientY: e.clientY,
+                                                origGx: p.x,
+                                                origGy: p.y,
+                                            };
+                                            setDragGamePos({ id: p.id, gx: p.x, gy: p.y });
+                                        } : undefined}
                                     />
                                     {/* 이름 */}
-                                    <text x={center.px} y={center.py - 2} fill={isHit ? "#fff" : "#a5b4fc"} fontSize={isHit ? 8 : 7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
-                                    {/* 하이라이트 좌표 뱃지 */}
+                                    <text x={center.px} y={center.py - 2} fill={isDraggingThis ? "#22d3ee" : isHit ? "#fff" : "#a5b4fc"} fontSize={isHit ? 8 : 7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
+                                    {/* 하이라이트 좌표 배지 */}
                                     {isHit && (
-                                        <text x={center.px} y={center.py + 10} fill="#fbbf24" fontSize={5.5} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({p.x}~{p.x + 1},{p.y}~{p.y + 1})</text>
+                                        <text x={center.px} y={center.py + 10} fill="#fbbf24" fontSize={5.5} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({activePosX}~{activePosX + 1},{activePosY}~{activePosY + 1})</text>
+                                    )}
+                                    {/* 드래그 중 좌표 표시 */}
+                                    {isDraggingThis && (
+                                        <text x={center.px} y={center.py + 10} fill="#22d3ee" fontSize={5.5} fontWeight={700} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({activePosX}~{activePosX + 1},{activePosY}~{activePosY + 1})</text>
+                                    )}
+                                    {/* 삭제 버튼 (관리자 hover 시) */}
+                                    {isAdmin && isHovered && !isDraggingThis && (
+                                        <g
+                                            onClick={e => { e.stopPropagation(); deletePlayer(p.id); }}
+                                            style={{ cursor: "pointer" }}
+                                        >
+                                            <circle cx={center.px + 12} cy={center.py - 12} r={7} fill="rgba(239,68,68,0.9)" stroke="#fff" strokeWidth={1} />
+                                            <text x={center.px + 12} y={center.py - 12} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill="white" fontWeight={900}>×</text>
+                                        </g>
                                     )}
                                 </g>
                             );
