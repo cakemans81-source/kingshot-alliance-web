@@ -363,9 +363,10 @@ export default function KdhGrid() {
     const onMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return;
         if (playerDragRef.current) return;
-        if (structCursor) return; // 구조물 커서 모드 → 패닝 막음
-        isDragging.current = true;
+        // 항상 클릭 시작 위치 기록 (structCursor 클릭 판정에 필요)
         dragStart.current = { x: e.clientX, y: e.clientY };
+        if (structCursor) return; // 구조물 커서 모드 → 패닝은 막음, 단 dragStart는 기록
+        isDragging.current = true;
         panStart.current = { ...pan };
     };
     const onMouseMove = (e: React.MouseEvent) => {
