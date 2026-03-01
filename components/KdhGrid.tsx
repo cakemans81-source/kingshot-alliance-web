@@ -118,6 +118,7 @@ export default function KdhGrid() {
     const playerDragRef = useRef<{ id: string; startClientX: number; startClientY: number; origGx: number; origGy: number } | null>(null);
     const [dragGamePos, setDragGamePos] = useState<{ id: string; gx: number; gy: number } | null>(null);
     const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
+    const [isDragEditMode, setIsDragEditMode] = useState(false);
     const panRef = useRef(pan);
     const scaleRef = useRef(scale);
     useEffect(() => { panRef.current = pan; }, [pan]);
@@ -631,33 +632,30 @@ export default function KdhGrid() {
                             >
                                 📍 좌표 입력
                             </button>
-                            {/* 📥 양식 다운로드 */}
-                            <button
-                                type="button"
-                                onClick={downloadTemplate}
-                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
-                                style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
-                                title="CSV 양식 다운로드"
-                            >
-                                📥 {t.kdhPage.downloadBtn}
-                            </button>
-                            {/* 📤 업로드 */}
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
-                                style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#fbbf24" }}
-                                title="CSV 파일 업로드"
-                            >
-                                📤 {t.kdhPage.uploadBtn}
-                            </button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".csv,.txt"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
+                            {/* ✌️ 드래그 편집 / ✓ 편집완료 토글 */}
+                            {!isDragEditMode ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDragEditMode(true)}
+                                    className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                                    style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#22d3ee" }}
+                                >
+                                    ✌️ 드래그 편집
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsDragEditMode(false);
+                                        playerDragRef.current = null;
+                                        setDragGamePos(null);
+                                    }}
+                                    className="h-7 px-3 rounded-lg text-[11px] font-bold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                                    style={{ background: "rgba(34,197,94,0.2)", border: "1px solid rgba(34,197,94,0.5)", color: "#4ade80" }}
+                                >
+                                    ✓ 편집완료
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -722,6 +720,21 @@ export default function KdhGrid() {
                 </div>
 
                 {/* ── 마름모 지도 영역 ── */}
+                {/* 드래그 편집 모드 배너 */}
+                {isAdmin && isDragEditMode && (
+                    <div
+                        className="flex items-center justify-between px-4 py-2 text-[11px] font-semibold"
+                        style={{ background: "rgba(6,182,212,0.12)", borderBottom: "1px solid rgba(6,182,212,0.3)", color: "#22d3ee" }}
+                    >
+                        <span>✌️ 드래그 편집 모드 — 플레이어를 끌어서 이동하세요</span>
+                        <button
+                            type="button"
+                            onClick={() => { setIsDragEditMode(false); playerDragRef.current = null; setDragGamePos(null); }}
+                            className="h-6 px-3 rounded-md text-[10px] font-bold transition-all hover:brightness-125"
+                            style={{ background: "rgba(34,197,94,0.2)", border: "1px solid rgba(34,197,94,0.4)", color: "#4ade80" }}
+                        >✓ 편집완료</button>
+                    </div>
+                )}
                 <div
                     ref={containerRef}
                     className="relative overflow-hidden select-none"
@@ -819,7 +832,7 @@ export default function KdhGrid() {
                                         setHoveredPlayerId(null);
                                         hideTip();
                                     }}
-                                    style={{ cursor: isAdmin ? (isDraggingThis ? "grabbing" : "grab") : "pointer" }}
+                                    style={{ cursor: isAdmin && isDragEditMode ? (isDraggingThis ? "grabbing" : "grab") : "pointer" }}
                                 >
                                     {/* 하이라이트: 3중 파동 링 */}
                                     {isHit && (
@@ -849,7 +862,7 @@ export default function KdhGrid() {
                                         strokeWidth={isDraggingThis ? 2.5 : isHit ? 2.5 : 1.5}
                                         strokeDasharray={isDraggingThis ? "4 2" : undefined}
                                         filter={isHit ? "url(#hitGlow)" : undefined}
-                                        onMouseDown={isAdmin ? (e) => {
+                                        onMouseDown={isAdmin && isDragEditMode ? (e) => {
                                             e.stopPropagation();
                                             hideTip();
                                             playerDragRef.current = {
