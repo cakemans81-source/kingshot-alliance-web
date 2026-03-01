@@ -816,7 +816,7 @@ export default function KdhGrid() {
                                 className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
                                 style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)", color: "#c4b5fd" }}
                             >
-                                📍 좌표 입력
+                                📥 좌표 삭제
                             </button>
                             {/* 🗑️ 건물 삭제 — HTML 버튼으로 SVG 이벤트 충돌 방지 */}
                             <div className="relative flex-shrink-0">
@@ -1207,7 +1207,7 @@ export default function KdhGrid() {
                         ))}
                     </div>
 
-                    <div className="flex flex-col gap-1 max-h-28 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                    <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
                         {filteredPlayers.length === 0 ? (
                             <p className="text-xs text-slate-600 text-center py-2">해당 구역에 유저 없음</p>
                         ) : filteredPlayers.map(p => {
@@ -1215,27 +1215,56 @@ export default function KdhGrid() {
                             return (
                                 <div
                                     key={p.id}
-                                    className="flex items-center justify-between py-1.5 px-2.5 rounded-lg transition-all"
+                                    className="rounded-xl transition-all"
                                     style={{
-                                        background: isHit ? "rgba(6,182,212,0.1)" : "rgba(15,23,42,0.5)",
-                                        border: `1px solid ${isHit ? "rgba(6,182,212,0.4)" : "rgba(51,65,85,0.3)"}`,
+                                        background: isHit ? "rgba(6,182,212,0.07)" : "rgba(15,23,42,0.5)",
+                                        border: `1px solid ${isHit ? "rgba(6,182,212,0.45)" : "rgba(51,65,85,0.3)"}`,
+                                        boxShadow: isHit ? "0 0 10px rgba(6,182,212,0.12)" : "none",
+                                        padding: isHit ? "8px 10px" : "6px 10px",
                                     }}
                                 >
-                                    <div>
-                                        <span className="text-xs font-bold text-slate-200">{p.name}</span>
-                                        {p.memo && <span className="ml-1.5 text-[10px] text-slate-500">{p.memo}</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-mono text-slate-500">X:{p.x}~{p.x + 1} Y:{p.y}~{p.y + 1}</span>
+                                    {/* 이름 + 메모 행 */}
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            {isHit && (
+                                                <span className="text-[9px] font-bold px-1 py-0.5 rounded flex-shrink-0"
+                                                    style={{ background: "rgba(6,182,212,0.2)", color: "#22d3ee", border: "1px solid rgba(6,182,212,0.3)" }}>
+                                                    🎯
+                                                </span>
+                                            )}
+                                            <span className={`text-xs font-bold truncate ${isHit ? "text-cyan-200" : "text-slate-200"}`}>{p.name}</span>
+                                            {p.memo && <span className="ml-1 text-[9px] text-slate-500 truncate">{p.memo}</span>}
+                                        </div>
                                         {isAdmin && (
-                                            <button
-                                                type="button"
-                                                onClick={() => deletePlayer(p.id)}
-                                                className="text-[11px] text-slate-700 hover:text-red-400 transition-colors"
-                                                title="삭제"
-                                            >✕</button>
+                                            <button type="button" onClick={() => deletePlayer(p.id)}
+                                                className="text-[11px] text-slate-700 hover:text-red-400 transition-colors flex-shrink-0 ml-1"
+                                                title="삭제">✕</button>
                                         )}
                                     </div>
+
+                                    {/* 좌표 표시 — 히트 시 2×2 그리드, 아니면 축약 */}
+                                    {isHit ? (
+                                        <div className="grid grid-cols-2 gap-1 mt-1.5">
+                                            {[
+                                                { label: "↙ 좌하", x: p.x, y: p.y },
+                                                { label: "↘ 우하", x: p.x + 1, y: p.y },
+                                                { label: "↖ 좌상", x: p.x, y: p.y + 1 },
+                                                { label: "↗ 우상", x: p.x + 1, y: p.y + 1 },
+                                            ].map(c => (
+                                                <div key={`${c.x}-${c.y}`} className="flex flex-col items-start px-1.5 py-1 rounded-md"
+                                                    style={{ background: "rgba(7,13,26,0.7)", border: "1px solid rgba(6,182,212,0.2)" }}>
+                                                    <span className="text-[8px] text-slate-600 leading-none mb-0.5">{c.label}</span>
+                                                    <span className="text-[10px] font-mono font-bold leading-none" style={{ color: "#67e8f9" }}>
+                                                        ({c.x}, {c.y})
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-[10px] font-mono text-slate-600">
+                                            X:{p.x}~{p.x + 1} · Y:{p.y}~{p.y + 1}
+                                        </span>
+                                    )}
                                 </div>
                             );
                         })}
