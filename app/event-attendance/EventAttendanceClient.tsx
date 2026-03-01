@@ -59,6 +59,11 @@ export default function EventAttendanceClient() {
     const [showNewEvent, setShowNewEvent] = useState(false);
     const [newTitle, setNewTitle] = useState("");
 
+    /* 연맹원 페이징 & 검색 */
+    const [memberSearch, setMemberSearch] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 15;
+
     /* ── 데이터 로드 ── */
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -181,6 +186,22 @@ export default function EventAttendanceClient() {
         absent: attendance.filter(a => a.member_name === name && a.status === "absent").length,
     });
 
+    const filteredMembers = members.filter(m =>
+        m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+        m.memo?.toLowerCase().includes(memberSearch.toLowerCase())
+    );
+
+    const totalPages = Math.ceil(filteredMembers.length / PAGE_SIZE);
+    const paginatedMembers = filteredMembers.slice(
+        (currentPage - 1) * PAGE_SIZE,
+        currentPage * PAGE_SIZE
+    );
+
+    // 검색어나 페이지 변경 시 상단으로 스크롤 하거나 인덱스 조정이 필요할 수 있음
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [memberSearch]);
+
     /* ═══════════════ RENDER ═══════════════ */
     return (
         <div className="min-h-screen pt-20 pb-16 px-4" style={{ background: "linear-gradient(to bottom right, #020617, #0f172a 50%, #020617)" }}>
@@ -294,19 +315,38 @@ export default function EventAttendanceClient() {
                             )}
                         </div>
 
-                        {/* ── 범례 ── */}
-                        <div className="flex items-center gap-4 mb-4 text-[11px] text-slate-500">
-                            <span className="font-bold">범례:</span>
-                            {Object.entries(STATUS_STYLES).map(([k, v]) => (
-                                <span key={k} className="flex items-center gap-1.5">
-                                    <span className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
-                                        style={{ background: v.bg, border: `1px solid ${v.border}`, color: v.text }}>
-                                        {v.label}
+                        {/* ── 상단 컨트롤 (검색 + 범례) ── */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                            {/* 검색창 */}
+                            <div className="relative w-full md:w-64">
+                                <input
+                                    type="text"
+                                    value={memberSearch}
+                                    onChange={(e) => setMemberSearch(e.target.value)}
+                                    placeholder="연맹원 이름/메모 검색..."
+                                    className="w-full rounded-xl px-4 py-2 text-xs text-white placeholder:text-slate-600 outline-none"
+                                    style={{
+                                        background: "rgba(30,41,59,0.5)",
+                                        border: "1px solid rgba(51,65,85,0.4)"
+                                    }}
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600">🔍</span>
+                            </div>
+
+                            {/* 범례 */}
+                            <div className="flex items-center gap-4 text-[11px] text-slate-500 overflow-x-auto pb-1 md:pb-0">
+                                <span className="font-bold flex-shrink-0">범례:</span>
+                                {Object.entries(STATUS_STYLES).map(([k, v]) => (
+                                    <span key={k} className="flex items-center gap-1.5 flex-shrink-0">
+                                        <span className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
+                                            style={{ background: v.bg, border: `1px solid ${v.border}`, color: v.text }}>
+                                            {v.label}
+                                        </span>
+                                        {k === "attend" ? "참석" : k === "absent" ? "불참" : "미정"}
                                     </span>
-                                    {k === "attend" ? "참석" : k === "absent" ? "불참" : "미정"}
-                                </span>
-                            ))}
-                            {isAdmin && <span className="text-slate-600">· 셀 클릭으로 상태 변경</span>}
+                                ))}
+                                {isAdmin && <span className="text-slate-600 flex-shrink-0 ml-2">· 셀 클릭으로 상태 변경</span>}
+                            </div>
                         </div>
 
                         {/* ── 참여 현황 테이블 ── */}
@@ -339,8 +379,9 @@ export default function EventAttendanceClient() {
                                                     연맹원 데이터가 없습니다. (KDH 그리드에 연맹원을 먼저 추가하세요)
                                                 </td>
                                             </tr>
-                                        ) : members.map((m, mi) => {
+                                        ) : paginatedMembers.map((m, mi) => {
                                             const stats = getMemberStats(m.name);
+                                            const globalIndex = (currentPage - 1) * PAGE_SIZE + mi + 1;
                                             return (
                                                 <tr key={m.id}
                                                     style={{
@@ -351,8 +392,11 @@ export default function EventAttendanceClient() {
                                                     {/* 연맹원 이름 (고정 컬럼) */}
                                                     <td className="sticky left-0 z-10 px-4 py-2.5"
                                                         style={{ background: mi % 2 === 0 ? "rgba(10,18,35,0.97)" : "rgba(10,18,35,0.95)", borderRight: "1px solid rgba(51,65,85,0.3)", minWidth: 140 }}>
-                                                        <div className="text-xs font-bold text-slate-200 truncate max-w-[120px]">{m.name}</div>
-                                                        {m.memo && <div className="text-[9px] text-slate-600 truncate">{m.memo}</div>}
+                                                        <div className="flex items-baseline gap-2">
+                                                            <span className="text-[9px] font-mono text-slate-700">{globalIndex}</span>
+                                                            <div className="text-xs font-bold text-slate-200 truncate max-w-[120px]">{m.name}</div>
+                                                        </div>
+                                                        {m.memo && <div className="text-[9px] text-slate-600 truncate ml-4">{m.memo}</div>}
                                                     </td>
                                                     {/* 15개 슬롯 */}
                                                     {activeEvent.columns.map((_, si) => {
@@ -389,6 +433,36 @@ export default function EventAttendanceClient() {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* ── 하단 컨트롤 (페이지네이션) ── */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-center gap-1.5 p-4 border-t" style={{ borderColor: "rgba(51,65,85,0.3)", background: "rgba(15,23,42,0.5)" }}>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-20 hover:bg-slate-800 border border-slate-700/50"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                    </button>
+
+                                    <div className="flex items-center gap-1 px-4">
+                                        <span className="text-sm font-bold text-slate-300">{currentPage}</span>
+                                        <span className="text-[10px] text-slate-600">/ {totalPages}</span>
+                                    </div>
+
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-20 hover:bg-slate-800 border border-slate-700/50"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </>
                 ) : (

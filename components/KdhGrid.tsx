@@ -421,10 +421,14 @@ export default function KdhGrid() {
         if (isAdmin && !isDragEditMode && !structCursor && dx < 5 && dy < 5) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) {
+                const existing = players.find(p =>
+                    game.gx >= p.x && game.gx <= p.x + 1 &&
+                    game.gy >= p.y && game.gy <= p.y + 1
+                );
                 setPlacePopup({ gx: game.gx, gy: game.gy, sx: e.clientX, sy: e.clientY });
                 setPlaceStep("select");
-                setClickName("");
-                setClickMemo("");
+                setClickName(existing ? existing.name : "");
+                setClickMemo(existing ? existing.memo : "");
             }
             isDragging.current = false;
             return;
@@ -545,6 +549,18 @@ export default function KdhGrid() {
         const { error } = await supabase.from("kdh_players").delete().eq("id", parseInt(id));
         if (error) { alert(t.kdhPage.deleteFailed + error.message); return; }
         fetchPlayers();
+    };
+
+    /* 유저 수정 (Supabase) */
+    const updatePlayer = async (id: string, name: string, memo: string) => {
+        if (!name.trim()) return;
+        const { error } = await supabase
+            .from("kdh_players")
+            .update({ name: name.trim(), memo: memo.trim() || null })
+            .eq("id", parseInt(id));
+        if (error) { alert("수정 실패: " + error.message); return; }
+        setPlayers(prev => prev.map(p => p.id === id ? { ...p, name: name.trim(), memo: memo.trim() } : p));
+        setPlacePopup(null);
     };
 
     /* ── 엑셀 양식 다운로드 ── */
@@ -1257,9 +1273,23 @@ export default function KdhGrid() {
                                             {p.memo && <span className="ml-1 text-[9px] text-slate-500 truncate">{p.memo}</span>}
                                         </div>
                                         {isAdmin && (
-                                            <button type="button" onClick={() => deletePlayer(p.id)}
-                                                className="text-[11px] text-slate-700 hover:text-red-400 transition-colors flex-shrink-0 ml-1"
-                                                title="삭제">✕</button>
+                                            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                                <button type="button"
+                                                    onClick={() => {
+                                                        const pRect = containerRef.current?.getBoundingClientRect();
+                                                        if (pRect) {
+                                                            setPlacePopup({ gx: p.x, gy: p.y, sx: pRect.width / 2, sy: pRect.height / 2 });
+                                                            setPlaceStep("member");
+                                                            setClickName(p.name);
+                                                            setClickMemo(p.memo);
+                                                        }
+                                                    }}
+                                                    className="text-[10px] text-slate-700 hover:text-cyan-400 transition-colors"
+                                                    title="수정">✏️</button>
+                                                <button type="button" onClick={() => deletePlayer(p.id)}
+                                                    className="text-[11px] text-slate-700 hover:text-red-400 transition-colors"
+                                                    title="삭제">✕</button>
+                                            </div>
                                         )}
                                     </div>
 
@@ -1319,7 +1349,12 @@ export default function KdhGrid() {
                                     style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)" }}>
                                     <div style={{ width: 24, height: 16, background: "rgba(99,102,241,0.3)", border: "1.5px solid #a5b4fc", borderRadius: 2, transform: "rotate(45deg)", flexShrink: 0 }} />
                                     <div>
-                                        <div className="text-xs font-bold text-white">👤 연맹원</div>
+                                        <div className="text-xs font-bold text-white">
+                                            {players.some(p =>
+                                                placePopup.gx >= p.x && placePopup.gx <= p.x + 1 &&
+                                                placePopup.gy >= p.y && placePopup.gy <= p.y + 1
+                                            ) ? "👤 연맹원 수정" : "👤 연맹원 추가"}
+                                        </div>
                                         <div className="text-[10px] text-slate-500">2×2 점유 · 이름/메모 등록</div>
                                     </div>
                                     <span className="ml-auto text-slate-600 text-xs">→</span>
@@ -1377,11 +1412,24 @@ export default function KdhGrid() {
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => setPlaceStep("select")} className="px-3 py-2 rounded-xl text-[11px] text-slate-400 hover:text-white transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>← 뒤로</button>
-                                        <button onClick={addMemberPlace} disabled={!clickName.trim() || conflict}
-                                            className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
-                                            style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "#fff", boxShadow: !conflict && clickName.trim() ? "0 0 12px rgba(99,102,241,0.4)" : "none" }}>
-                                            ✓ 등록
-                                        </button>
+                                        {(() => {
+                                            const existing = players.find(p =>
+                                                placePopup.gx >= p.x && placePopup.gx <= p.x + 1 &&
+                                                placePopup.gy >= p.y && placePopup.gy <= p.y + 1
+                                            );
+                                            return (
+                                                <button onClick={() => existing ? updatePlayer(existing.id, clickName, clickMemo) : addMemberPlace()}
+                                                    disabled={!clickName.trim() || (existing ? false : conflict)}
+                                                    className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                                                    style={{
+                                                        background: existing ? "linear-gradient(135deg,#06b6d4,#3b82f6)" : "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                                                        color: "#fff",
+                                                        boxShadow: !conflict && clickName.trim() ? "0 0 12px rgba(99,102,241,0.4)" : "none"
+                                                    }}>
+                                                    ✓ {existing ? "수정" : "등록"}
+                                                </button>
+                                            );
+                                        })()}
                                     </div>
                                     <p className="text-[9px] text-slate-700 mt-2 text-center">Enter로 등록 · Esc로 취소</p>
                                 </>
