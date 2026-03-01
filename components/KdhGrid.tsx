@@ -110,9 +110,12 @@ export default function KdhGrid() {
     const [structXmin, setStructXmin] = useState("");
     const [structYmin, setStructYmin] = useState("");
 
-    /* 클릭 배치 모드 — 관리자는 항상 셀 클릭으로 등록 가능 */
-    const [isClickPlaceMode] = useState(true); // 관리자용 항상 활성
-    const [clickPopup, setClickPopup] = useState<{ gx: number; gy: number; sx: number; sy: number } | null>(null);
+    /* ── 배치 팝업 (셀 클릭 → 타입 선택 → 연맹원/구조물) ── */
+    const [placePopup, setPlacePopup] = useState<{ gx: number; gy: number; sx: number; sy: number } | null>(null);
+    const [placeStep, setPlaceStep] = useState<"select" | "member">("select");
+    /* 구조물 커서 배치 모드 (마우스 따라가는 3×3 미리보기) */
+    const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq"; gx: number; gy: number } | null>(null);
+    /* 등록 폼 공통 입력 */
     const [clickName, setClickName] = useState("");
     const [clickMemo, setClickMemo] = useState("");
     const clickNameRef = useRef<HTMLInputElement>(null);
@@ -359,13 +362,19 @@ export default function KdhGrid() {
     /* ── 마우스 Pan ── */
     const onMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return;
-        if (playerDragRef.current) return; // 플레이어 드래그 중에는 패닝 무시
+        if (playerDragRef.current) return;
+        if (structCursor) return; // 구조물 커서 모드 → 패닝 막음
         isDragging.current = true;
         dragStart.current = { x: e.clientX, y: e.clientY };
         panStart.current = { ...pan };
     };
     const onMouseMove = (e: React.MouseEvent) => {
-        // 플레이어 드래그 중
+        // 구조물 커서 모드: 마우스 위치 → 미리보기 업데이트
+        if (structCursor) {
+            const game = screenToGame(e.clientX, e.clientY);
+            if (game) setStructCursor(prev => prev ? { ...prev, gx: game.gx, gy: game.gy } : null);
+            return;
+        }
         if (playerDragRef.current) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
@@ -378,61 +387,63 @@ export default function KdhGrid() {
         });
     };
     const onMouseUp = async (e: React.MouseEvent) => {
-        // 플레이어 드래그 종료 → Supabase 저장
+        // 플레이어 드래그 종료
         if (playerDragRef.current && dragGamePos) {
             const { id } = playerDragRef.current;
             const { gx, gy } = dragGamePos;
-            const { error } = await supabase
-                .from("kdh_players")
-                .update({ x: gx, y: gy })
-                .eq("id", parseInt(id));
-            if (!error) {
-                setPlayers(prev => prev.map(p =>
-                    p.id === id ? { ...p, x: gx, y: gy } : p
-                ));
-            }
+            const { error } = await supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id));
+            if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
             playerDragRef.current = null;
             setDragGamePos(null);
             return;
         }
-        // 클릭 배치: 관리자 + 드래그 편집 모드 아닐 때, 드래그 거리 5px 미만이면 클릭으로 판정
-        if (isClickPlaceMode && isAdmin && !isDragEditMode) {
-            const dx = Math.abs(e.clientX - dragStart.current.x);
-            const dy = Math.abs(e.clientY - dragStart.current.y);
-            if (dx < 5 && dy < 5) {
-                const game = screenToGame(e.clientX, e.clientY);
-                if (game) {
-                    setClickPopup({ gx: game.gx, gy: game.gy, sx: e.clientX, sy: e.clientY });
-                    setClickName("");
-                    setClickMemo("");
-                    setTimeout(() => clickNameRef.current?.focus(), 50);
-                }
-                isDragging.current = false;
-                return;
+        const dx = Math.abs(e.clientX - dragStart.current.x);
+        const dy = Math.abs(e.clientY - dragStart.current.y);
+        // 구조물 커서 클릭 → 배치 확정
+        if (structCursor && isAdmin && dx < 5 && dy < 5) {
+            const cells = getStructCells(structCursor.gx, structCursor.gy, 3);
+            if (cells.some(c => occupiedCells.has(c))) {
+                alert("⚠️ 해당 위치에 이미 건물/플레이어가 있습니다.");
+            } else {
+                const trapIds = structures.filter(s => s.type === "trap").map(s => s.id);
+                const structId = structCursor.structType === "hq" ? "hq"
+                    : !trapIds.includes("trap1") ? "trap1" : "trap2";
+                const label = structCursor.structType === "hq" ? "🏰 본부"
+                    : structId === "trap1" ? "🪤 함정1" : "🪤 함정2";
+                await upsertStructure({ id: structId, label, x: structCursor.gx, y: structCursor.gy, size: 3, type: structCursor.structType });
+                setStructCursor(null);
             }
+            isDragging.current = false;
+            return;
+        }
+        // 셀 클릭 → 배치 타입 선택 팝업
+        if (isAdmin && !isDragEditMode && !structCursor && dx < 5 && dy < 5) {
+            const game = screenToGame(e.clientX, e.clientY);
+            if (game) {
+                setPlacePopup({ gx: game.gx, gy: game.gy, sx: e.clientX, sy: e.clientY });
+                setPlaceStep("select");
+                setClickName("");
+                setClickMemo("");
+            }
+            isDragging.current = false;
+            return;
         }
         isDragging.current = false;
     };
 
-    /* 클릭 배치 플레이어 추가 */
-    const addClickPlayer = async () => {
-        if (!clickName.trim() || !clickPopup) return;
+    /* 연맹원 배치 등록 (겹침 체크 포함) */
+    const addMemberPlace = async () => {
+        if (!clickName.trim() || !placePopup) return;
+        const cells = getMemberCells(placePopup.gx, placePopup.gy);
+        if (cells.some(c => occupiedCells.has(c))) { alert("⚠️ 해당 위치에 이미 팀원/건물이 있습니다!"); return; }
         const { data, error } = await supabase
             .from("kdh_players")
-            .insert({ name: clickName.trim(), x: clickPopup.gx, y: clickPopup.gy, memo: clickMemo.trim() || null })
+            .insert({ name: clickName.trim(), x: placePopup.gx, y: placePopup.gy, memo: clickMemo.trim() || null })
             .select();
-        if (!error && data && data[0]) {
-            setPlayers(prev => [...prev, {
-                id: String(data[0].id),
-                name: data[0].name,
-                x: data[0].x,
-                y: data[0].y,
-                memo: data[0].memo || "",
-            }]);
+        if (!error && data?.[0]) {
+            setPlayers(prev => [...prev, { id: String(data[0].id), name: data[0].name, x: data[0].x, y: data[0].y, memo: data[0].memo || "" }]);
         }
-        setClickPopup(null);
-        setClickName("");
-        setClickMemo("");
+        setPlacePopup(null); setClickName(""); setClickMemo("");
     };
 
     /* ── 마우스 휠 Zoom ── */
@@ -587,6 +598,26 @@ export default function KdhGrid() {
 
     /* 필터링된 플레이어 목록 (현재는 구역 필터 없이 전체 표시) */
     const filteredPlayers = players;
+
+    /* ── 겹침 체크 헬퍼 ── */
+    const occupiedCells = useMemo(() => {
+        const set = new Set<string>();
+        players.forEach(p => {
+            for (let dx = 0; dx <= 1; dx++) for (let dy = 0; dy <= 1; dy++) set.add(`${p.x + dx},${p.y + dy}`);
+        });
+        structures.forEach(s => {
+            const h = Math.floor(s.size / 2);
+            for (let dx = -h; dx <= h; dx++) for (let dy = -h; dy <= h; dy++) set.add(`${s.x + dx},${s.y + dy}`);
+        });
+        return set;
+    }, [players, structures]);
+    const getMemberCells = (gx: number, gy: number) =>
+        [`${gx},${gy}`, `${gx + 1},${gy}`, `${gx},${gy + 1}`, `${gx + 1},${gy + 1}`];
+    const getStructCells = (gx: number, gy: number, size: number) => {
+        const h = Math.floor(size / 2); const cells: string[] = [];
+        for (let dx = -h; dx <= h; dx++) for (let dy = -h; dy <= h; dy++) cells.push(`${gx + dx},${gy + dy}`);
+        return cells;
+    };
 
     /* 마름모 그리드 라인 생성 — 5칸 단위 강조 + 일반 세선 */
     const gridLines: React.ReactNode[] = [];
@@ -829,7 +860,7 @@ export default function KdhGrid() {
                             {!isDragEditMode ? (
                                 <button
                                     type="button"
-                                    onClick={() => { setIsDragEditMode(true); setClickPopup(null); }}
+                                    onClick={() => { setIsDragEditMode(true); setPlacePopup(null); setStructCursor(null); }}
                                     className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
                                     style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#22d3ee" }}
                                 >
@@ -1122,6 +1153,32 @@ export default function KdhGrid() {
                                 </g>
                             );
                         })}
+                        {/* 연맹원 배치 미리보기 (placeStep==="member"일 때 2×2 다이아몬드) */}
+                        {placePopup && placeStep === "member" && (() => {
+                            const center = toIso(placePopup.gx + 0.5, placePopup.gy + 0.5);
+                            const conflict = getMemberCells(placePopup.gx, placePopup.gy).some((c: string) => occupiedCells.has(c));
+                            return (
+                                <path
+                                    d={diamondPath(center.px, center.py, 2)}
+                                    fill={conflict ? "rgba(239,68,68,0.25)" : "rgba(34,197,94,0.25)"}
+                                    stroke={conflict ? "#ef4444" : "#22c55e"}
+                                    strokeWidth={2} strokeDasharray="6 3" pointerEvents="none"
+                                />
+                            );
+                        })()}
+                        {/* 구조물 커서 미리보기 (3×3 다이아몬드, 마우스 따라 이동) */}
+                        {structCursor && (() => {
+                            const center = toIso(structCursor.gx, structCursor.gy);
+                            const conflict = getStructCells(structCursor.gx, structCursor.gy, 3).some((c: string) => occupiedCells.has(c));
+                            return (
+                                <path
+                                    d={diamondPath(center.px, center.py, 3)}
+                                    fill={conflict ? "rgba(239,68,68,0.2)" : "rgba(251,191,36,0.2)"}
+                                    stroke={conflict ? "#ef4444" : "#fbbf24"}
+                                    strokeWidth={2.5} strokeDasharray="8 4" pointerEvents="none"
+                                />
+                            );
+                        })()}
                     </svg>
                 </div>
 
@@ -1185,111 +1242,122 @@ export default function KdhGrid() {
                 </div>
             </div>
 
-            {/* ── 클릭 배치 팝업 (관리자 직접 셀 클릭 시) ── */}
-            {clickPopup && isAdmin && (
-                <div
-                    className="fixed z-[60] flex flex-col"
-                    style={{
-                        left: Math.min(clickPopup.sx + 8, window.innerWidth - 280),
-                        top: Math.min(clickPopup.sy - 16, window.innerHeight - 220),
-                        width: 260,
-                        background: "rgba(10,18,35,0.98)",
-                        border: "1px solid rgba(251,191,36,0.5)",
-                        borderRadius: 16,
-                        boxShadow: "0 16px 48px rgba(0,0,0,0.7), 0 0 20px rgba(251,191,36,0.15)",
-                        backdropFilter: "blur(16px)",
-                        padding: "16px",
-                    }}
-                >
-                    {/* 헤더: 좌표 표시 */}
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-1.5">
-                            <span style={{ fontSize: 14 }}>📌</span>
-                            <span className="text-[12px] font-bold" style={{ color: "#fbbf24" }}>
-                                맴버 등록
-                            </span>
+            {/* ── 배치 선택 팝업 (셀 클릭 시) ── */}
+            {placePopup && isAdmin && (() => {
+                const closePopup = () => { setPlacePopup(null); setClickName(""); setClickMemo(""); };
+                const popLeft = Math.min(placePopup.sx + 8, window.innerWidth - 290);
+                const popTop = Math.min(placePopup.sy - 16, window.innerHeight - 320);
+                return (
+                    <div className="fixed z-[60]" style={{ left: popLeft, top: popTop, width: 270, background: "rgba(10,18,35,0.98)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.7)", backdropFilter: "blur(16px)", padding: "16px" }}>
+                        {/* 헤더 */}
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[12px] font-bold" style={{ color: "#a5b4fc" }}>📌 배치 선택</span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(99,102,241,0.1)", color: "#818cf8" }}>
+                                    ({placePopup.gx}, {placePopup.gy})
+                                </span>
+                            </div>
+                            <button onClick={closePopup} className="text-slate-600 hover:text-red-400 text-sm font-bold transition-colors">✕</button>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md" style={{ background: "rgba(251,191,36,0.12)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.3)" }}>
-                                X:{clickPopup.gx}~{clickPopup.gx + 1}
-                            </span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md" style={{ background: "rgba(251,191,36,0.12)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.3)" }}>
-                                Y:{clickPopup.gy}~{clickPopup.gy + 1}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => { setClickPopup(null); setClickName(""); setClickMemo(""); }}
-                                className="ml-1 text-slate-600 hover:text-red-400 transition-colors text-sm font-bold"
-                            >✕</button>
-                        </div>
+
+                        {placeStep === "select" && (
+                            <div className="space-y-2">
+                                {/* 연맹원 */}
+                                <button onClick={() => { setPlaceStep("member"); setTimeout(() => clickNameRef.current?.focus(), 50); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-110 active:scale-[0.98]"
+                                    style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)" }}>
+                                    <div style={{ width: 24, height: 16, background: "rgba(99,102,241,0.3)", border: "1.5px solid #a5b4fc", borderRadius: 2, transform: "rotate(45deg)", flexShrink: 0 }} />
+                                    <div>
+                                        <div className="text-xs font-bold text-white">👤 연맹원</div>
+                                        <div className="text-[10px] text-slate-500">2×2 점유 · 이름/메모 등록</div>
+                                    </div>
+                                    <span className="ml-auto text-slate-600 text-xs">→</span>
+                                </button>
+                                {/* 함정 */}
+                                <button onClick={() => { closePopup(); setStructCursor({ structType: "trap", gx: placePopup.gx, gy: placePopup.gy }); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-110 active:scale-[0.98]"
+                                    style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)" }}>
+                                    <div style={{ width: 24, height: 16, background: "rgba(251,191,36,0.25)", border: "1.5px solid #fbbf24", borderRadius: 2, transform: "rotate(45deg)", flexShrink: 0 }} />
+                                    <div>
+                                        <div className="text-xs font-bold" style={{ color: "#fde68a" }}>🪤 함정</div>
+                                        <div className="text-[10px] text-slate-500">3×3 · 마우스로 이동 후 클릭 배치</div>
+                                    </div>
+                                    <span className="ml-auto text-slate-600 text-xs">→</span>
+                                </button>
+                                {/* 본부 */}
+                                <button onClick={() => { closePopup(); setStructCursor({ structType: "hq", gx: placePopup.gx, gy: placePopup.gy }); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-110 active:scale-[0.98]"
+                                    style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(245,158,11,0.35)" }}>
+                                    <div style={{ width: 24, height: 16, background: "rgba(245,158,11,0.3)", border: "1.5px solid #f59e0b", borderRadius: 2, transform: "rotate(45deg)", flexShrink: 0 }} />
+                                    <div>
+                                        <div className="text-xs font-bold" style={{ color: "#fde68a" }}>🏰 본부</div>
+                                        <div className="text-[10px] text-slate-500">3×3 · 마우스로 이동 후 클릭 배치</div>
+                                    </div>
+                                    <span className="ml-auto text-slate-600 text-xs">→</span>
+                                </button>
+                            </div>
+                        )}
+
+                        {placeStep === "member" && (() => {
+                            const conflict = getMemberCells(placePopup.gx, placePopup.gy).some((c: string) => occupiedCells.has(c));
+                            return (
+                                <>
+                                    {/* 겹침 상태 배너 */}
+                                    <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-lg text-[10px]"
+                                        style={{ background: conflict ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.08)", border: `1px solid ${conflict ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.25)"}`, color: conflict ? "#f87171" : "#86efac" }}>
+                                        <span>{conflict ? "⚠️ 이미 배치된 위치" : "✓ 배치 가능"}</span>
+                                        <span className="ml-auto font-mono">X:{placePopup.gx}~{placePopup.gx + 1} Y:{placePopup.gy}~{placePopup.gy + 1}</span>
+                                    </div>
+                                    <div className="mb-2.5">
+                                        <label className="block text-[10px] text-slate-500 font-bold mb-1">연맹원 ID *</label>
+                                        <input ref={clickNameRef} type="text" value={clickName} onChange={e => setClickName(e.target.value)}
+                                            onKeyDown={e => { if (e.key === "Enter") addMemberPlace(); if (e.key === "Escape") closePopup(); }}
+                                            placeholder="예: 만두몬mandu" autoFocus
+                                            className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                                            style={{ background: "rgba(7,13,26,0.8)", border: `1px solid ${clickName.trim() ? "rgba(99,102,241,0.5)" : "rgba(71,85,105,0.5)"}` }} />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-[10px] text-slate-500 font-bold mb-1">메모 (선택)</label>
+                                        <input type="text" value={clickMemo} onChange={e => setClickMemo(e.target.value)}
+                                            onKeyDown={e => { if (e.key === "Enter") addMemberPlace(); if (e.key === "Escape") closePopup(); }}
+                                            placeholder="R5, 공격대장..."
+                                            className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                                            style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.4)" }} />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setPlaceStep("select")} className="px-3 py-2 rounded-xl text-[11px] text-slate-400 hover:text-white transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>← 뒤로</button>
+                                        <button onClick={addMemberPlace} disabled={!clickName.trim() || conflict}
+                                            className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                                            style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "#fff", boxShadow: !conflict && clickName.trim() ? "0 0 12px rgba(99,102,241,0.4)" : "none" }}>
+                                            ✓ 등록
+                                        </button>
+                                    </div>
+                                    <p className="text-[9px] text-slate-700 mt-2 text-center">Enter로 등록 · Esc로 취소</p>
+                                </>
+                            );
+                        })()}
                     </div>
-                    {/* ID 입력 */}
-                    <div className="mb-2.5">
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1">연맹원 ID *</label>
-                        <input
-                            ref={clickNameRef}
-                            type="text"
-                            value={clickName}
-                            onChange={e => setClickName(e.target.value)}
-                            onKeyDown={e => {
-                                if (e.key === "Enter" && !e.shiftKey) addClickPlayer();
-                                if (e.key === "Escape") { setClickPopup(null); setClickName(""); setClickMemo(""); }
-                            }}
-                            placeholder="예: 만두몬mandu"
-                            className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                            style={{
-                                background: "rgba(7,13,26,0.8)",
-                                border: `1px solid ${clickName.trim() ? "rgba(251,191,36,0.5)" : "rgba(71,85,105,0.5)"}`,
-                            }}
-                        />
-                    </div>
-                    {/* 메모 입력 */}
-                    <div className="mb-4">
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1">메모 (선택)</label>
-                        <input
-                            type="text"
-                            value={clickMemo}
-                            onChange={e => setClickMemo(e.target.value)}
-                            onKeyDown={e => {
-                                if (e.key === "Enter") addClickPlayer();
-                                if (e.key === "Escape") { setClickPopup(null); setClickName(""); setClickMemo(""); }
-                            }}
-                            placeholder="R5, 공격대장..."
-                            className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
-                            style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.4)" }}
-                        />
-                    </div>
-                    {/* 버튼 */}
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={addClickPlayer}
-                            disabled={!clickName.trim()}
-                            className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
-                            style={{
-                                background: "linear-gradient(135deg,#d97706,#f59e0b)",
-                                color: "#0d1829",
-                                boxShadow: clickName.trim() ? "0 0 12px rgba(245,158,11,0.4)" : "none",
-                            }}
-                        >
-                            ✓ 등록
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { setClickPopup(null); setClickName(""); setClickMemo(""); }}
-                            className="px-3 py-2 rounded-xl text-[12px] font-medium text-slate-400 hover:text-white transition-colors"
-                            style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
-                        >
-                            취소
-                        </button>
-                    </div>
-                    {/* 핑스 */}
-                    <p className="text-[9px] text-slate-700 mt-2 text-center">Enter 또는 ✓ 등록 버튼으로 등록 · Esc로 취소</p>
+                );
+            })()}
+
+            {/* ── 구조물 배치 모드 배너 ── */}
+            {structCursor && isAdmin && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl"
+                    style={{ background: "rgba(10,18,35,0.96)", border: "1px solid rgba(251,191,36,0.5)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", backdropFilter: "blur(12px)" }}>
+                    <span className="text-sm font-bold" style={{ color: "#fbbf24" }}>
+                        {structCursor.structType === "hq" ? "🏰 본부" : "🪤 함정"} 배치 모드
+                    </span>
+                    <span className="text-[11px] text-slate-500">마우스를 이동하여 위치 결정 → 클릭으로 배치</span>
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
+                        ({structCursor.gx}, {structCursor.gy})
+                    </span>
+                    <button onClick={() => setStructCursor(null)} className="ml-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>취소</button>
                 </div>
             )}
 
             {/* ── 유저 추가 모달 ── */}
             {showModal && (
+
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center"
                     style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
