@@ -979,14 +979,42 @@ export default function KdhGrid() {
                                     />
                                     {/* 이름 */}
                                     <text x={center.px} y={center.py - 2} fill={isDraggingThis ? "#22d3ee" : isHit ? "#fff" : "#a5b4fc"} fontSize={isHit ? 8 : 7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
-                                    {/* 하이라이트 좌표 배지 */}
-                                    {isHit && (
-                                        <text x={center.px} y={center.py + 10} fill="#fbbf24" fontSize={5.5} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({activePosX}~{activePosX + 1},{activePosY}~{activePosY + 1})</text>
-                                    )}
-                                    {/* 드래그 중 좌표 표시 */}
-                                    {isDraggingThis && (
-                                        <text x={center.px} y={center.py + 10} fill="#22d3ee" fontSize={5.5} fontWeight={700} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({activePosX}~{activePosX + 1},{activePosY}~{activePosY + 1})</text>
-                                    )}
+                                    {/* 하이라이트 좌표 배지 — 다이아몰드 아래 pill 스타일 */}
+                                    {isHit && (() => {
+                                        const label = `X ${activePosX}~${activePosX + 1}  Y ${activePosY}~${activePosY + 1}`;
+                                        const bw = label.length * 4.6 + 12;
+                                        const bh = 14;
+                                        const by = center.py + 22;
+                                        return (
+                                            <g>
+                                                <rect x={center.px - bw / 2} y={by - bh / 2} width={bw} height={bh}
+                                                    rx={4} ry={4}
+                                                    fill="rgba(10,18,35,0.88)" stroke="#fbbf24" strokeWidth={1}
+                                                />
+                                                <text x={center.px} y={by} fill="#fde68a" fontSize={7.5} fontWeight={700}
+                                                    textAnchor="middle" dominantBaseline="middle" fontFamily="monospace"
+                                                >{label}</text>
+                                            </g>
+                                        );
+                                    })()}
+                                    {/* 드래그 중 좌표 표시 — pill 스타일 */}
+                                    {isDraggingThis && (() => {
+                                        const label = `X ${activePosX}~${activePosX + 1}  Y ${activePosY}~${activePosY + 1}`;
+                                        const bw = label.length * 4.6 + 12;
+                                        const bh = 14;
+                                        const by = center.py + 22;
+                                        return (
+                                            <g>
+                                                <rect x={center.px - bw / 2} y={by - bh / 2} width={bw} height={bh}
+                                                    rx={4} ry={4}
+                                                    fill="rgba(10,18,35,0.9)" stroke="#22d3ee" strokeWidth={1}
+                                                />
+                                                <text x={center.px} y={by} fill="#67e8f9" fontSize={7.5} fontWeight={700}
+                                                    textAnchor="middle" dominantBaseline="middle" fontFamily="monospace"
+                                                >{label}</text>
+                                            </g>
+                                        );
+                                    })()}
                                     {/* 삭제 버튼 (관리자 hover 시) */}
                                     {isAdmin && isHovered && !isDraggingThis && (
                                         <g
