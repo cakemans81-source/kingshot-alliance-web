@@ -52,9 +52,10 @@ const ISO_HALF = CELL / 2;
 function toIso(gx: number, gy: number) {
     const col = gx - MIN_X;
     const row = MAX_Y - gy; // Y 반전
+    // -90° 회전 + 정사각 다이아몬드 (hw = hh = ISO_HALF/2)
     return {
-        px: (col - row) * ISO_HALF,
-        py: (col + row) * ISO_HALF / 2,
+        px: (col + row) * ISO_HALF / 2,
+        py: (row - col) * ISO_HALF / 2,
     };
 }
 
@@ -82,6 +83,15 @@ export default function KdhGrid() {
     const [fX, setFX] = useState("");
     const [fY, setFY] = useState("");
     const [fMemo, setFMemo] = useState("");
+
+    /* 좌표 테이블 입력 모달 */
+    const [showCoordModal, setShowCoordModal] = useState(false);
+    const [coordName, setCoordName] = useState("");
+    const [coordMemo, setCoordMemo] = useState("");
+    const [coordPairs, setCoordPairs] = useState([
+        { x: "", y: "" }, { x: "", y: "" },
+        { x: "", y: "" }, { x: "", y: "" },
+    ]);
 
     /* Pan & Zoom 상태 */
     const containerRef = useRef<HTMLDivElement>(null);
@@ -158,7 +168,8 @@ export default function KdhGrid() {
     const focusOnPlayer = useCallback((playerId: string) => {
         const p = players.find(pl => pl.id === playerId);
         if (!p || !containerRef.current) return;
-        const { px, py } = toIso(p.x, p.y);
+        // 2×2 오브젝트 중심 = 좌하단 좌표에서 +0.5 오프셋
+        const { px, py } = toIso(p.x + 0.5, p.y + 0.5);
         const rect = containerRef.current.getBoundingClientRect();
         const zoomTo = 2.2;
 
@@ -188,7 +199,19 @@ export default function KdhGrid() {
         if (filter === "all") return players;
         const struct = STRUCTURES.find(s => s.id === filter)!;
         const r = struct.size;
-        return players.filter(p => Math.abs(p.x - struct.x) <= r && Math.abs(p.y - struct.y) <= r);
+        // 2×2 오브젝트 4개 셀 점유: (x,y) (x+1,y) (x,y+1) (x+1,y+1)
+        // 4개 셀 중 하나라도 구조물 범위 안에 있으면 포함
+        return players.filter(p => {
+            const cells = [
+                { x: p.x, y: p.y },
+                { x: p.x + 1, y: p.y },
+                { x: p.x, y: p.y + 1 },
+                { x: p.x + 1, y: p.y + 1 },
+            ];
+            return cells.some(c =>
+                Math.abs(c.x - struct.x) <= r && Math.abs(c.y - struct.y) <= r
+            );
+        });
     })();
 
     /* 초기 중앙 정렬 (HQ 기준) */
@@ -282,6 +305,40 @@ export default function KdhGrid() {
         fetchPlayers();
     };
 
+    /* 2×2 좌표 검증: X 2개 × Y 2개가 연속 블록인지 확인 → x_min, y_min 반환 */
+    const validateCoordPairs = () => {
+        const parsed = coordPairs.map(p => ({ x: parseInt(p.x), y: parseInt(p.y) }));
+        if (parsed.some(p => isNaN(p.x) || isNaN(p.y))) return null;
+        const xs = [...new Set(parsed.map(p => p.x))].sort((a, b) => a - b);
+        const ys = [...new Set(parsed.map(p => p.y))].sort((a, b) => a - b);
+        if (xs.length !== 2 || ys.length !== 2) return null;
+        if (xs[1] - xs[0] !== 1 || ys[1] - ys[0] !== 1) return null;
+        const allExist = [
+            [xs[0], ys[0]], [xs[0], ys[1]], [xs[1], ys[0]], [xs[1], ys[1]],
+        ].every(([ex, ey]) => parsed.some(p => p.x === ex && p.y === ey));
+        if (!allExist) return null;
+        return { x: xs[0], y: ys[0] };
+    };
+
+    /* 좌표 테이블 모달로 등록 */
+    const addPlayerFromCoords = async () => {
+        const name = coordName.trim();
+        if (!name) { alert("연맹원 ID를 입력하세요"); return; }
+        const result = validateCoordPairs();
+        if (!result) {
+            alert("올바른 2×2 좌표 4개를 입력하세요.\n(연속된 X 2개 × Y 2개 조합)");
+            return;
+        }
+        const { error } = await supabase.from("kdh_players").insert({
+            name, x: result.x, y: result.y, memo: coordMemo.trim() || null,
+        });
+        if (error) { alert(t.kdhPage.addFailed + error.message); return; }
+        setCoordName(""); setCoordMemo("");
+        setCoordPairs([{ x: "", y: "" }, { x: "", y: "" }, { x: "", y: "" }, { x: "", y: "" }]);
+        setShowCoordModal(false);
+        fetchPlayers();
+    };
+
     /* 유저 삭제 (Supabase) */
     const deletePlayer = async (id: string) => {
         if (!window.confirm(t.kdhPage.deleteConfirm)) return;
@@ -293,7 +350,7 @@ export default function KdhGrid() {
     /* ── 엑셀 양식 다운로드 ── */
     const downloadTemplate = () => {
         const header = "이름,X좌표,Y좌표,메모";
-        const note = "# 좌표 기준: 2x2 마름모의 오른쪽 셀 (게임 내 표시 좌표 그대로 입력)";
+        const note = "# 좌표 기준: 2×2 오브젝트의 좌하단(최소) X,Y 좌표를 입력하세요\n# 예시) 오브젝트가 (736,752)(737,752)(736,753)(737,753) 점유 시 → X:736 Y:752";
         const example = "홍길동,735,755,본부 근처\n유저2,740,748,함정1";
         const csv = note + "\n" + header + "\n" + example;
         const bom = "\uFEFF";
@@ -373,7 +430,8 @@ export default function KdhGrid() {
 
     /* 마름모 셀 (다이아몬드) 패스 생성 */
     const diamondPath = (cx: number, cy: number, sz: number) => {
-        const hw = sz * ISO_HALF;
+        // 정사각 다이아몬드: hw = hh = ISO_HALF/2 (45° 탑뷰 스타일)
+        const hw = sz * ISO_HALF / 2;
         const hh = sz * ISO_HALF / 2;
         return `M${cx},${cy - hh} L${cx + hw},${cy} L${cx},${cy + hh} L${cx - hw},${cy} Z`;
     };
@@ -492,6 +550,14 @@ export default function KdhGrid() {
                                 style={{ background: "linear-gradient(135deg,#06b6d4,#3b82f6)", color: "#fff" }}
                             >
                                 {t.kdhPage.addBtn}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowCoordModal(true)}
+                                className="h-7 px-3 rounded-lg text-xs font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                                style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.4)", color: "#c4b5fd" }}
+                            >
+                                📍 좌표 입력
                             </button>
                             <button
                                 type="button"
@@ -659,16 +725,16 @@ export default function KdhGrid() {
                             );
                         })}
 
-                        {/* 플레이어 오버레이 (2x2 마름모 — 좌표는 오른쪽 셀 기준) */}
+                        {/* 플레이어 오버레이 (2×2 오브젝트 — x,y는 좌하단 최소좌표 기준) */}
                         {filteredPlayers.map(p => {
-                            // 2x2 오브젝트: 좌표(X,Y)가 마름모 오른쪽 셀
-                            // → 2x2 중심 = toIso(X, Y) (셀 꼭짓점 = 2x2 중심)
-                            const center = toIso(p.x, p.y);
+                            // 4개 점유셀: (x,y) (x+1,y) (x,y+1) (x+1,y+1)
+                            // 시각적 중심 = 4개 셀의 정중앙 → toIso(x+0.5, y+0.5)
+                            const center = toIso(p.x + 0.5, p.y + 0.5);
                             const isHit = hitIds.includes(p.id);
                             const displayName = p.name.length > 7 ? p.name.slice(0, 6) + "…" : p.name;
                             return (
                                 <g key={p.id}
-                                    onMouseEnter={e => showTip(p.name, `X:${p.x} Y:${p.y}`, p.memo, e.clientX, e.clientY)}
+                                    onMouseEnter={e => showTip(p.name, `X:${p.x}~${p.x + 1}  Y:${p.y}~${p.y + 1}`, p.memo, e.clientX, e.clientY)}
                                     onMouseLeave={hideTip}
                                     style={{ cursor: "pointer" }}
                                 >
@@ -698,7 +764,7 @@ export default function KdhGrid() {
                                     <text x={center.px} y={center.py - 2} fill={isHit ? "#fff" : "#a5b4fc"} fontSize={isHit ? 8 : 7} fontWeight={700} textAnchor="middle" dominantBaseline="middle">{displayName}</text>
                                     {/* 하이라이트 좌표 뱃지 */}
                                     {isHit && (
-                                        <text x={center.px} y={center.py + 8} fill="#fbbf24" fontSize={6} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({p.x},{p.y})</text>
+                                        <text x={center.px} y={center.py + 10} fill="#fbbf24" fontSize={5.5} fontWeight={600} textAnchor="middle" dominantBaseline="middle" fontFamily="monospace">({p.x}~{p.x + 1},{p.y}~{p.y + 1})</text>
                                     )}
                                 </g>
                             );
@@ -749,7 +815,7 @@ export default function KdhGrid() {
                                         {p.memo && <span className="ml-1.5 text-[10px] text-slate-500">{p.memo}</span>}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-mono text-slate-500">X:{p.x} Y:{p.y}</span>
+                                        <span className="text-[10px] font-mono text-slate-500">X:{p.x}~{p.x + 1} Y:{p.y}~{p.y + 1}</span>
                                         {isAdmin && (
                                             <button
                                                 type="button"
@@ -813,6 +879,140 @@ export default function KdhGrid() {
                             <button type="button" onClick={() => setShowModal(false)}
                                 className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
                                 style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}>{t.kdhPage.modalCancel}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── 좌표 테이블 입력 모달 ── */}
+            {showCoordModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
+                    onClick={e => { if (e.target === e.currentTarget) setShowCoordModal(false); }}
+                >
+                    <div
+                        className="w-96 rounded-2xl p-6"
+                        style={{ background: "#0d1829", border: "1px solid rgba(139,92,246,0.4)", boxShadow: "0 24px 64px rgba(0,0,0,0.7)" }}
+                    >
+                        <h3 className="text-base font-bold mb-1" style={{ color: "#c4b5fd" }}>📍 좌표 입력</h3>
+                        <p className="text-[11px] text-slate-500 mb-4">2×2 오브젝트의 4개 좌표쌍을 모두 입력하세요</p>
+
+                        {/* 이름 */}
+                        <div className="mb-4">
+                            <label className="block text-[11px] text-slate-500 font-bold mb-1">연맹원 ID</label>
+                            <input
+                                type="text" value={coordName}
+                                onChange={e => setCoordName(e.target.value)}
+                                placeholder="예: Halley's_헬리혜성"
+                                className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                                style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
+                            />
+                        </div>
+
+                        {/* 좌표 테이블 */}
+                        <div className="rounded-xl overflow-hidden border mb-3" style={{ borderColor: "rgba(139,92,246,0.3)" }}>
+                            {/* 헤더 */}
+                            <div
+                                className="grid text-[10px] font-bold px-3 py-2 border-b"
+                                style={{
+                                    gridTemplateColumns: "2.5rem 1fr 5rem 5rem",
+                                    background: "rgba(139,92,246,0.12)",
+                                    borderColor: "rgba(139,92,246,0.25)",
+                                    color: "#c4b5fd",
+                                }}
+                            >
+                                <span className="text-center">No</span>
+                                <span className="pl-1">ID</span>
+                                <span className="text-center">X</span>
+                                <span className="text-center">Y</span>
+                            </div>
+
+                            {/* 4개 좌표 입력 행 */}
+                            {coordPairs.map((pair, idx) => (
+                                <div
+                                    key={idx}
+                                    className="grid items-center px-3 py-2 border-b"
+                                    style={{
+                                        gridTemplateColumns: "2.5rem 1fr 5rem 5rem",
+                                        borderColor: "rgba(51,65,85,0.25)",
+                                        background: idx % 2 === 0 ? "rgba(7,13,26,0.6)" : "rgba(15,23,42,0.3)",
+                                    }}
+                                >
+                                    {idx === 0
+                                        ? <span className="text-[10px] text-slate-500 text-center font-mono">1</span>
+                                        : <span />}
+                                    {idx === 0
+                                        ? <span className="text-[11px] pl-1 truncate font-medium" style={{ color: "#a78bfa" }}>{coordName || "—"}</span>
+                                        : <span />}
+                                    <input
+                                        type="number" value={pair.x}
+                                        onChange={e => {
+                                            const u = [...coordPairs];
+                                            u[idx] = { ...u[idx], x: e.target.value };
+                                            setCoordPairs(u);
+                                        }}
+                                        placeholder="745"
+                                        className="text-center text-xs text-white rounded-md px-1 py-1.5 outline-none mx-1"
+                                        style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)" }}
+                                    />
+                                    <input
+                                        type="number" value={pair.y}
+                                        onChange={e => {
+                                            const u = [...coordPairs];
+                                            u[idx] = { ...u[idx], y: e.target.value };
+                                            setCoordPairs(u);
+                                        }}
+                                        placeholder="753"
+                                        className="text-center text-xs text-white rounded-md px-1 py-1.5 outline-none mx-1"
+                                        style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)" }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* 실시간 유효성 미리보기 */}
+                        {coordPairs.every(p => p.x && p.y) && (() => {
+                            const result = validateCoordPairs();
+                            return result ? (
+                                <div className="text-[10px] rounded-lg px-3 py-2 mb-3 flex items-center gap-2"
+                                    style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", color: "#34d399" }}
+                                >
+                                    <span>✓ 유효한 2×2 좌표</span>
+                                    <span className="font-mono ml-auto" style={{ color: "#6ee7b7" }}>저장 기준 → X:{result.x} Y:{result.y}</span>
+                                </div>
+                            ) : (
+                                <div className="text-[10px] rounded-lg px-3 py-2 mb-3"
+                                    style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+                                >
+                                    ✗ X 2개 · Y 2개가 각각 연속(차이=1)되어야 합니다
+                                </div>
+                            );
+                        })()}
+
+                        {/* 메모 */}
+                        <div className="mb-5">
+                            <label className="block text-[11px] text-slate-500 font-bold mb-1">메모 (선택)</label>
+                            <input
+                                type="text" value={coordMemo}
+                                onChange={e => setCoordMemo(e.target.value)}
+                                placeholder="R5, 공격대장..."
+                                className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
+                                style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(71,85,105,0.5)" }}
+                            />
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button
+                                type="button" onClick={addPlayerFromCoords}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
+                                style={{ background: "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "#fff" }}
+                            >등록</button>
+                            <button
+                                type="button" onClick={() => setShowCoordModal(false)}
+                                className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.4)" }}
+                            >취소</button>
                         </div>
                     </div>
                 </div>
