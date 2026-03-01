@@ -562,22 +562,56 @@ export default function KdhGrid() {
         setTooltip({ name, coord, memo, x: cx + 12, y: cy - 12 });
     const hideTip = () => setTooltip(null);
 
-    /* 마름모 그리드 라인 생성 */
+    /* 마름모 그리드 라인 생성 — 5칸 단위 강조 + 일반 세선 */
     const gridLines: React.ReactNode[] = [];
+
+    // 셀 내부 체커보드 채우기
+    for (let c = 0; c < COLS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+            const gx = MIN_X + c;
+            const gy = MIN_Y + r;
+            const tl = toIso(gx, gy + 1);
+            const tr = toIso(gx + 1, gy + 1);
+            const br = toIso(gx + 1, gy);
+            const bl = toIso(gx, gy);
+            const isEven = (c + r) % 2 === 0;
+            const isAccX = c % 5 === 0;
+            const isAccY = r % 5 === 0;
+            const fillOpacity = isAccX && isAccY ? 0.07
+                : (isAccX || isAccY) ? 0.04
+                    : isEven ? 0.025 : 0;
+            if (fillOpacity > 0) {
+                gridLines.push(
+                    <path key={`f${c}_${r}`}
+                        d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
+                        fill={isAccX && isAccY ? `rgba(6,182,212,${fillOpacity})` : `rgba(99,102,241,${fillOpacity})`}
+                        stroke="none"
+                    />
+                );
+            }
+        }
+    }
+
+    // 세로 라인 (X 방향)
     for (let c = 0; c <= COLS; c++) {
         const p1 = toIso(MIN_X + c, MAX_Y);
         const p2 = toIso(MIN_X + c, MIN_Y);
+        const isAcc = c % 5 === 0;
         gridLines.push(
             <line key={`c${c}`} x1={p1.px} y1={p1.py} x2={p2.px} y2={p2.py}
-                stroke="rgba(51,65,85,0.35)" strokeWidth={0.5} />
+                stroke={isAcc ? "rgba(6,182,212,0.35)" : "rgba(51,65,85,0.3)"}
+                strokeWidth={isAcc ? 0.8 : 0.4} />
         );
     }
+    // 가로 라인 (Y 방향)
     for (let r = 0; r <= ROWS; r++) {
         const p1 = toIso(MIN_X, MIN_Y + r);
         const p2 = toIso(MAX_X, MIN_Y + r);
+        const isAcc = r % 5 === 0;
         gridLines.push(
             <line key={`r${r}`} x1={p1.px} y1={p1.py} x2={p2.px} y2={p2.py}
-                stroke="rgba(51,65,85,0.35)" strokeWidth={0.5} />
+                stroke={isAcc ? "rgba(6,182,212,0.35)" : "rgba(51,65,85,0.3)"}
+                strokeWidth={isAcc ? 0.8 : 0.4} />
         );
     }
 
@@ -595,13 +629,13 @@ export default function KdhGrid() {
 
     /* 마름모 셀 (다이아몬드) 패스 생성 */
     const diamondPath = (cx: number, cy: number, sz: number) => {
-        // 정사각 다이아몬드: hw = hh = ISO_HALF/2 (45° 탑뷰 스타일)
         const hw = sz * ISO_HALF / 2;
         const hh = sz * ISO_HALF / 2;
         return `M${cx},${cy - hh} L${cx + hw},${cy} L${cx},${cy + hh} L${cx - hw},${cy} Z`;
     };
 
     return (
+
         <>
             {/* ── 카드 래퍼 ── */}
             <div
@@ -829,7 +863,7 @@ export default function KdhGrid() {
                     style={{
                         height: 380,
                         cursor: isDragging.current ? "grabbing" : "grab",
-                        background: "radial-gradient(ellipse at center, rgba(6,182,212,0.03) 0%, transparent 70%)",
+                        background: "radial-gradient(ellipse at 50% 40%, rgba(6,182,212,0.07) 0%, rgba(99,102,241,0.04) 40%, rgba(7,13,26,0.95) 100%)",
                         touchAction: "none",
                     }}
                     onMouseDown={onMouseDown}
@@ -865,17 +899,29 @@ export default function KdhGrid() {
                         {/* 그리드 라인 */}
                         {gridLines}
 
-                        {/* 좌표 라벨 (X축) */}
-                        {Array.from({ length: COLS }, (_, i) => i).filter(i => i % 4 === 0).map(i => {
+                        {/* 좌표 라벨 (X축) — 5칸 간격, 배경 박스 포함 */}
+                        {Array.from({ length: COLS + 1 }, (_, i) => i).filter(i => i % 5 === 0).map(i => {
                             const gx = MIN_X + i;
                             const { px, py } = toIso(gx, MAX_Y);
-                            return <text key={`lx${i}`} x={px} y={py + 12} fill="rgba(100,116,139,0.6)" fontSize={8} textAnchor="middle" fontFamily="monospace">{gx}</text>;
+                            const bw = 18, bh = 10;
+                            return (
+                                <g key={`lx${i}`}>
+                                    <rect x={px - bw / 2} y={py + 10} width={bw} height={bh} rx={2} fill="rgba(6,182,212,0.12)" />
+                                    <text x={px} y={py + 17} fill="rgba(6,182,212,0.75)" fontSize={7} textAnchor="middle" fontFamily="monospace" fontWeight={600}>{gx}</text>
+                                </g>
+                            );
                         })}
-                        {/* 좌표 라벨 (Y축) */}
-                        {Array.from({ length: ROWS }, (_, i) => i).filter(i => i % 4 === 0).map(i => {
+                        {/* 좌표 라벨 (Y축) — 5칸 간격 */}
+                        {Array.from({ length: ROWS + 1 }, (_, i) => i).filter(i => i % 5 === 0).map(i => {
                             const gy = MIN_Y + i;
                             const { px, py } = toIso(MIN_X, gy);
-                            return <text key={`ly${i}`} x={px - 12} y={py + 3} fill="rgba(100,116,139,0.6)" fontSize={8} textAnchor="end" fontFamily="monospace">{gy}</text>;
+                            const bw = 18, bh = 10;
+                            return (
+                                <g key={`ly${i}`}>
+                                    <rect x={px - bw - 4} y={py - bh / 2} width={bw} height={bh} rx={2} fill="rgba(99,102,241,0.12)" />
+                                    <text x={px - 4 - bw / 2} y={py + 3} fill="rgba(165,180,252,0.75)" fontSize={7} textAnchor="middle" fontFamily="monospace" fontWeight={600}>{gy}</text>
+                                </g>
+                            );
                         })}
 
                         {/* 건물 오버레이 */}
