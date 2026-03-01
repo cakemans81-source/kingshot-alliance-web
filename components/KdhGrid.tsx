@@ -778,38 +778,8 @@ export default function KdhGrid() {
                     )}
                 </div>
 
-                {/* ── 필터 탭 ── */}
-                <div
-                    className="flex gap-1 px-3 py-2 border-b overflow-x-auto"
-                    style={{ borderColor: "rgba(51,65,85,0.35)", scrollbarWidth: "none" }}
-                >
-                    {([
-                        { key: "all", label: t.kdhPage.filterAll },
-                        { key: "hq", label: t.kdhPage.filterHq },
-                        { key: "trap1", label: t.kdhPage.filterTrap1 },
-                        { key: "trap2", label: t.kdhPage.filterTrap2 },
-                    ] as const).map(f => (
-                        <button
-                            key={f.key}
-                            type="button"
-                            onClick={() => setFilter(f.key)}
-                            className="flex-shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all"
-                            style={{
-                                background: filter === f.key ? "rgba(6,182,212,0.2)" : "rgba(30,41,59,0.5)",
-                                border: filter === f.key ? "1px solid rgba(6,182,212,0.5)" : "1px solid rgba(51,65,85,0.3)",
-                                color: filter === f.key ? "#22d3ee" : "#64748b",
-                            }}
-                        >
-                            {f.label}
-                        </button>
-                    ))}
-                    {search && hitIds.length === 0 && (
-                        <span className="ml-2 text-[10px] text-red-400 self-center whitespace-nowrap flex-shrink-0">{t.kdhPage.notFound}</span>
-                    )}
-                    {search && hitIds.length > 0 && (
-                        <span className="ml-2 text-[10px] text-cyan-400 self-center font-bold whitespace-nowrap flex-shrink-0">{t.kdhPage.found.replace("{n}", String(hitIds.length))}</span>
-                    )}
-                </div>
+
+
 
                 {/* ── 줌 컨트롤 ── */}
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b" style={{ borderColor: "rgba(51,65,85,0.3)" }}>
