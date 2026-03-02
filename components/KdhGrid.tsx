@@ -372,6 +372,22 @@ export default function KdhGrid() {
         // 항상 클릭 시작 위치 기록 (structCursor 클릭 판정에 필요)
         dragStart.current = { x: e.clientX, y: e.clientY };
         if (structCursor) return; // 구조물 커서 모드 → 패닝은 막음, 단 dragStart는 기록
+        if (movingPlayerId) {
+            // 이동 모드 중 → 컨테이너 레벨에서도 드래그 시작 (stopPropagation 미스 대비 fallback)
+            const mp = players.find(p => p.id === movingPlayerId);
+            if (mp) {
+                playerDragRef.current = {
+                    id: mp.id,
+                    startClientX: e.clientX,
+                    startClientY: e.clientY,
+                    origGx: mp.x,
+                    origGy: mp.y,
+                };
+                setDragGamePos({ id: mp.id, gx: mp.x, gy: mp.y });
+                suppressPopupRef.current = true;
+            }
+            return; // Pan 시작 절대 금지
+        }
         isDragging.current = true;
         panStart.current = { ...pan };
     };
@@ -382,11 +398,14 @@ export default function KdhGrid() {
             if (game) setStructCursor(prev => prev ? { ...prev, gx: game.gx, gy: game.gy } : null);
             return;
         }
+        // 플레이어 드래그 중: 위치 업데이트
         if (playerDragRef.current) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
             return;
         }
+        // 이동 모드 중이면 Pan 절대 금지 (이중 방어)
+        if (movingPlayerId) return;
         if (!isDragging.current) return;
         setPan({
             x: panStart.current.x + (e.clientX - dragStart.current.x),
