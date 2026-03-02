@@ -117,6 +117,11 @@ export default function KdhGrid() {
     const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq"; gx: number; gy: number } | null>(null);
     /* 연맹원 이동 모드 — 더블클릭으로 활성화, 드래그로 이동 */
     const [movingPlayerId, setMovingPlayerId] = useState<string | null>(null);
+    const movingPlayerIdRef = useRef<string | null>(null); // 이벤트 핸들러에서 stale closure 방지
+    const setMovingPlayerIdSynced = (id: string | null) => {
+        movingPlayerIdRef.current = id;
+        setMovingPlayerId(id);
+    };
     /* 더블클릭 후 팝업이 열리지 않도록 억제 */
     const suppressPopupRef = useRef(false);
     /* 더블클릭 감지용: 마지막 클릭 시간 + 플레이어 ID */
@@ -371,10 +376,10 @@ export default function KdhGrid() {
         if (playerDragRef.current) return;
         // 항상 클릭 시작 위치 기록 (structCursor 클릭 판정에 필요)
         dragStart.current = { x: e.clientX, y: e.clientY };
-        if (structCursor) return; // 구조물 커서 모드 → 패닝은 막음, 단 dragStart는 기록
-        if (movingPlayerId) {
-            // 이동 모드 중 → 컨테이너 레벨에서도 드래그 시작 (stopPropagation 미스 대비 fallback)
-            const mp = players.find(p => p.id === movingPlayerId);
+        if (structCursor) return; // 구조물 커서 모드 → 패닝은 막음
+        if (movingPlayerIdRef.current) {
+            // 이동 모드 중 → Pan 금지 + 컨테이너 레벨 fallback 드래그 시작
+            const mp = players.find(p => p.id === movingPlayerIdRef.current);
             if (mp) {
                 playerDragRef.current = {
                     id: mp.id,
@@ -386,7 +391,7 @@ export default function KdhGrid() {
                 setDragGamePos({ id: mp.id, gx: mp.x, gy: mp.y });
                 suppressPopupRef.current = true;
             }
-            return; // Pan 시작 절대 금지
+            return; // Pan 절대 금지
         }
         isDragging.current = true;
         panStart.current = { ...pan };
@@ -404,8 +409,8 @@ export default function KdhGrid() {
             if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
             return;
         }
-        // 이동 모드 중이면 Pan 절대 금지 (이중 방어)
-        if (movingPlayerId) return;
+        // 이동 모드 중이면 Pan 절대 금지 (ref 시용으로 stale closure 모두 차단)
+        if (movingPlayerIdRef.current) return;
         if (!isDragging.current) return;
         setPan({
             x: panStart.current.x + (e.clientX - dragStart.current.x),
@@ -431,9 +436,10 @@ export default function KdhGrid() {
                     if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
                 }
             }
+            // 드래그 완료 → 이동 모드 해제
             playerDragRef.current = null;
             setDragGamePos(null);
-            setMovingPlayerId(null); // 드래그 완료 → 이동 모드 해제
+            setMovingPlayerIdSynced(null);
             return;
         }
         const dx = Math.abs(e.clientX - dragStart.current.x);
@@ -478,8 +484,8 @@ export default function KdhGrid() {
             return;
         }
         // 이동 모드 중 빈 공간 클릭 → 이동 모드 해제
-        if (movingPlayerId && dx < 5 && dy < 5) {
-            setMovingPlayerId(null);
+        if (movingPlayerIdRef.current && dx < 5 && dy < 5) {
+            setMovingPlayerIdSynced(null);
         }
         isDragging.current = false;
     };
@@ -488,6 +494,7 @@ export default function KdhGrid() {
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
+                movingPlayerIdRef.current = null;
                 setMovingPlayerId(null);
                 playerDragRef.current = null;
                 setDragGamePos(null);
@@ -1145,10 +1152,12 @@ export default function KdhGrid() {
                                             e.stopPropagation();
                                             suppressPopupRef.current = true;
                                             setPlacePopup(null);
-                                            setMovingPlayerId(prev => prev === p.id ? null : p.id);
+                                            const newId = movingPlayerIdRef.current === p.id ? null : p.id;
+                                            movingPlayerIdRef.current = newId;
+                                            setMovingPlayerId(newId);
                                             lastPlayerClickRef.current = null;
                                             hideTip();
-                                        } else if (movingPlayerId === p.id) {
+                                        } else if (movingPlayerIdRef.current === p.id) {
                                             // 🟢 이동 모드 중 — 어느 곳을 클릭해도 드래그 시작 (Pan 차단)
                                             e.stopPropagation();
                                             suppressPopupRef.current = true;
