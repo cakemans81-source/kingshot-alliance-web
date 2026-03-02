@@ -711,49 +711,85 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
             {/* ── [1.5] 사용자 환영 & 로그아웃 (로그인 시 노출) ── */}
             {user ? (
                 <div
-                    className="mb-8 flex items-center justify-between gap-4 p-4 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-500"
+                    className="mb-8 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-500 overflow-hidden"
                     style={{
-                        background: "rgba(30, 41, 59, 0.4)",
-                        borderColor: "rgba(51, 65, 85, 0.5)",
-                        backdropFilter: "blur(4px)",
+                        background: "linear-gradient(135deg, rgba(15,23,42,0.85), rgba(30,41,59,0.6))",
+                        borderColor: "rgba(99,102,241,0.3)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "0 4px 24px rgba(99,102,241,0.12), 0 0 0 1px rgba(99,102,241,0.08) inset",
                     }}
                 >
-                    <div className="flex items-center gap-3 min-w-0">
+                    {/* 상단: 유저 정보 */}
+                    <div className="flex items-center gap-4 px-5 py-4">
+                        {/* 아바타 */}
                         <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold overflow-hidden flex-shrink-0"
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold overflow-hidden flex-shrink-0"
                             style={{
-                                background: "linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(99, 102, 241, 0.2))",
-                                border: "1px solid rgba(6, 182, 212, 0.3)",
+                                background: "linear-gradient(135deg, rgba(99,102,241,0.35), rgba(6,182,212,0.25))",
+                                border: "1.5px solid rgba(99,102,241,0.5)",
+                                boxShadow: "0 0 12px rgba(99,102,241,0.25)",
                             }}
                         >
                             {user.avatar_url ? (
-                                <img src={user.avatar_url} alt="p" className="w-full h-full object-cover" />
+                                <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
                             ) : (
                                 "👤"
                             )}
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold text-white truncate">
-                                {user.nickname}
-                                <span className="ml-1.5 text-[10px] text-cyan-400 font-medium uppercase tracking-wider">
+
+                        {/* 텍스트 */}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-base font-extrabold text-white truncate tracking-tight">
+                                    {user.nickname}
+                                </span>
+                                <span
+                                    className="text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest flex-shrink-0"
+                                    style={{
+                                        background: user.role === "admin"
+                                            ? "linear-gradient(135deg, rgba(245,158,11,0.3), rgba(251,191,36,0.2))"
+                                            : "rgba(99,102,241,0.2)",
+                                        border: user.role === "admin"
+                                            ? "1px solid rgba(245,158,11,0.5)"
+                                            : "1px solid rgba(99,102,241,0.4)",
+                                        color: user.role === "admin" ? "#fbbf24" : "#a5b4fc",
+                                    }}
+                                >
                                     {user.role}
                                 </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5 truncate">
+                                환영합니다! 오늘 하루도 건승하세요 ⚔️
                             </p>
-                            <p className="text-[11px] text-slate-500 truncate">환영합니다! 오늘 하루도 건승하세요.</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    {/* 하단: 버튼 영역 */}
+                    <div
+                        className="flex items-center gap-2 px-5 py-3 border-t"
+                        style={{ borderColor: "rgba(99,102,241,0.15)", background: "rgba(15,23,42,0.3)" }}
+                    >
                         <Link
                             href="/profile"
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all border border-slate-700/50"
+                            className="flex-1 text-center py-2 rounded-xl text-xs font-bold transition-all duration-200 hover:brightness-110 active:scale-95"
+                            style={{
+                                background: "rgba(99,102,241,0.15)",
+                                border: "1px solid rgba(99,102,241,0.3)",
+                                color: "#a5b4fc",
+                            }}
                         >
-                            정보 수정
+                            ✏️ 정보 수정
                         </Link>
                         <button
                             onClick={() => { if (confirm("로그아웃 하시겠습니까?")) logout(); }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/10 transition-all border border-red-500/20"
+                            className="flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-200 hover:brightness-110 active:scale-95"
+                            style={{
+                                background: "rgba(239,68,68,0.12)",
+                                border: "1px solid rgba(239,68,68,0.3)",
+                                color: "#f87171",
+                            }}
                         >
-                            로그아웃
+                            🚪 로그아웃
                         </button>
                     </div>
                 </div>
