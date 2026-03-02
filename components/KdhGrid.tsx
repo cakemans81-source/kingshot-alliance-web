@@ -436,8 +436,17 @@ export default function KdhGrid() {
                 if (hasConflict) {
                     alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
                 } else {
-                    const { error } = await supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id));
-                    if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+                    const { error, count } = await supabase
+                        .from("kdh_players")
+                        .update({ x: gx, y: gy })
+                        .eq("id", Number(id))
+                        .select();
+                    if (error) {
+                        console.error("❌ 좌표 저장 실패:", error);
+                        alert(`⚠️ 저장 실패: ${error.message}\nSupabase UPDATE 정책을 확인해주세요.`);
+                    } else {
+                        setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+                    }
                 }
             }
             // 드래그 완료 → 이동 모드 해제
