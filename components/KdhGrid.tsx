@@ -143,6 +143,11 @@ export default function KdhGrid() {
     /* 플레이어 드래그 (관리자 전용) */
     const playerDragRef = useRef<{ id: string; startClientX: number; startClientY: number; origGx: number; origGy: number } | null>(null);
     const [dragGamePos, setDragGamePos] = useState<{ id: string; gx: number; gy: number } | null>(null);
+    const dragGamePosRef = useRef<{ id: string; gx: number; gy: number } | null>(null); // stale closure 방지
+    const setDragGamePosSynced = (pos: { id: string; gx: number; gy: number } | null) => {
+        dragGamePosRef.current = pos;
+        setDragGamePos(pos);
+    };
     const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
     const [isDragEditMode, setIsDragEditMode] = useState(false);
     const panRef = useRef(pan);
@@ -388,7 +393,7 @@ export default function KdhGrid() {
                     origGx: mp.x,
                     origGy: mp.y,
                 };
-                setDragGamePos({ id: mp.id, gx: mp.x, gy: mp.y });
+                setDragGamePosSynced({ id: mp.id, gx: mp.x, gy: mp.y });
                 suppressPopupRef.current = true;
             }
             return; // Pan 절대 금지
@@ -406,7 +411,7 @@ export default function KdhGrid() {
         // 플레이어 드래그 중: 위치 업데이트
         if (playerDragRef.current) {
             const game = screenToGame(e.clientX, e.clientY);
-            if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
+            if (game) setDragGamePosSynced({ id: playerDragRef.current.id, ...game });
             return;
         }
         // 이동 모드 중이면 Pan 절대 금지 (ref 시용으로 stale closure 모두 차단)
@@ -419,18 +424,17 @@ export default function KdhGrid() {
     };
     const onMouseUp = async (e: React.MouseEvent) => {
         // 플레이어 드래그 종료
-        if (playerDragRef.current && dragGamePos) {
+        if (playerDragRef.current && dragGamePosRef.current) {
             const { id } = playerDragRef.current;
-            const { gx, gy } = dragGamePos;
+            const { gx, gy } = dragGamePosRef.current; // ref로 항상 최신값 읽기
             const origPlayer = players.find(p => p.id === id);
             if (origPlayer && (origPlayer.x !== gx || origPlayer.y !== gy)) {
-                // 자신의 셀을 제외한 겹침 체크
+                // 자신의 셀을 제외한 겨침 체크
                 const selfCells = new Set(getMemberCells(origPlayer.x, origPlayer.y));
                 const targetCells = getMemberCells(gx, gy);
                 const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
                 if (hasConflict) {
                     alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
-                    // 원래 위치로 복구
                 } else {
                     const { error } = await supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id));
                     if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
@@ -438,6 +442,7 @@ export default function KdhGrid() {
             }
             // 드래그 완료 → 이동 모드 해제
             playerDragRef.current = null;
+            dragGamePosRef.current = null;
             setDragGamePos(null);
             setMovingPlayerIdSynced(null);
             return;
@@ -565,7 +570,7 @@ export default function KdhGrid() {
         // 터치 중 플레이어 드래그 중이면 위치 업데이트
         if (e.touches.length === 1 && playerDragRef.current) {
             const game = screenToGame(e.touches[0].clientX, e.touches[0].clientY);
-            if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
+            if (game) setDragGamePosSynced({ id: playerDragRef.current.id, ...game });
             return;
         }
         // 이동 모드 중Pan 절대 금지
@@ -590,9 +595,9 @@ export default function KdhGrid() {
         isDragging.current = false;
         lastTouchDist.current = 0;
         // 터치 드래그 종료 시 플레이어 이동도 종료
-        if (playerDragRef.current && dragGamePos) {
+        if (playerDragRef.current && dragGamePosRef.current) {
             const { id } = playerDragRef.current;
-            const { gx, gy } = dragGamePos;
+            const { gx, gy } = dragGamePosRef.current; // ref로 최신값 읽기
             const origPlayer = players.find(p => p.id === id);
             if (origPlayer && (origPlayer.x !== gx || origPlayer.y !== gy)) {
                 const selfCells = new Set(getMemberCells(origPlayer.x, origPlayer.y));
@@ -606,6 +611,7 @@ export default function KdhGrid() {
                 }
             }
             playerDragRef.current = null;
+            dragGamePosRef.current = null;
             setDragGamePos(null);
             setMovingPlayerIdSynced(null);
         }
@@ -1217,7 +1223,7 @@ export default function KdhGrid() {
                                                 origGx: p.x,
                                                 origGy: p.y,
                                             };
-                                            setDragGamePos({ id: p.id, gx: p.x, gy: p.y });
+                                            setDragGamePosSynced({ id: p.id, gx: p.x, gy: p.y });
                                             lastPlayerClickRef.current = { id: p.id, time: now };
                                         } else {
                                             // 단일 클릭 — 시간 기록, 이벤트 버블링 허용
@@ -1285,7 +1291,7 @@ export default function KdhGrid() {
                                                 origGx: p.x,
                                                 origGy: p.y,
                                             };
-                                            setDragGamePos({ id: p.id, gx: p.x, gy: p.y });
+                                            setDragGamePosSynced({ id: p.id, gx: p.x, gy: p.y });
                                         } : undefined}
                                     />
                                     {/* 이름 */}
