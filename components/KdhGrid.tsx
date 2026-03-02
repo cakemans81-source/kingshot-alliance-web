@@ -115,8 +115,10 @@ export default function KdhGrid() {
     const [placeStep, setPlaceStep] = useState<"select" | "member">("select");
     /* 구조물 커서 배치 모드 (마우스 따라가는 3×3 미리보기) */
     const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq"; gx: number; gy: number } | null>(null);
-    /* 연맹원 좌표 이동 커서 모드 (마우스 따라가는 2×2 미리보기) */
-    const [playerMoveCursor, setPlayerMoveCursor] = useState<{ id: string; name: string; gx: number; gy: number } | null>(null);
+    /* 연맹원 이동 모드 — 더블클릭으로 활성화, 드래그로 이동 */
+    const [movingPlayerId, setMovingPlayerId] = useState<string | null>(null);
+    /* 더블클릭 후 팝업이 열리지 않도록 억제 */
+    const suppressPopupRef = useRef(false);
     /* 등록 폼 공통 입력 */
     const [clickName, setClickName] = useState("");
     const [clickMemo, setClickMemo] = useState("");
@@ -368,7 +370,6 @@ export default function KdhGrid() {
         // 항상 클릭 시작 위치 기록 (structCursor 클릭 판정에 필요)
         dragStart.current = { x: e.clientX, y: e.clientY };
         if (structCursor) return; // 구조물 커서 모드 → 패닝은 막음, 단 dragStart는 기록
-        if (playerMoveCursor) return; // 연맹원 이동 커서 모드 → 패닝은 막음, 단 dragStart는 기록
         isDragging.current = true;
         panStart.current = { ...pan };
     };
@@ -377,12 +378,6 @@ export default function KdhGrid() {
         if (structCursor) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) setStructCursor(prev => prev ? { ...prev, gx: game.gx, gy: game.gy } : null);
-            return;
-        }
-        // 연맹원 이동 커서 모드: 마우스 위치 → 미리보기 업데이트
-        if (playerMoveCursor) {
-            const game = screenToGame(e.clientX, e.clientY);
-            if (game) setPlayerMoveCursor(prev => prev ? { ...prev, gx: game.gx, gy: game.gy } : null);
             return;
         }
         if (playerDragRef.current) {
@@ -401,35 +396,27 @@ export default function KdhGrid() {
         if (playerDragRef.current && dragGamePos) {
             const { id } = playerDragRef.current;
             const { gx, gy } = dragGamePos;
-            const { error } = await supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id));
-            if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+            const origPlayer = players.find(p => p.id === id);
+            if (origPlayer && (origPlayer.x !== gx || origPlayer.y !== gy)) {
+                // 자신의 셀을 제외한 겹침 체크
+                const selfCells = new Set(getMemberCells(origPlayer.x, origPlayer.y));
+                const targetCells = getMemberCells(gx, gy);
+                const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
+                if (hasConflict) {
+                    alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
+                    // 원래 위치로 복구
+                } else {
+                    const { error } = await supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id));
+                    if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+                }
+            }
             playerDragRef.current = null;
             setDragGamePos(null);
+            setMovingPlayerId(null); // 드래그 완료 → 이동 모드 해제
             return;
         }
         const dx = Math.abs(e.clientX - dragStart.current.x);
         const dy = Math.abs(e.clientY - dragStart.current.y);
-        // 연맹원 이동 커서 클릭 → 새 좌표 확정
-        if (playerMoveCursor && isAdmin && dx < 5 && dy < 5) {
-            const { id, gx, gy } = playerMoveCursor;
-            // 이동 대상 자신의 셀을 제외한 겹침 체크
-            const selfCells = new Set(getMemberCells(players.find(p => p.id === id)?.x ?? -99, players.find(p => p.id === id)?.y ?? -99));
-            const targetCells = getMemberCells(gx, gy);
-            const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
-            if (hasConflict) {
-                alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
-            } else {
-                const { error } = await supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id));
-                if (!error) {
-                    setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
-                    setPlayerMoveCursor(null);
-                } else {
-                    alert("이동 실패: " + error.message);
-                }
-            }
-            isDragging.current = false;
-            return;
-        }
         // 구조물 커서 클릭 → 배치 확정
         if (structCursor && isAdmin && dx < 5 && dy < 5) {
             const cells = getStructCells(structCursor.gx, structCursor.gy, 3);
@@ -447,8 +434,14 @@ export default function KdhGrid() {
             isDragging.current = false;
             return;
         }
-        // 셀 클릭 → 배치 타입 선택 팝업
-        if (isAdmin && !isDragEditMode && !structCursor && dx < 5 && dy < 5) {
+        // 더블클릭 후 팝업 억제 플래그 확인
+        if (suppressPopupRef.current) {
+            suppressPopupRef.current = false;
+            isDragging.current = false;
+            return;
+        }
+        // 셀 클릭 → 배치 타입 선택 팝업 (이동 모드 중이면 팝업 생략)
+        if (isAdmin && !isDragEditMode && !structCursor && !movingPlayerId && dx < 5 && dy < 5) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) {
                 const existing = players.find(p =>
@@ -463,8 +456,25 @@ export default function KdhGrid() {
             isDragging.current = false;
             return;
         }
+        // 이동 모드 중 빈 공간 클릭 → 이동 모드 해제
+        if (movingPlayerId && dx < 5 && dy < 5) {
+            setMovingPlayerId(null);
+        }
         isDragging.current = false;
     };
+
+    /* ESC 키로 이동 모드 취소 */
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setMovingPlayerId(null);
+                playerDragRef.current = null;
+                setDragGamePos(null);
+            }
+        };
+        document.addEventListener("keydown", handler);
+        return () => document.removeEventListener("keydown", handler);
+    }, []);
 
     /* 연맹원 배치 등록 (겹침 체크 포함) */
     const addMemberPlace = async () => {
@@ -1086,46 +1096,6 @@ export default function KdhGrid() {
                             );
                         })}
 
-                        {/* 연맹원 이동 커서 미리보기 (playerMoveCursor 활성 시) */}
-                        {playerMoveCursor && (() => {
-                            const center = toIso(playerMoveCursor.gx + 0.5, playerMoveCursor.gy + 0.5);
-                            const displayName = playerMoveCursor.name.length > 7 ? playerMoveCursor.name.slice(0, 6) + "…" : playerMoveCursor.name;
-                            // 이동 대상 자신의 기존 셀
-                            const origPlayer = players.find(p => p.id === playerMoveCursor.id);
-                            const selfCells = origPlayer ? new Set(getMemberCells(origPlayer.x, origPlayer.y)) : new Set<string>();
-                            const targetCells = getMemberCells(playerMoveCursor.gx, playerMoveCursor.gy);
-                            const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
-                            return (
-                                <g style={{ pointerEvents: "none" }}>
-                                    {/* 깜빡이는 외곽 링 */}
-                                    <path d={diamondPath(center.px, center.py, 2.8)} fill="none"
-                                        stroke={hasConflict ? "#ef4444" : "#10b981"} strokeWidth={1.5} opacity={0}>
-                                        <animate attributeName="opacity" values="0;0.7;0" dur="1.2s" repeatCount="indefinite" />
-                                    </path>
-                                    {/* 메인 2×2 미리보기 다이아몬드 */}
-                                    <path
-                                        d={diamondPath(center.px, center.py, 2)}
-                                        fill={hasConflict ? "rgba(239,68,68,0.25)" : "rgba(16,185,129,0.25)"}
-                                        stroke={hasConflict ? "#ef4444" : "#10b981"}
-                                        strokeWidth={2}
-                                        strokeDasharray="5 2"
-                                    />
-                                    {/* 이름 텍스트 */}
-                                    <text x={center.px} y={center.py - 2}
-                                        fill={hasConflict ? "#fca5a5" : "#6ee7b7"}
-                                        fontSize={8} fontWeight={700}
-                                        textAnchor="middle" dominantBaseline="middle"
-                                    >{displayName}</text>
-                                    {/* 좌표 뱃지 */}
-                                    <text x={center.px} y={center.py + 11}
-                                        fill={hasConflict ? "#f87171" : "#34d399"}
-                                        fontSize={6} fontFamily="monospace"
-                                        textAnchor="middle" dominantBaseline="middle"
-                                    >({playerMoveCursor.gx},{playerMoveCursor.gy})</text>
-                                </g>
-                            );
-                        })()}
-
                         {/* 플레이어 오버레이 (2×2 오브젝트 — x,y는 좌하단 최소좌표 기준) */}
                         {filteredPlayers.map(p => {
                             // 드래그 중이면 dragGamePos 위치로 오버라이드
@@ -1134,7 +1104,7 @@ export default function KdhGrid() {
                             const center = toIso(activePosX + 0.5, activePosY + 0.5);
                             const isHit = hitIds.includes(p.id);
                             const isDraggingThis = dragGamePos?.id === p.id;
-                            const isHovered = hoveredPlayerId === p.id;
+                            const isMovingThis = movingPlayerId === p.id;
                             const displayName = p.name.length > 7 ? p.name.slice(0, 6) + "…" : p.name;
                             return (
                                 <g key={p.id}
@@ -1146,7 +1116,14 @@ export default function KdhGrid() {
                                         setHoveredPlayerId(null);
                                         hideTip();
                                     }}
-                                    style={{ cursor: isAdmin && isDragEditMode ? (isDraggingThis ? "grabbing" : "grab") : "pointer" }}
+                                    onDoubleClick={isAdmin ? (e) => {
+                                        e.stopPropagation();
+                                        suppressPopupRef.current = true; // 팝업 억제
+                                        setPlacePopup(null);             // 열려있는 팝업 닫기
+                                        setMovingPlayerId(prev => prev === p.id ? null : p.id); // 토글
+                                        hideTip();
+                                    } : undefined}
+                                    style={{ cursor: isAdmin ? (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer") : "default" }}
                                 >
                                     {/* 하이라이트: 3중 파동 링 */}
                                     {isHit && (
@@ -1162,23 +1139,44 @@ export default function KdhGrid() {
                                             </path>
                                         </>
                                     )}
+                                    {/* 이동 모드 — 초록 펄스 테두리 (더블클릭 활성화 시) */}
+                                    {isMovingThis && (
+                                        <>
+                                            <path d={diamondPath(center.px, center.py, 3.2)} fill="none"
+                                                stroke="#10b981" strokeWidth={2} opacity={0}>
+                                                <animate attributeName="opacity" values="0;0.8;0" dur="1s" repeatCount="indefinite" />
+                                            </path>
+                                            <path d={diamondPath(center.px, center.py, 2.6)} fill="none"
+                                                stroke="#34d399" strokeWidth={1.5} strokeDasharray="4 2"
+                                                opacity={0.9} />
+                                            {/* 이름 위 상태 뱃지 */}
+                                            <text x={center.px} y={center.py - 16}
+                                                fill="#6ee7b7" fontSize={6.5} fontWeight={700}
+                                                textAnchor="middle" dominantBaseline="middle"
+                                                style={{ filter: "drop-shadow(0 0 3px rgba(16,185,129,0.8))" }}
+                                            >✥ 드래그로 이동</text>
+                                        </>
+                                    )}
                                     {/* 메인 2×2 다이아몬드 */}
                                     <path
                                         d={diamondPath(center.px, center.py, 2)}
                                         fill={
-                                            isDraggingThis ? "rgba(34,211,238,0.35)" :
-                                                isHit ? "rgba(251,191,36,0.35)" : "rgba(99,102,241,0.2)"
+                                            isDraggingThis ? "rgba(16,185,129,0.35)" :
+                                                isMovingThis ? "rgba(16,185,129,0.18)" :
+                                                    isHit ? "rgba(251,191,36,0.35)" : "rgba(99,102,241,0.2)"
                                         }
                                         stroke={
-                                            isDraggingThis ? "#22d3ee" :
-                                                isHit ? "#fbbf24" : "rgba(99,102,241,0.6)"
+                                            isDraggingThis ? "#10b981" :
+                                                isMovingThis ? "#34d399" :
+                                                    isHit ? "#fbbf24" : "rgba(99,102,241,0.6)"
                                         }
-                                        strokeWidth={isDraggingThis ? 2.5 : isHit ? 2.5 : 1.5}
-                                        strokeDasharray={isDraggingThis ? "4 2" : undefined}
-                                        filter={isHit ? "url(#hitGlow)" : undefined}
-                                        onMouseDown={isAdmin && isDragEditMode ? (e) => {
+                                        strokeWidth={isDraggingThis || isMovingThis ? 2.5 : isHit ? 2.5 : 1.5}
+                                        strokeDasharray={isDraggingThis ? "4 2" : isMovingThis ? "6 2" : undefined}
+                                        filter={(isHit || isMovingThis) ? "url(#hitGlow)" : undefined}
+                                        onMouseDown={isAdmin && (isDragEditMode || isMovingThis) ? (e) => {
                                             e.stopPropagation();
                                             hideTip();
+                                            dragStart.current = { x: e.clientX, y: e.clientY };
                                             playerDragRef.current = {
                                                 id: p.id,
                                                 startClientX: e.clientX,
@@ -1249,7 +1247,7 @@ export default function KdhGrid() {
                                         );
                                     })()}
                                     {/* 삭제 버튼 — 삭제 모드(isDragEditMode) + 관리자 hover 시만 표시 */}
-                                    {isAdmin && isDragEditMode && isHovered && !isDraggingThis && (
+                                    {isAdmin && isDragEditMode && hoveredPlayerId === p.id && !isDraggingThis && (
                                         <g
                                             onClick={e => { e.stopPropagation(); deletePlayer(p.id); }}
                                             style={{ cursor: "pointer" }}
@@ -1501,30 +1499,7 @@ export default function KdhGrid() {
                                             );
                                         })()}
                                     </div>
-                                    {/* 좌표 이동 버튼 — 기존 연맹원에게만 표시 */}
-                                    {(() => {
-                                        const existing = players.find(p =>
-                                            placePopup.gx >= p.x && placePopup.gx <= p.x + 1 &&
-                                            placePopup.gy >= p.y && placePopup.gy <= p.y + 1
-                                        );
-                                        if (!existing) return null;
-                                        return (
-                                            <button
-                                                onClick={() => {
-                                                    setPlayerMoveCursor({ id: existing.id, name: existing.name, gx: existing.x, gy: existing.y });
-                                                    setPlacePopup(null); setClickName(""); setClickMemo("");
-                                                }}
-                                                className="w-full mt-2 py-2 rounded-xl text-[11px] font-bold transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-1.5"
-                                                style={{
-                                                    background: "rgba(16,185,129,0.15)",
-                                                    border: "1px solid rgba(16,185,129,0.4)",
-                                                    color: "#6ee7b7",
-                                                }}
-                                            >
-                                                📍 좌표 이동 모드
-                                            </button>
-                                        );
-                                    })()}
+
                                     <p className="text-[9px] text-slate-700 mt-2 text-center">Enter로 등록 · Esc로 취소</p>
                                 </>
                             );
@@ -1533,21 +1508,26 @@ export default function KdhGrid() {
                 );
             })()}
 
-            {/* ── 연맹원 좌표 이동 모드 배너 ── */}
-            {playerMoveCursor && isAdmin && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl"
-                    style={{ background: "rgba(10,18,35,0.98)", border: "1px solid rgba(16,185,129,0.5)", boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(16,185,129,0.15)", backdropFilter: "blur(16px)" }}>
-                    <span className="text-sm font-bold" style={{ color: "#34d399" }}>📍 좌표 이동 모드</span>
-                    <span className="font-semibold text-[12px] px-2 py-0.5 rounded-lg" style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
-                        {playerMoveCursor.name}
-                    </span>
-                    <span className="text-[11px] text-slate-500">원하는 위치로 마우스를 이동 → 클릭으로 확정</span>
-                    <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.1)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.2)" }}>
-                        ({playerMoveCursor.gx}, {playerMoveCursor.gy})
-                    </span>
-                    <button onClick={() => setPlayerMoveCursor(null)} className="ml-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>취소</button>
-                </div>
-            )}
+            {/* ── 연맹원 드래그 이동 모드 배너 ── */}
+            {movingPlayerId && isAdmin && (() => {
+                const mp = players.find(p => p.id === movingPlayerId);
+                if (!mp) return null;
+                return (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl"
+                        style={{ background: "rgba(10,18,35,0.98)", border: "1px solid rgba(16,185,129,0.5)", boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(16,185,129,0.15)", backdropFilter: "blur(16px)" }}>
+                        <span className="text-sm font-bold" style={{ color: "#34d399" }}>✥ 이동 모드</span>
+                        <span className="font-semibold text-[12px] px-2 py-0.5 rounded-lg" style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
+                            {mp.name}
+                        </span>
+                        <span className="text-[11px] text-slate-500">연맹원을 드래그하여 이동하세요</span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.1)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.2)" }}>
+                            X:{mp.x} Y:{mp.y}
+                        </span>
+                        <span className="text-[10px] text-slate-600">더블클릭 또는 ESC로 취소</span>
+                        <button onClick={() => setMovingPlayerId(null)} className="ml-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>취소</button>
+                    </div>
+                );
+            })()}
 
             {/* ── 구조물 배치 모드 배너 ── */}
             {structCursor && isAdmin && (
