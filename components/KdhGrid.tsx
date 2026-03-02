@@ -532,11 +532,27 @@ export default function KdhGrid() {
         return () => el.removeEventListener("wheel", onWheel);
     }, [onWheel]);
 
-    /* ── 터치 Pan + 핀치 Zoom ── */
+    /* ── 터치 Pan + 핌치 Zoom ── */
     const onTouchStart = (e: React.TouchEvent) => {
         if (e.touches.length === 1) {
-            isDragging.current = true;
             dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            if (movingPlayerIdRef.current) {
+                // 이동 모드 중 → 터치로 드래그 시작 (Pan 금지)
+                const mp = players.find(p => p.id === movingPlayerIdRef.current);
+                if (mp) {
+                    playerDragRef.current = {
+                        id: mp.id,
+                        startClientX: e.touches[0].clientX,
+                        startClientY: e.touches[0].clientY,
+                        origGx: mp.x,
+                        origGy: mp.y,
+                    };
+                    setDragGamePos({ id: mp.id, gx: mp.x, gy: mp.y });
+                    suppressPopupRef.current = true;
+                }
+                return; // Pan 금지
+            }
+            isDragging.current = true;
             panStart.current = { ...pan };
         } else if (e.touches.length === 2) {
             isDragging.current = false;
@@ -546,6 +562,14 @@ export default function KdhGrid() {
         }
     };
     const onTouchMove = (e: React.TouchEvent) => {
+        // 터치 중 플레이어 드래그 중이면 위치 업데이트
+        if (e.touches.length === 1 && playerDragRef.current) {
+            const game = screenToGame(e.touches[0].clientX, e.touches[0].clientY);
+            if (game) setDragGamePos({ id: playerDragRef.current.id, ...game });
+            return;
+        }
+        // 이동 모드 중Pan 절대 금지
+        if (movingPlayerIdRef.current) return;
         if (e.touches.length === 1 && isDragging.current) {
             setPan({
                 x: panStart.current.x + (e.touches[0].clientX - dragStart.current.x),
@@ -562,7 +586,30 @@ export default function KdhGrid() {
             lastTouchDist.current = dist;
         }
     };
-    const onTouchEnd = () => { isDragging.current = false; lastTouchDist.current = 0; };
+    const onTouchEnd = () => {
+        isDragging.current = false;
+        lastTouchDist.current = 0;
+        // 터치 드래그 종료 시 플레이어 이동도 종료
+        if (playerDragRef.current && dragGamePos) {
+            const { id } = playerDragRef.current;
+            const { gx, gy } = dragGamePos;
+            const origPlayer = players.find(p => p.id === id);
+            if (origPlayer && (origPlayer.x !== gx || origPlayer.y !== gy)) {
+                const selfCells = new Set(getMemberCells(origPlayer.x, origPlayer.y));
+                const targetCells = getMemberCells(gx, gy);
+                const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
+                if (!hasConflict) {
+                    supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id))
+                        .then(({ error }) => { if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p)); });
+                } else {
+                    alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
+                }
+            }
+            playerDragRef.current = null;
+            setDragGamePos(null);
+            setMovingPlayerIdSynced(null);
+        }
+    };
 
     /* 유저 추가 (Supabase) */
     const addPlayer = async () => {
