@@ -1407,7 +1407,7 @@ export default function KdhGrid() {
             {placePopup && isAdmin && (() => {
                 const closePopup = () => { setPlacePopup(null); setClickName(""); setClickMemo(""); };
                 const popLeft = Math.min(placePopup.sx + 8, window.innerWidth - 290);
-                const popTop = Math.min(placePopup.sy - 16, window.innerHeight - 320);
+                const popTop = Math.min(placePopup.sy + 12, window.innerHeight - 340);
                 return (
                     <div className="fixed z-[60]" style={{ left: popLeft, top: popTop, width: 270, background: "rgba(10,18,35,0.98)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.7)", backdropFilter: "blur(16px)", padding: "16px" }}>
                         {/* 헤더 */}
