@@ -1122,14 +1122,28 @@ export default function KdhGrid() {
                                         const now = Date.now();
                                         const last = lastPlayerClickRef.current;
                                         if (last?.id === p.id && now - last.time < 350) {
-                                            // ✨ 더블클릭 감지 — mouseDown에서 센스를 안집hiS어 react배치로
-                                            // 팝업이 뒤에 한번만 렌더링됨
+                                            // ✨ 더블클릭 감지
                                             e.stopPropagation();
-                                            suppressPopupRef.current = true; // mouseUp에서 팝업 억제
-                                            setPlacePopup(null);             // 혹시 열려있는 팝업 닫기
+                                            suppressPopupRef.current = true;
+                                            setPlacePopup(null);
                                             setMovingPlayerId(prev => prev === p.id ? null : p.id);
                                             lastPlayerClickRef.current = null;
                                             hideTip();
+                                        } else if (movingPlayerId === p.id) {
+                                            // 🟢 이동 모드 중 — 어느 곳을 클릭해도 드래그 시작 (Pan 차단)
+                                            e.stopPropagation();
+                                            suppressPopupRef.current = true;
+                                            hideTip();
+                                            dragStart.current = { x: e.clientX, y: e.clientY };
+                                            playerDragRef.current = {
+                                                id: p.id,
+                                                startClientX: e.clientX,
+                                                startClientY: e.clientY,
+                                                origGx: p.x,
+                                                origGy: p.y,
+                                            };
+                                            setDragGamePos({ id: p.id, gx: p.x, gy: p.y });
+                                            lastPlayerClickRef.current = { id: p.id, time: now };
                                         } else {
                                             // 단일 클릭 — 시간 기록, 이벤트 버블링 허용
                                             lastPlayerClickRef.current = { id: p.id, time: now };
