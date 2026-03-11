@@ -52,7 +52,7 @@ const INIT_PLAYERS: Player[] = [
 ];
 
 /* 그리드 범위 — 연맹원 100명 이상 수용 (2배 확장) */
-const MIN_X = 689, MAX_X = 841;
+const MIN_X = 689, MAX_X = 891;
 const MIN_Y = 712, MAX_Y = 804;
 const COLS = MAX_X - MIN_X + 1;
 const ROWS = MAX_Y - MIN_Y + 1;
