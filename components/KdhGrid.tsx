@@ -359,8 +359,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     const focusOnPlayer = useCallback((playerId: string) => {
         const p = players.find(pl => pl.id === playerId);
         if (!p || !containerRef.current) return;
-        // 2×2 오브젝트 중심 = 좌하단 좌표에서 +0.5 오프셋
-        const { px, py } = toIso(p.x + 0.5, p.y + 0.5);
+        // 2×2 오브젝트 중심 = 좌하단 좌표에서 +1 오프셋 (x+1, y+1이 2×2 블록의 기하학적 중심)
+        const { px, py } = toIso(p.x + 1, p.y + 1);
         const rect = containerRef.current.getBoundingClientRect();
         const zoomTo = 2.2;
 
@@ -1606,7 +1606,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             // 드래그 중이면 dragGamePos 위치로 오버라이드
                             const activePosX = (dragGamePos?.id === p.id) ? dragGamePos.gx : p.x;
                             const activePosY = (dragGamePos?.id === p.id) ? dragGamePos.gy : p.y;
-                            const center = toIso(activePosX + 0.5, activePosY + 0.5);
+                            const center = toIso(activePosX + 1, activePosY + 1);
                             const isHit = hitIds.includes(p.id);
                             const isDraggingThis = dragGamePos?.id === p.id;
                             const isMovingThis = movingPlayerId === p.id;
@@ -1792,7 +1792,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         })}
                         {/* 연맹원 배치 미리보기 (placeStep==="member"일 때 2×2 다이아몬드) */}
                         {placePopup && placeStep === "member" && (() => {
-                            const center = toIso(placePopup.gx + 0.5, placePopup.gy + 0.5);
+                            const center = toIso(placePopup.gx + 1, placePopup.gy + 1);
                             const conflict = getMemberCells(placePopup.gx, placePopup.gy).some((c: string) => occupiedCells.has(c));
                             return (
                                 <path
