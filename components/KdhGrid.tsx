@@ -136,7 +136,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     const [placePopup, setPlacePopup] = useState<{ gx: number; gy: number; sx: number; sy: number } | null>(null);
     const [placeStep, setPlaceStep] = useState<"select" | "member">("select");
     /* 구조물 커서 배치 모드 (마우스 따라가는 3×3 미리보기) */
-    const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq"; gx: number; gy: number } | null>(null);
+    const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq" | "flag"; gx: number; gy: number } | null>(null);
     /* 연맹원 이동 모드 — 더블클릭으로 활성화, 드래그로 이동 */
     const [movingPlayerId, setMovingPlayerId] = useState<string | null>(null);
     const movingPlayerIdRef = useRef<string | null>(null);
@@ -547,16 +547,25 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         const dx = Math.abs(e.clientX - dragStart.current.x);
         const dy = Math.abs(e.clientY - dragStart.current.y);
         if (structCursor && isAdmin && dx < 5 && dy < 5) {
-            const cells = getStructCells(structCursor.gx, structCursor.gy, 3);
+            const isFlag = structCursor.structType === "flag";
+            const sz = isFlag ? 1 : 3;
+            const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, 3);
             if (cells.some(c => occupiedCells.has(c))) {
                 alert("⚠️ 해당 위치에 이미 건물/플레이어가 있습니다.");
             } else {
-                const trapIds = structures.filter(s => s.type === "trap").map(s => s.id);
-                const structId = structCursor.structType === "hq" ? "hq"
-                    : !trapIds.includes("trap1") ? "trap1" : "trap2";
-                const label = structCursor.structType === "hq" ? "🏰 본부"
-                    : structId === "trap1" ? "🪤 함정1" : "🪤 함정2";
-                await upsertStructure({ id: structId, label, x: structCursor.gx, y: structCursor.gy, size: 3, type: structCursor.structType });
+                if (isFlag) {
+                    const flagIds = structures.filter(s => s.type === "flag").map(s => s.id);
+                    const nextNum = flagIds.length + 1;
+                    const flagId = `flag${nextNum}`;
+                    await upsertStructure({ id: flagId, label: `🚩 깃발${nextNum}`, x: structCursor.gx, y: structCursor.gy, size: 1, type: "flag" });
+                } else {
+                    const trapIds = structures.filter(s => s.type === "trap").map(s => s.id);
+                    const structId = structCursor.structType === "hq" ? "hq"
+                        : !trapIds.includes("trap1") ? "trap1" : "trap2";
+                    const label = structCursor.structType === "hq" ? "🏰 본부"
+                        : structId === "trap1" ? "🪤 함정1" : "🪤 함정2";
+                    await upsertStructure({ id: structId, label, x: structCursor.gx, y: structCursor.gy, size: sz, type: structCursor.structType });
+                }
                 setStructCursor(null);
             }
             isDragging.current = false;
@@ -1529,9 +1538,11 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                     >
                                         {s.type === "hq"
                                             ? t.kdhPage.structHq
-                                            : s.id === "trap1"
-                                                ? t.kdhPage.structTrap1
-                                                : t.kdhPage.structTrap2}
+                                            : s.type === "flag"
+                                                ? s.label
+                                                : s.id === "trap1"
+                                                    ? t.kdhPage.structTrap1
+                                                    : t.kdhPage.structTrap2}
                                     </text>
                                 </g>
                             );
@@ -1739,15 +1750,19 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                 />
                             );
                         })()}
-                        {/* 구조물 커서 미리보기 (3×3 다이아몬드, 마우스 따라 이동) */}
+                        {/* 구조물 커서 미리보기 (깃발 1×1 / 건물 3×3) */}
                         {structCursor && (() => {
+                            const isFlag = structCursor.structType === "flag";
+                            const sz = isFlag ? 1 : 3;
                             const center = toIso(structCursor.gx, structCursor.gy);
-                            const conflict = getStructCells(structCursor.gx, structCursor.gy, 3).some((c: string) => occupiedCells.has(c));
+                            const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, 3);
+                            const conflict = cells.some((c: string) => occupiedCells.has(c));
+                            const color = isFlag ? (conflict ? "#ef4444" : "#f87171") : (conflict ? "#ef4444" : "#fbbf24");
                             return (
                                 <path
-                                    d={diamondPath(center.px, center.py, 3)}
-                                    fill={conflict ? "rgba(239,68,68,0.2)" : "rgba(251,191,36,0.2)"}
-                                    stroke={conflict ? "#ef4444" : "#fbbf24"}
+                                    d={diamondPath(center.px, center.py, sz)}
+                                    fill={conflict ? "rgba(239,68,68,0.2)" : isFlag ? "rgba(239,68,68,0.15)" : "rgba(251,191,36,0.2)"}
+                                    stroke={color}
                                     strokeWidth={2.5} strokeDasharray="8 4" pointerEvents="none"
                                 />
                             );
@@ -1916,6 +1931,17 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                     </div>
                                     <span className="ml-auto text-slate-600 text-xs">→</span>
                                 </button>
+                                {/* 깃발 */}
+                                <button onClick={() => { closePopup(); setStructCursor({ structType: "flag", gx: placePopup.gx, gy: placePopup.gy }); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-110 active:scale-[0.98]"
+                                    style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                                    <div style={{ width: 16, height: 16, background: "rgba(239,68,68,0.25)", border: "1.5px solid #f87171", borderRadius: 2, transform: "rotate(45deg)", flexShrink: 0 }} />
+                                    <div>
+                                        <div className="text-xs font-bold" style={{ color: "#fca5a5" }}>🚩 깃발</div>
+                                        <div className="text-[10px] text-slate-500">1×1 · 마우스로 이동 후 클릭 배치</div>
+                                    </div>
+                                    <span className="ml-auto text-slate-600 text-xs">→</span>
+                                </button>
                             </div>
                         )}
 
@@ -2079,8 +2105,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                     }}>
                     {/* 1행: 배치 모드 제목 + 좌표 */}
                     <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#fbbf24" }}>
-                            {structCursor.structType === "hq" ? t.kdhPage.structHq : t.kdhPage.structTrap1} 배치
+                        <span className="text-sm font-bold whitespace-nowrap" style={{ color: structCursor.structType === "flag" ? "#f87171" : "#fbbf24" }}>
+                            {structCursor.structType === "hq" ? t.kdhPage.structHq : structCursor.structType === "flag" ? "🚩 깃발" : t.kdhPage.structTrap1} 배치
                         </span>
                         <span className="font-mono text-[10px] px-2 py-0.5 rounded ml-auto whitespace-nowrap"
                             style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
