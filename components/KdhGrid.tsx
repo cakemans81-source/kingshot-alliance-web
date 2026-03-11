@@ -1521,7 +1521,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                             lastStructClickRef.current = { id: s.id, time: now };
                                         }
                                     } : undefined}
-                                    style={{ cursor: isAdmin && !isFlag ? (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer") : "default" }}
+                                    style={{ cursor: isAdmin ? (isFlag ? "pointer" : (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer")) : "default" }}
                                 >
                                     {/* 이동 모드 — amber 펄스 테두리 */}
                                     {isMovingThis && !isFlag && (
@@ -1542,12 +1542,26 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                         </>
                                     )}
                                     {isFlag ? (
-                                        <path
-                                            d={diamondPath(center.px, center.py, 1.2)}
-                                            fill="rgba(251,191,36,0.4)"
-                                            stroke="#fbbf24"
-                                            strokeWidth={2}
-                                        />
+                                        <>
+                                            <path
+                                                d={diamondPath(center.px, center.py, 1.2)}
+                                                fill="rgba(251,191,36,0.4)"
+                                                stroke="#fbbf24"
+                                                strokeWidth={2}
+                                                onClick={isAdmin ? (e) => { e.stopPropagation(); deleteStructure(s.id); } : undefined}
+                                                style={{ cursor: isAdmin ? "pointer" : "default" }}
+                                            />
+                                            {/* 호버 시 빨간 × 삭제 버튼 */}
+                                            {isAdmin && hoveredStructureId === s.id && (
+                                                <g
+                                                    onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
+                                                    style={{ cursor: "pointer" }}
+                                                >
+                                                    <circle cx={center.px + 8} cy={center.py - 8} r={6} fill="rgba(239,68,68,0.92)" stroke="#fff" strokeWidth={1} />
+                                                    <text x={center.px + 8} y={center.py - 8} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill="white" fontWeight={900}>×</text>
+                                                </g>
+                                            )}
+                                        </>
                                     ) : (
                                         <>
                                             <path
