@@ -1300,69 +1300,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             >
                                 📥 좌표 삭제
                             </button>
-                            {/* 🗑️ 건물 삭제 — HTML 버튼으로 SVG 이벤트 충돌 방지 */}
-                            <div className="relative flex-shrink-0">
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-slate-600 font-bold whitespace-nowrap">🗑️ 건물:</span>
-                                    {structures.map((s: Structure) => (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onClick={() => deleteStructure(s.id)}
-                                            className="h-6 px-2 rounded-md text-[10px] font-semibold transition-all hover:brightness-125 active:scale-95 flex items-center gap-0.5 whitespace-nowrap"
-                                            style={{
-                                                background: "rgba(239,68,68,0.12)",
-                                                border: "1px solid rgba(239,68,68,0.3)",
-                                                color: "#fca5a5",
-                                            }}
-                                            title={`${s.label} 삭제`}
-                                        >
-                                            {s.label} <span style={{ color: "#ef4444", fontWeight: 900 }}>✕</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            {/* 구분선 */}
-                            <div className="h-4 w-px flex-shrink-0" style={{ background: "rgba(51,65,85,0.6)" }} />
-                            {/* 📌 클릭 배치 안내 배지 (항상 활성, 드래그 편집 모드 아닐 때) */}
-                            {!isDragEditMode && (
-                                <span
-                                    className="h-7 px-3 rounded-lg text-[11px] font-semibold whitespace-nowrap flex-shrink-0 flex items-center gap-1"
-                                    style={{
-                                        background: "rgba(251,191,36,0.15)",
-                                        border: "1px solid rgba(251,191,36,0.4)",
-                                        color: "#fbbf24",
-                                    }}
-                                >
-                                    📌 셀 클릭→등록
-                                </span>
-                            )}
-                            {/* 구분선 */}
-                            <div className="h-4 w-px flex-shrink-0" style={{ background: "rgba(51,65,85,0.6)" }} />
-                            {/* ✌️ 드래그 편집 / ✓ 편집완료 토글 */}
-                            {!isDragEditMode ? (
-                                <button
-                                    type="button"
-                                    onClick={() => { setIsDragEditMode(true); setPlacePopup(null); setStructCursor(null); }}
-                                    className="h-7 px-3 rounded-lg text-[11px] font-semibold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
-                                    style={{ background: "rgba(6,182,212,0.12)", border: "1px solid rgba(6,182,212,0.35)", color: "#22d3ee" }}
-                                >
-                                    🗑️ 삭제
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsDragEditMode(false);
-                                        playerDragRef.current = null;
-                                        setDragGamePos(null);
-                                    }}
-                                    className="h-7 px-3 rounded-lg text-[11px] font-bold transition-all hover:brightness-125 active:scale-95 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
-                                    style={{ background: "rgba(34,197,94,0.2)", border: "1px solid rgba(34,197,94,0.5)", color: "#4ade80" }}
-                                >
-                                    ✓ 편집완료
-                                </button>
-                            )}
+
                         </div>
                     )}
                 </div>
