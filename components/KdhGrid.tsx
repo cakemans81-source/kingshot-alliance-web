@@ -51,9 +51,9 @@ const INIT_PLAYERS: Player[] = [
     { id: "p3", name: "Nightmare1870", x: 748, y: 750, memo: "" },
 ];
 
-/* 그리드 범위 — 연맹원 100명 이상 수용 (2배 확장) */
-const MIN_X = 689, MAX_X = 891;
-const MIN_Y = 712, MAX_Y = 804;
+/* 그리드 범위 — 오른쪽 하단 확장 (MAX_X +50, MIN_Y -30) */
+const MIN_X = 689, MAX_X = 941;
+const MIN_Y = 682, MAX_Y = 804;
 const COLS = MAX_X - MIN_X + 1;
 const ROWS = MAX_Y - MIN_Y + 1;
 const CELL = 40; // 마름모 셀 크기
