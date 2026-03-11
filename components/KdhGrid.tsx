@@ -563,8 +563,9 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 alert("⚠️ 해당 위치에 이미 건물/플레이어가 있습니다.");
             } else {
                 if (isFlag) {
-                    const flagIds = structures.filter(s => s.type === "flag").map(s => s.id);
-                    const nextNum = flagIds.length + 1;
+                    const flagIds = new Set(structures.filter(s => s.type === "flag").map(s => s.id));
+                    let nextNum = 1;
+                    while (flagIds.has(`flag${nextNum}`)) nextNum++;
                     const flagId = `flag${nextNum}`;
                     await upsertStructure({ id: flagId, label: `🚩 깃발${nextNum}`, x: structCursor.gx, y: structCursor.gy, size: 1, type: "flag" });
                 } else {
