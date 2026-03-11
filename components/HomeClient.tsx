@@ -47,15 +47,20 @@ function writeCache(key: string, value: string) {
     try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
 }
 
-async function translateText(text: string, targetLang: LocaleCode): Promise<string> {
+async function translateText(
+    text: string,
+    targetLang: LocaleCode,
+    sourceLang?: string,
+): Promise<string> {
     if (!text.trim()) return text;
     const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLang }),
+        body: JSON.stringify({ text, targetLang, sourceLang }),
     });
-    if (!res.ok) throw new Error("Translation failed");
+    if (!res.ok) throw new Error(`Translation API error: ${res.status}`);
     const data = await res.json();
+    if (!data.translatedText) throw new Error("Empty translation response");
     return data.translatedText;
 }
 
@@ -150,13 +155,17 @@ function SectionCard({
 
     // 언어 변경 시 자동 번역
     useEffect(() => {
+        // 언어가 바뀔 때마다 번역 상태 초기화 (이전 언어 번역이 남아 있으면 새 번역을 건너뛰는 버그 방지)
+        setTranslations({});
+        setLoadingMap({});
+
         if (targetLocale === "ko" || items.length === 0) return;
         const translateAll = async () => {
             for (const item of items) {
-                if (translations[item.id]) continue;
                 const isKo = guessLang(item.title) === "ko";
                 if (!isKo) continue;
 
+                // sessionStorage 캐시 활용 (중복 API 호출 방지)
                 const cacheKey = getCacheKey(targetLocale, item.id, type);
                 const cached = readCache(cacheKey);
                 if (cached) {
@@ -166,7 +175,10 @@ function SectionCard({
 
                 setLoadingMap(prev => ({ ...prev, [item.id]: true }));
                 try {
-                    const result = await translateText(item.title, targetLocale);
+                    // guessLang으로 감지한 언어를 sourceLang으로 명시적으로 전달
+                    // (MyMemory는 'auto' 처리가 불안정해 번역 실패 원인이 됨)
+                    const detectedLang = guessLang(item.title);
+                    const result = await translateText(item.title, targetLocale, detectedLang);
                     writeCache(cacheKey, result);
                     setTranslations(prev => ({ ...prev, [item.id]: result }));
                 } catch (err) {
@@ -759,7 +771,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                                 </span>
                             </div>
                             <p className="text-xs text-slate-400 mt-0.5 truncate">
-                                환영합니다! 오늘 하루도 건승하세요 ⚔️
+                                {t.home.welcomeMsg}
                             </p>
                         </div>
                     </div>
@@ -778,10 +790,10 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                                 color: "#a5b4fc",
                             }}
                         >
-                            ✏️ 정보 수정
+                            {t.home.profileEdit}
                         </Link>
                         <button
-                            onClick={() => { if (confirm("로그아웃 하시겠습니까?")) logout(); }}
+                            onClick={() => { if (confirm(t.home.logoutConfirm)) logout(); }}
                             className="flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-200 hover:brightness-110 active:scale-95"
                             style={{
                                 background: "rgba(239,68,68,0.12)",
@@ -789,7 +801,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                                 color: "#f87171",
                             }}
                         >
-                            🚪 로그아웃
+                            {t.home.logoutBtn}
                         </button>
                     </div>
                 </div>
@@ -801,7 +813,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                         borderColor: "rgba(6, 182, 212, 0.2)",
                     }}
                 >
-                    <p className="text-sm text-slate-400 mb-4">로그인하시면 연맹 소식을 더욱 빠르게 확인하고 활동할 수 있습니다.</p>
+                    <p className="text-sm text-slate-400 mb-4">{t.home.loginHint}</p>
                     <Link
                         href="/auth"
                         className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black text-white hover:brightness-110 transition-all active:scale-95"
@@ -810,7 +822,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                             boxShadow: "0 4px 15px rgba(6, 182, 212, 0.3)",
                         }}
                     >
-                        🔑 로그인하여 시작하기
+                        {t.home.loginBtn}
                     </Link>
                 </div>
             )
@@ -887,7 +899,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-slate-600">
-                                                <span className="font-medium text-slate-500">👤 {item.author || "익명"}</span>
+                                                <span className="font-medium text-slate-500">👤 {item.author || t.home.anonymous}</span>
                                                 <span className="text-slate-800">|</span>
                                                 <span>{formatDate(item.created_at)}</span>
                                             </div>
@@ -900,7 +912,7 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                             onClick={() => { setSearchTerm(""); setSearchResults([]); }}
                             className="w-full py-2 text-[10px] text-slate-600 hover:text-slate-400 transition-colors bg-slate-900/30"
                         >
-                            닫기
+                            {t.home.close}
                         </button>
                     </div>
                 )}
@@ -988,8 +1000,8 @@ export default function HomeClient({ notices, freePosts }: HomeClientProps) {
                 </span>
                 {/* 텍스트 */}
                 <div className="relative flex flex-col text-left min-w-0 flex-1">
-                    <span className="text-sm font-bold text-white">연맹 이벤트 참여 현황</span>
-                    <span className="text-xs text-slate-400">이벤트별 출석 · 참석/불참 현황 관리</span>
+                    <span className="text-sm font-bold text-white">{t.home.eventAttendance}</span>
+                    <span className="text-xs text-slate-400">{t.home.eventAttendanceDesc}</span>
                 </div>
                 {/* 화살표 */}
                 <div className="relative ml-auto text-slate-600 transition-all duration-300 group-hover:translate-x-1 group-hover:text-amber-400 flex-shrink-0">

@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 import { supabase } from "@/lib/supabase/client";
+import * as XLSX from "xlsx";
 
 /* ═══════════════════════════════════════
    타입
@@ -40,6 +42,7 @@ const STATUS_STYLES = {
    ═══════════════════════════════════════ */
 export default function EventAttendanceClient() {
     const { user } = useAuth();
+    const { t } = useLocale();
     const isAdmin = user?.role === "admin";
 
     /* ── 상태 ── */
@@ -164,7 +167,7 @@ export default function EventAttendanceClient() {
 
     /* ── 이벤트 삭제 ── */
     const deleteEvent = async (evId: number) => {
-        if (!confirm("이 이벤트를 삭제하시겠습니까?")) return;
+        if (!confirm(t.eventPage.deleteEventConfirm)) return;
         await supabase.from("kdh_attendance").delete().eq("event_id", evId);
         await supabase.from("kdh_events").delete().eq("id", evId);
         const remaining = events.filter(e => e.id !== evId);
@@ -197,7 +200,112 @@ export default function EventAttendanceClient() {
         currentPage * PAGE_SIZE
     );
 
-    // 검색어나 페이지 변경 시 상단으로 스크롤 하거나 인덱스 조정이 필요할 수 있음
+    /* ── 엑셀 다운로드 ── */
+    const downloadExcel = useCallback(() => {
+        if (!activeEvent) return;
+
+        // 헤더 행
+        const headers = [
+            t.eventPage.excelNumCol, t.eventPage.excelMemberCol, t.eventPage.excelMemoCol,
+            ...activeEvent.columns,
+            t.eventPage.excelAttendTotal, t.eventPage.excelAbsentTotal,
+        ];
+
+        // 데이터 행 (모든 연맹원 포함)
+        const rows = members.map((m, mi) => {
+            const stats = getMemberStats(m.name);
+            const slotValues = activeEvent.columns.map((_, si) => {
+                const st = getStatus(m.name, si);
+                return st === "attend" ? "✓" : st === "absent" ? "✗" : "—";
+            });
+            return [mi + 1, m.name, m.memo || "", ...slotValues, stats.attend, stats.absent];
+        });
+
+        // 워크시트 생성
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        // 열 너비 설정
+        ws["!cols"] = [
+            { wch: 5 },   // 번호
+            { wch: 18 },  // 연맹원
+            { wch: 14 },  // 메모
+            ...activeEvent.columns.map(() => ({ wch: 8 })),  // 회차별
+            { wch: 9 },   // 참석합계
+            { wch: 9 },   // 불참합계
+        ];
+
+        // 셀 스타일 적용 (헤더 강조)
+        const headerStyle = {
+            font: { bold: true, color: { rgb: "FFFFFFFF" } },
+            fill: { fgColor: { rgb: "FF1E293B" } },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+                top: { style: "thin", color: { rgb: "FF334155" } },
+                bottom: { style: "thin", color: { rgb: "FF334155" } },
+                left: { style: "thin", color: { rgb: "FF334155" } },
+                right: { style: "thin", color: { rgb: "FF334155" } },
+            },
+        };
+        headers.forEach((_, ci) => {
+            const cellAddr = XLSX.utils.encode_cell({ r: 0, c: ci });
+            if (ws[cellAddr]) ws[cellAddr].s = headerStyle;
+        });
+
+        // 데이터 셀 스타일 (참석=초록, 불참=빨강, 미정=회색)
+        const statusColors: Record<string, string> = {
+            "✓": "FFD1FAE5",  // 초록 배경
+            "✗": "FFFEE2E2",  // 빨강 배경
+            "—": "FFFFFFFFFFFF",  // 흰색
+        };
+        const statusTextColors: Record<string, string> = {
+            "✓": "FF065F46",
+            "✗": "FF991B1B",
+            "—": "FF94A3B8",
+        };
+        rows.forEach((row, ri) => {
+            row.forEach((val, ci) => {
+                const cellAddr = XLSX.utils.encode_cell({ r: ri + 1, c: ci });
+                if (!ws[cellAddr]) return;
+                const v = String(val);
+                const isSlot = ci >= 3 && ci < 3 + activeEvent.columns.length;
+                ws[cellAddr].s = {
+                    alignment: { horizontal: "center", vertical: "center" },
+                    ...(isSlot && statusColors[v] ? {
+                        fill: { fgColor: { rgb: statusColors[v] } },
+                        font: { color: { rgb: statusTextColors[v] ?? "FF475569" }, bold: v === "✓" || v === "✗" },
+                    } : {}),
+                    border: {
+                        top: { style: "thin", color: { rgb: "FFE2E8F0" } },
+                        bottom: { style: "thin", color: { rgb: "FFE2E8F0" } },
+                        left: { style: "thin", color: { rgb: "FFE2E8F0" } },
+                        right: { style: "thin", color: { rgb: "FFE2E8F0" } },
+                    },
+                };
+            });
+        });
+
+        // 슬롯 통계 행 (푸터)
+        const statsRow = [
+            "", t.eventPage.excelAttendRow, "",
+            ...activeEvent.columns.map((_, i) => getSlotStats(i).attend),
+            "", "",
+        ];
+        const absentRow = [
+            "", t.eventPage.excelAbsentRow, "",
+            ...activeEvent.columns.map((_, i) => getSlotStats(i).absent),
+            "", "",
+        ];
+        XLSX.utils.sheet_add_aoa(ws, [[], statsRow, absentRow], { origin: -1 });
+
+        // 워크북 생성 및 다운로드
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, activeEvent.title.slice(0, 31));
+        const fileName = `${activeEvent.title}_참여현황_${new Date().toLocaleDateString("ko-KR").replace(/\. /g, "-").replace(".", "")}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+    }, [activeEvent, members, attendance, getStatus, getMemberStats, getSlotStats]);
+
+    /* 검색어나 페이지 변경 시 상단으로 스크롤 하거나 인덱스 조정이 필요할 수 있음 */
     useEffect(() => {
         setCurrentPage(1);
     }, [memberSearch]);
@@ -210,9 +318,9 @@ export default function EventAttendanceClient() {
                 {/* ── 페이지 헤더 ── */}
                 <div className="mb-8 text-center">
                     <h1 className="text-2xl font-extrabold mb-1" style={{ background: "linear-gradient(135deg,#fbbf24,#f59e0b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                        📋 연맹 이벤트 참여 현황
+                        {t.eventPage.pageTitle}
                     </h1>
-                    <p className="text-sm text-slate-500">연맹원 이벤트 참석/불참 현황 관리</p>
+                    <p className="text-sm text-slate-500">{t.eventPage.pageSubtitle}</p>
                 </div>
 
                 {/* ── 이벤트 탭 바 ── */}
@@ -233,13 +341,13 @@ export default function EventAttendanceClient() {
                         <button onClick={() => setShowNewEvent(true)}
                             className="px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:brightness-110"
                             style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.35)", color: "#a5b4fc" }}>
-                            ＋ 새 이벤트
+                            {t.eventPage.newEvent}
                         </button>
                     )}
                 </div>
 
                 {loading ? (
-                    <div className="text-center py-20 text-slate-500">데이터 로딩 중...</div>
+                    <div className="text-center py-20 text-slate-500">{t.eventPage.loading}</div>
                 ) : activeEvent ? (
                     <>
                         {/* ── 이벤트 설명 패널 ── */}
@@ -248,20 +356,20 @@ export default function EventAttendanceClient() {
                                 /* 편집 모드 */
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-[11px] text-slate-500 font-bold mb-1">이벤트 제목</label>
+                                        <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.eventPage.editFormTitle}</label>
                                         <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
                                             className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
                                             style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(251,191,36,0.4)" }} />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] text-slate-500 font-bold mb-1">이벤트 설명 / 공지</label>
+                                        <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.eventPage.editFormDesc}</label>
                                         <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={4}
-                                            placeholder="이벤트 규칙, 일정, 참고사항 등을 입력하세요..."
+                                            placeholder={t.eventPage.editFormDescPlaceholder}
                                             className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none resize-none"
                                             style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(51,65,85,0.5)" }} />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] text-slate-500 font-bold mb-2">열 이름 (1~15)</label>
+                                        <label className="block text-[11px] text-slate-500 font-bold mb-2">{t.eventPage.editFormCols}</label>
                                         <div className="grid grid-cols-5 gap-1.5">
                                             {editCols.map((col, i) => (
                                                 <input key={i} value={col} onChange={e => {
@@ -277,18 +385,18 @@ export default function EventAttendanceClient() {
                                         <button onClick={saveEventConfig}
                                             className="px-4 py-2 rounded-xl text-sm font-bold transition-all hover:brightness-110"
                                             style={{ background: "linear-gradient(135deg,#d97706,#f59e0b)", color: "#0d1829" }}>
-                                            ✓ 저장
+                                            {t.eventPage.save}
                                         </button>
                                         <button onClick={() => setEditingEvent(false)}
                                             className="px-4 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
                                             style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>
-                                            취소
+                                            {t.eventPage.cancel}
                                         </button>
                                         {isAdmin && (
                                             <button onClick={() => deleteEvent(activeEvent.id)}
                                                 className="ml-auto px-3 py-2 rounded-xl text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
                                                 style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
-                                                🗑️ 이벤트 삭제
+                                                {t.eventPage.deleteEventBtn}
                                             </button>
                                         )}
                                     </div>
@@ -301,51 +409,66 @@ export default function EventAttendanceClient() {
                                         {activeEvent.description ? (
                                             <p className="text-sm text-slate-400 whitespace-pre-wrap leading-relaxed">{activeEvent.description}</p>
                                         ) : (
-                                            <p className="text-sm text-slate-600 italic">이벤트 설명이 없습니다. {isAdmin ? "편집 버튼으로 추가하세요." : ""}</p>
+                                            <p className="text-sm text-slate-600 italic">{t.eventPage.noDesc} {isAdmin ? t.eventPage.noDescHint : ""}</p>
                                         )}
                                     </div>
                                     {isAdmin && (
                                         <button onClick={() => { setEditTitle(activeEvent.title); setEditDesc(activeEvent.description); setEditCols([...activeEvent.columns]); setEditingEvent(true); }}
                                             className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:brightness-110"
                                             style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.35)", color: "#a5b4fc" }}>
-                                            ✏️ 편집
+                                            {t.eventPage.editBtn}
                                         </button>
                                     )}
                                 </div>
                             )}
                         </div>
 
-                        {/* ── 상단 컨트롤 (검색 + 범례) ── */}
+                        {/* ── 상단 컨트롤 (검색 + 다운로드 + 범례) ── */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                            {/* 검색창 */}
-                            <div className="relative w-full md:w-64">
-                                <input
-                                    type="text"
-                                    value={memberSearch}
-                                    onChange={(e) => setMemberSearch(e.target.value)}
-                                    placeholder="연맹원 이름/메모 검색..."
-                                    className="w-full rounded-xl px-4 py-2 text-xs text-white placeholder:text-slate-600 outline-none"
+                            {/* 검색창 + 엑셀 다운로드 버튼 */}
+                            <div className="flex items-center gap-2">
+                                <div className="relative w-full md:w-64">
+                                    <input
+                                        type="text"
+                                        value={memberSearch}
+                                        onChange={(e) => setMemberSearch(e.target.value)}
+                                        placeholder={t.eventPage.searchPlaceholder}
+                                        className="w-full rounded-xl px-4 py-2 text-xs text-white placeholder:text-slate-600 outline-none"
+                                        style={{
+                                            background: "rgba(30,41,59,0.5)",
+                                            border: "1px solid rgba(51,65,85,0.4)"
+                                        }}
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600">🔍</span>
+                                </div>
+                                {/* 엑셀 다운로드 버튼 */}
+                                <button
+                                    onClick={downloadExcel}
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap flex-shrink-0"
                                     style={{
-                                        background: "rgba(30,41,59,0.5)",
-                                        border: "1px solid rgba(51,65,85,0.4)"
+                                        background: "rgba(16,185,129,0.15)",
+                                        border: "1px solid rgba(16,185,129,0.4)",
+                                        color: "#34d399",
                                     }}
-                                />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600">🔍</span>
+                                    title={t.eventPage.excelTooltip}
+                                >
+                                    {t.eventPage.excelSave}
+                                </button>
                             </div>
 
                             {/* 범례 */}
                             <div className="flex items-center gap-4 text-[11px] text-slate-500 overflow-x-auto pb-1 md:pb-0">
-                                <span className="font-bold flex-shrink-0">범례:</span>
+                                <span className="font-bold flex-shrink-0">{t.eventPage.legend}</span>
                                 {Object.entries(STATUS_STYLES).map(([k, v]) => (
                                     <span key={k} className="flex items-center gap-1.5 flex-shrink-0">
                                         <span className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
                                             style={{ background: v.bg, border: `1px solid ${v.border}`, color: v.text }}>
                                             {v.label}
                                         </span>
-                                        {k === "attend" ? "참석" : k === "absent" ? "불참" : "미정"}
+                                        {k === "attend" ? t.eventPage.legendAttend : k === "absent" ? t.eventPage.legendAbsent : t.eventPage.legendUnknown}
                                     </span>
                                 ))}
-                                {isAdmin && <span className="text-slate-600 flex-shrink-0 ml-2">· 셀 클릭으로 상태 변경</span>}
+                                {isAdmin && <span className="text-slate-600 flex-shrink-0 ml-2">{t.eventPage.legendHint}</span>}
                             </div>
                         </div>
 
@@ -358,7 +481,7 @@ export default function EventAttendanceClient() {
                                         <tr style={{ background: "rgba(15,23,42,0.8)", borderBottom: "2px solid rgba(51,65,85,0.5)" }}>
                                             <th className="sticky left-0 z-10 text-left px-4 py-3 text-[11px] font-bold text-slate-500 whitespace-nowrap"
                                                 style={{ background: "rgba(10,18,35,0.98)", minWidth: 140, borderRight: "1px solid rgba(51,65,85,0.4)" }}>
-                                                연맹원 / 회차
+                                                {t.eventPage.memberCol}
                                             </th>
                                             {activeEvent.columns.map((col, i) => (
                                                 <th key={i} className="px-2 py-3 text-center" style={{ minWidth: 64 }}>
@@ -369,19 +492,25 @@ export default function EventAttendanceClient() {
                                                     </div>
                                                 </th>
                                             ))}
-                                            <th className="px-3 py-3 text-center text-[10px] font-bold text-slate-500 whitespace-nowrap" style={{ minWidth: 80 }}>합계</th>
+                                            <th className="px-3 py-3 text-center text-[10px] font-bold text-slate-500 whitespace-nowrap" style={{ minWidth: 80 }}>{t.eventPage.totalCol}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {members.length === 0 ? (
                                             <tr>
                                                 <td colSpan={17} className="text-center py-12 text-slate-600 text-sm">
-                                                    연맹원 데이터가 없습니다. (KDH 그리드에 연맹원을 먼저 추가하세요)
+                                                    {t.eventPage.noMembers}
                                                 </td>
                                             </tr>
                                         ) : paginatedMembers.map((m, mi) => {
                                             const stats = getMemberStats(m.name);
                                             const globalIndex = (currentPage - 1) * PAGE_SIZE + mi + 1;
+                                            const totalCols = activeEvent.columns.length;
+                                            const rate = totalCols > 0 ? Math.round((stats.attend / totalCols) * 100) : 0;
+                                            const rateColor = rate >= 80 ? { text: "#34d399", bg: "rgba(16,185,129,0.15)", bar: "#10b981" }
+                                                : rate >= 50 ? { text: "#fbbf24", bg: "rgba(251,191,36,0.15)", bar: "#f59e0b" }
+                                                    : rate > 0 ? { text: "#f87171", bg: "rgba(239,68,68,0.15)", bar: "#ef4444" }
+                                                        : { text: "#475569", bg: "rgba(51,65,85,0.2)", bar: "#334155" };
                                             return (
                                                 <tr key={m.id}
                                                     style={{
@@ -389,14 +518,24 @@ export default function EventAttendanceClient() {
                                                         borderBottom: "1px solid rgba(30,41,59,0.5)",
                                                     }}
                                                     className="hover:brightness-110 transition-all">
-                                                    {/* 연맹원 이름 (고정 컬럼) */}
-                                                    <td className="sticky left-0 z-10 px-4 py-2.5"
-                                                        style={{ background: mi % 2 === 0 ? "rgba(10,18,35,0.97)" : "rgba(10,18,35,0.95)", borderRight: "1px solid rgba(51,65,85,0.3)", minWidth: 140 }}>
-                                                        <div className="flex items-baseline gap-2">
-                                                            <span className="text-[9px] font-mono text-slate-700">{globalIndex}</span>
-                                                            <div className="text-xs font-bold text-slate-200 truncate max-w-[120px]">{m.name}</div>
+                                                    {/* 연맹원 이름 + 참여율 배지 (고정 컬럼) */}
+                                                    <td className="sticky left-0 z-10 px-3 py-2"
+                                                        style={{ background: mi % 2 === 0 ? "rgba(10,18,35,0.97)" : "rgba(10,18,35,0.95)", borderRight: "1px solid rgba(51,65,85,0.3)", minWidth: 180 }}>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[9px] font-mono text-slate-700 flex-shrink-0">{globalIndex}</span>
+                                                            <div className="text-xs font-bold text-slate-200 truncate max-w-[100px] flex-1">{m.name}</div>
+                                                            {/* 참여율 배지 */}
+                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums"
+                                                                style={{ background: rateColor.bg, color: rateColor.text, minWidth: 38, textAlign: "center" }}>
+                                                                {rate}%
+                                                            </span>
                                                         </div>
-                                                        {m.memo && <div className="text-[9px] text-slate-600 truncate ml-4">{m.memo}</div>}
+                                                        {/* 미니 프로그레스 바 */}
+                                                        <div className="mt-1 h-[3px] rounded-full overflow-hidden mx-0.5" style={{ background: "rgba(30,41,59,0.6)" }}>
+                                                            <div className="h-full rounded-full transition-all duration-500"
+                                                                style={{ width: `${rate}%`, background: rateColor.bar }} />
+                                                        </div>
+                                                        {m.memo && <div className="text-[9px] text-slate-600 truncate mt-0.5">{m.memo}</div>}
                                                     </td>
                                                     {/* 15개 슬롯 */}
                                                     {activeEvent.columns.map((_, si) => {
@@ -485,12 +624,12 @@ export default function EventAttendanceClient() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
                     onClick={e => { if (e.target === e.currentTarget) setShowNewEvent(false); }}>
                     <div className="w-80 rounded-2xl p-6" style={{ background: "#0d1829", border: "1px solid rgba(251,191,36,0.4)", boxShadow: "0 24px 64px rgba(0,0,0,0.7)" }}>
-                        <h3 className="text-base font-bold mb-4" style={{ color: "#fbbf24" }}>📋 새 이벤트 추가</h3>
+                        <h3 className="text-base font-bold mb-4" style={{ color: "#fbbf24" }}>{t.eventPage.newEventModal}</h3>
                         <div className="mb-4">
-                            <label className="block text-[11px] text-slate-500 font-bold mb-1">이벤트 제목</label>
+                            <label className="block text-[11px] text-slate-500 font-bold mb-1">{t.eventPage.newEventTitle}</label>
                             <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
                                 onKeyDown={e => { if (e.key === "Enter") createEvent(); }}
-                                placeholder="예: 성검전투 3월 1주차"
+                                placeholder={t.eventPage.newEventPlaceholder}
                                 autoFocus
                                 className="w-full rounded-lg px-3 py-2 text-sm text-white outline-none"
                                 style={{ background: "rgba(7,13,26,0.8)", border: "1px solid rgba(251,191,36,0.4)" }} />
@@ -499,12 +638,12 @@ export default function EventAttendanceClient() {
                             <button onClick={createEvent}
                                 className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110"
                                 style={{ background: "linear-gradient(135deg,#d97706,#f59e0b)", color: "#0d1829" }}>
-                                ✓ 생성
+                                {t.eventPage.create}
                             </button>
                             <button onClick={() => { setShowNewEvent(false); setNewTitle(""); }}
                                 className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
                                 style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>
-                                취소
+                                {t.eventPage.cancel}
                             </button>
                         </div>
                     </div>

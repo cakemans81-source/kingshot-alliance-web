@@ -32,6 +32,16 @@ export interface Dictionary {
         noNotice: string;
         noFreePost: string;
         writeHint: string;
+        welcomeMsg: string;         /* "환영합니다! 오늘 하루도 건승하세요 ⚔️" */
+        profileEdit: string;        /* "✏️ 정보 수정" */
+        logoutConfirm: string;      /* "로그아웃 하시겠습니까?" */
+        logoutBtn: string;          /* "🚪 로그아웃" */
+        loginHint: string;          /* "로그인하시면 연맹 소식을..." */
+        loginBtn: string;           /* "🔑 로그인하여 시작하기" */
+        anonymous: string;          /* "익명" */
+        close: string;              /* "닫기" */
+        eventAttendance: string;    /* "연맹 이벤트 참여 현황" */
+        eventAttendanceDesc: string;/* "이벤트별 출석 · 참석/불참 현황 관리" */
     };
     quickLinks: {
         freeBoard: string;
@@ -231,6 +241,55 @@ export interface Dictionary {
         structHq: string;          /* 🏰 본부 */
         structTrap1: string;       /* 🪤 함정1 */
         structTrap2: string;       /* 🪤 함정2 */
+        moveModeTitle: string;     /* ✥ 이동 모드 */
+        moveModeHint: string;      /* 드래그하여 이동 */
+        moveModeCancel: string;    /* 더블클릭·ESC 취소 */
+        structModeHint: string;    /* 이동 후 클릭 배치 */
+        structModeCancel: string;  /* 취소 */
+        cancelBtn: string;         /* 취소 */
+        simPageTitle: string;      /* 좌표 배치 시뮬레이션 */
+        simPageDesc: string;       /* 실제 데이터에 영향 없이 배치 연습 */
+    };
+    eventPage: {
+        pageTitle: string;
+        pageSubtitle: string;
+        newEvent: string;
+        loading: string;
+        editFormTitle: string;
+        editFormDesc: string;
+        editFormDescPlaceholder: string;
+        editFormCols: string;
+        save: string;
+        cancel: string;
+        deleteEventBtn: string;
+        deleteEventConfirm: string;
+        noDesc: string;
+        noDescHint: string;
+        editBtn: string;
+        searchPlaceholder: string;
+        excelSave: string;
+        excelTooltip: string;
+        legend: string;
+        legendAttend: string;
+        legendAbsent: string;
+        legendUnknown: string;
+        legendHint: string;
+        memberCol: string;
+        totalCol: string;
+        noMembers: string;
+        excelNumCol: string;
+        excelMemberCol: string;
+        excelMemoCol: string;
+        excelAttendTotal: string;
+        excelAbsentTotal: string;
+        excelAttendRow: string;
+        excelAbsentRow: string;
+        noEvents: string;
+        createFirst: string;
+        newEventModal: string;
+        newEventTitle: string;
+        newEventPlaceholder: string;
+        create: string;
     };
 }
 
@@ -264,6 +323,16 @@ const ko: Dictionary = {
         noNotice: "아직 등록된 공지사항이 없습니다. 우측 하단",
         noFreePost: "아직 작성된 글이 없습니다. 우측 하단",
         writeHint: " 버튼으로 첫 글을 작성해 보세요!",
+        welcomeMsg: "환영합니다! 오늘 하루도 건승하세요 ⚔️",
+        profileEdit: "✏️ 정보 수정",
+        logoutConfirm: "로그아웃 하시겠습니까?",
+        logoutBtn: "🚪 로그아웃",
+        loginHint: "로그인하시면 연맹 소식을 더욱 빠르게 확인하고 활동할 수 있습니다.",
+        loginBtn: "🔑 로그인하여 시작하기",
+        anonymous: "익명",
+        close: "닫기",
+        eventAttendance: "연맹 이벤트 참여 현황",
+        eventAttendanceDesc: "이벤트별 출석 · 참석/불참 현황 관리",
     },
     quickLinks: {
         freeBoard: "자유 게시판",
@@ -460,6 +529,55 @@ const ko: Dictionary = {
         structHq: "🏰 본부",
         structTrap1: "🪤 함정1",
         structTrap2: "🪤 함정2",
+        moveModeTitle: "✥ 이동 모드",
+        moveModeHint: "드래그하여 이동",
+        moveModeCancel: "더블클릭·ESC 취소",
+        structModeHint: "이동 후 클릭 배치",
+        structModeCancel: "취소",
+        cancelBtn: "취소",
+        simPageTitle: "좌표 배치 시뮬레이션",
+        simPageDesc: "실제 데이터에 영향 없이 배치를 연습합니다. 완료 후 '적용' 버튼을 누르세요.",
+    },
+    eventPage: {
+        pageTitle: "📋 연맹 이벤트 참여 현황",
+        pageSubtitle: "연맹원 이벤트 참석/불참 현황 관리",
+        newEvent: "＋ 새 이벤트",
+        loading: "데이터 로딩 중...",
+        editFormTitle: "이벤트 제목",
+        editFormDesc: "이벤트 설명 / 공지",
+        editFormDescPlaceholder: "이벤트 규칙, 일정, 참고사항 등을 입력하세요...",
+        editFormCols: "열 이름 (1~15)",
+        save: "✓ 저장",
+        cancel: "취소",
+        deleteEventBtn: "🗑️ 이벤트 삭제",
+        deleteEventConfirm: "이 이벤트를 삭제하시겠습니까?",
+        noDesc: "이벤트 설명이 없습니다.",
+        noDescHint: "편집 버튼으로 추가하세요.",
+        editBtn: "✏️ 편집",
+        searchPlaceholder: "연맹원 이름/메모 검색...",
+        excelSave: "📥 엑셀 저장",
+        excelTooltip: "현재 이벤트 참여현황을 엑셀로 저장",
+        legend: "범례:",
+        legendAttend: "참석",
+        legendAbsent: "불참",
+        legendUnknown: "미정",
+        legendHint: "· 셀 클릭으로 상태 변경",
+        memberCol: "연맹원 / 회차",
+        totalCol: "합계",
+        noMembers: "연맹원 데이터가 없습니다. (KDH 그리드에 연맹원을 먼저 추가하세요)",
+        excelNumCol: "번호",
+        excelMemberCol: "연맹원",
+        excelMemoCol: "메모",
+        excelAttendTotal: "참석합계",
+        excelAbsentTotal: "불참합계",
+        excelAttendRow: "참석수",
+        excelAbsentRow: "불참수",
+        noEvents: "등록된 이벤트가 없습니다.",
+        createFirst: "＋ 첫 이벤트 만들기",
+        newEventModal: "📋 새 이벤트 추가",
+        newEventTitle: "이벤트 제목",
+        newEventPlaceholder: "예: 성검전투 3월 1주차",
+        create: "✓ 생성",
     },
 };
 

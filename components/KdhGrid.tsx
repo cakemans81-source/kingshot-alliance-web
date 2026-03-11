@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase/client";
 /* ═══════════════════════════════════════════
    타입 & 상수
    ═══════════════════════════════════════════ */
-interface Player {
+export interface Player {
     id: string;
     name: string;
     x: number;
@@ -16,13 +16,26 @@ interface Player {
     memo: string;
 }
 
-interface Structure {
+export interface Structure {
     id: string;
     label: string;
     x: number;   // 중심 X
     y: number;   // 중심 Y
     size: number; // 4=4×4 건물, 1=깃발
     type: "hq" | "trap" | "flag";
+}
+
+export interface SimChanges {
+    playersAdded: Player[];
+    playersUpdated: Player[];
+    playersDeleted: string[];
+    structuresUpserted: Structure[];
+    structuresDeleted: string[];
+}
+
+interface KdhGridProps {
+    mode?: "live" | "simulation";
+    onSimApply?: (players: Player[], structures: Structure[], changes: SimChanges) => Promise<void>;
 }
 
 const DEFAULT_STRUCTURES: Structure[] = [
@@ -38,9 +51,9 @@ const INIT_PLAYERS: Player[] = [
     { id: "p3", name: "Nightmare1870", x: 748, y: 750, memo: "" },
 ];
 
-/* 그리드 범위 — 연맹원 100명 이상 수용 */
-const MIN_X = 715, MAX_X = 765;
-const MIN_Y = 735, MAX_Y = 780;
+/* 그리드 범위 — 연맹원 100명 이상 수용 (2배 확장) */
+const MIN_X = 689, MAX_X = 841;
+const MIN_Y = 712, MAX_Y = 804;
 const COLS = MAX_X - MIN_X + 1;
 const ROWS = MAX_Y - MIN_Y + 1;
 const CELL = 40; // 마름모 셀 크기
@@ -75,13 +88,22 @@ function fromIso(px: number, py: number) {
 /* ═══════════════════════════════════════════
    KdhGrid 컴포넌트
    ═══════════════════════════════════════════ */
-export default function KdhGrid() {
+export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}) {
+    const isSim = mode === "simulation";
     const { user } = useAuth();
     const { t } = useLocale();
     const isAdmin = user?.role === "admin";
 
     const [players, setPlayers] = useState<Player[]>(INIT_PLAYERS);
     const [loading, setLoading] = useState(true);
+
+    /* 시뮬레이션 모드: 초기 스냅샷 (diff 계산용) */
+    const [simInitialPlayers, setSimInitialPlayers] = useState<Player[] | null>(null);
+    const [simInitialStructures, setSimInitialStructures] = useState<Structure[] | null>(null);
+    /* 시뮬레이션 임시저장 */
+    const SIM_SNAP_KEY = "kdh-sim-snapshot";
+    const [simLastSaved, setSimLastSaved] = useState<Date | null>(null);
+    const [simSnapRestored, setSimSnapRestored] = useState(false);
 
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -117,10 +139,25 @@ export default function KdhGrid() {
     const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq"; gx: number; gy: number } | null>(null);
     /* 연맹원 이동 모드 — 더블클릭으로 활성화, 드래그로 이동 */
     const [movingPlayerId, setMovingPlayerId] = useState<string | null>(null);
-    const movingPlayerIdRef = useRef<string | null>(null); // 이벤트 핸들러에서 stale closure 방지
+    const movingPlayerIdRef = useRef<string | null>(null);
     const setMovingPlayerIdSynced = (id: string | null) => {
         movingPlayerIdRef.current = id;
         setMovingPlayerId(id);
+    };
+    /* 구조물 이동 모드 — 더블클릭으로 활성화, 드래그로 이동 */
+    const [movingStructureId, setMovingStructureId] = useState<string | null>(null);
+    const movingStructureIdRef = useRef<string | null>(null);
+    const setMovingStructureIdSynced = (id: string | null) => {
+        movingStructureIdRef.current = id;
+        setMovingStructureId(id);
+    };
+    const lastStructClickRef = useRef<{ id: string; time: number } | null>(null);
+    const structDragRef = useRef<{ id: string; origGx: number; origGy: number; size: number; type: "hq" | "trap" | "flag"; label: string } | null>(null);
+    const [dragStructPos, setDragStructPos] = useState<{ id: string; gx: number; gy: number } | null>(null);
+    const dragStructPosRef = useRef<{ id: string; gx: number; gy: number } | null>(null);
+    const setDragStructPosSynced = (pos: { id: string; gx: number; gy: number } | null) => {
+        dragStructPosRef.current = pos;
+        setDragStructPos(pos);
     };
     /* 더블클릭 후 팝업이 열리지 않도록 억제 */
     const suppressPopupRef = useRef(false);
@@ -220,41 +257,44 @@ export default function KdhGrid() {
     /* 구조물 삭제 — localStorage + Supabase 동시 저장 */
     const deleteStructure = async (id: string) => {
         if (!window.confirm("해당 건물을 삭제하시겠어요?")) return;
-        // ① Supabase 먼저 삭제
-        const { error } = await supabase.from("kdh_structures").delete().eq("struct_id", id);
-        if (error) {
-            console.error("구조물 삭제 실패:", error.message);
-            alert(`삭제 실패: ${error.message}\n\nSupabase SQL Editor에서 아래를 실행해주세요:\nDROP POLICY IF EXISTS "allow_auth_write" ON kdh_structures;\nCREATE POLICY "allow_all_write" ON kdh_structures FOR ALL USING (true) WITH CHECK (true);`);
-            return;
+        if (!isSim) {
+            // ① Supabase 먼저 삭제
+            const { error } = await supabase.from("kdh_structures").delete().eq("struct_id", id);
+            if (error) {
+                console.error("구조물 삭제 실패:", error.message);
+                alert(`삭제 실패: ${error.message}\n\nSupabase SQL Editor에서 아래를 실행해주세요:\nDROP POLICY IF EXISTS "allow_auth_write" ON kdh_structures;\nCREATE POLICY "allow_all_write" ON kdh_structures FOR ALL USING (true) WITH CHECK (true);`);
+                return;
+            }
         }
-        // ② Supabase 성공 → 로컬 + localStorage 반영
+        // ② 로컬 반영 (시뮬레이션: localStorage skip)
         setStructures(prev => {
             const next = prev.filter(s => s.id !== id);
-            saveStructures(next);
+            if (!isSim) saveStructures(next);
             return next;
         });
     };
 
     /* 구조물 Upsert — Supabase 먼저, 성공 시 로컬 반영 */
     const upsertStructure = async (s: Structure) => {
-        // ① Supabase 저장
-        const { error } = await supabase.from("kdh_structures").upsert({
-            struct_id: s.id,
-            struct_type: s.type,
-            label: s.label,
-            x: s.x,
-            y: s.y,
-            size: s.size,
-        }, { onConflict: "struct_id" });
-        if (error) {
-            console.error("구조물 저장 실패:", error.message);
-            // Supabase 실패해도 localStorage에는 저장 (오프라인 fallback)
+        if (!isSim) {
+            // ① Supabase 저장
+            const { error } = await supabase.from("kdh_structures").upsert({
+                struct_id: s.id,
+                struct_type: s.type,
+                label: s.label,
+                x: s.x,
+                y: s.y,
+                size: s.size,
+            }, { onConflict: "struct_id" });
+            if (error) {
+                console.error("구조물 저장 실패:", error.message);
+            }
         }
-        // ② 로컬 + localStorage 반영 (Supabase 실패해도 UI는 즉시 반영)
+        // ② 로컬 반영 (시뮬레이션: localStorage skip)
         setStructures(prev => {
             const exists = prev.find(p => p.id === s.id);
             const next = exists ? prev.map(p => p.id === s.id ? s : p) : [...prev, s];
-            saveStructures(next);
+            if (!isSim) saveStructures(next);
             return next;
         });
         return true;
@@ -262,6 +302,17 @@ export default function KdhGrid() {
 
     useEffect(() => { fetchPlayers(); fetchStructures(); }, [fetchPlayers, fetchStructures]);
 
+    /* 시뮬레이션 모드: 로딩 완료 후 초기 스냅샷 캡처 */
+    useEffect(() => {
+        if (isSim && !loading && simInitialPlayers === null) {
+            setSimInitialPlayers(structuredClone(players));
+        }
+    }, [isSim, loading, players, simInitialPlayers]);
+    useEffect(() => {
+        if (isSim && !loading && simInitialStructures === null) {
+            setSimInitialStructures(structuredClone(structures));
+        }
+    }, [isSim, loading, structures, simInitialStructures]);
 
     /* 퍼지 검색: 부분 일치 + 순서 유지 서브시퀀스 */
     const searchMatches = useMemo(() => {
@@ -379,11 +430,20 @@ export default function KdhGrid() {
     const onMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return;
         if (playerDragRef.current) return;
-        // 항상 클릭 시작 위치 기록 (structCursor 클릭 판정에 필요)
+        if (structDragRef.current) return;
         dragStart.current = { x: e.clientX, y: e.clientY };
-        if (structCursor) return; // 구조물 커서 모드 → 패닝은 막음
+        if (structCursor) return;
+        // 구조물 이동 모드 중 → Pan 금지 + 드래그 시작
+        if (movingStructureIdRef.current) {
+            const ms = structures.find(s => s.id === movingStructureIdRef.current);
+            if (ms && ms.type !== "flag") {
+                structDragRef.current = { id: ms.id, origGx: ms.x, origGy: ms.y, size: ms.size, type: ms.type, label: ms.label };
+                setDragStructPosSynced({ id: ms.id, gx: ms.x, gy: ms.y });
+                suppressPopupRef.current = true;
+            }
+            return;
+        }
         if (movingPlayerIdRef.current) {
-            // 이동 모드 중 → Pan 금지 + 컨테이너 레벨 fallback 드래그 시작
             const mp = players.find(p => p.id === movingPlayerIdRef.current);
             if (mp) {
                 playerDragRef.current = {
@@ -396,25 +456,29 @@ export default function KdhGrid() {
                 setDragGamePosSynced({ id: mp.id, gx: mp.x, gy: mp.y });
                 suppressPopupRef.current = true;
             }
-            return; // Pan 절대 금지
+            return;
         }
         isDragging.current = true;
         panStart.current = { ...pan };
     };
     const onMouseMove = (e: React.MouseEvent) => {
-        // 구조물 커서 모드: 마우스 위치 → 미리보기 업데이트
         if (structCursor) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) setStructCursor(prev => prev ? { ...prev, gx: game.gx, gy: game.gy } : null);
             return;
         }
-        // 플레이어 드래그 중: 위치 업데이트
+        // 구조물 드래그 중: 위치 업데이트
+        if (structDragRef.current) {
+            const game = screenToGame(e.clientX, e.clientY);
+            if (game) setDragStructPosSynced({ id: structDragRef.current.id, ...game });
+            return;
+        }
         if (playerDragRef.current) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) setDragGamePosSynced({ id: playerDragRef.current.id, ...game });
             return;
         }
-        // 이동 모드 중이면 Pan 절대 금지 (ref 시용으로 stale closure 모두 차단)
+        if (movingStructureIdRef.current) return; // 구조물 이동 모드 중 Pan 금지
         if (movingPlayerIdRef.current) return;
         if (!isDragging.current) return;
         setPan({
@@ -423,33 +487,57 @@ export default function KdhGrid() {
         });
     };
     const onMouseUp = async (e: React.MouseEvent) => {
+        // 구조물 드래그 종료
+        if (structDragRef.current && dragStructPosRef.current) {
+            const { id, origGx, origGy, size, type, label } = structDragRef.current;
+            const { gx, gy } = dragStructPosRef.current;
+            const origStruct = structures.find(s => s.id === id);
+            if (origStruct && (origStruct.x !== gx || origStruct.y !== gy)) {
+                const selfCells = new Set(getStructCells(origGx, origGy, size));
+                const targetCells = getStructCells(gx, gy, size);
+                const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
+                if (hasConflict) {
+                    alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
+                } else {
+                    await upsertStructure({ id, label, x: gx, y: gy, size, type });
+                }
+            }
+            structDragRef.current = null;
+            dragStructPosRef.current = null;
+            setDragStructPos(null);
+            setMovingStructureIdSynced(null);
+            isDragging.current = false;
+            return;
+        }
         // 플레이어 드래그 종료
         if (playerDragRef.current && dragGamePosRef.current) {
             const { id } = playerDragRef.current;
-            const { gx, gy } = dragGamePosRef.current; // ref로 항상 최신값 읽기
+            const { gx, gy } = dragGamePosRef.current;
             const origPlayer = players.find(p => p.id === id);
             if (origPlayer && (origPlayer.x !== gx || origPlayer.y !== gy)) {
-                // 자신의 셀을 제외한 겨침 체크
                 const selfCells = new Set(getMemberCells(origPlayer.x, origPlayer.y));
                 const targetCells = getMemberCells(gx, gy);
                 const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
                 if (hasConflict) {
                     alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
                 } else {
-                    const { error, count } = await supabase
-                        .from("kdh_players")
-                        .update({ x: gx, y: gy })
-                        .eq("id", Number(id))
-                        .select();
-                    if (error) {
-                        console.error("❌ 좌표 저장 실패:", error);
-                        alert(`⚠️ 저장 실패: ${error.message}\nSupabase UPDATE 정책을 확인해주세요.`);
-                    } else {
+                    if (isSim) {
                         setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+                    } else {
+                        const { error } = await supabase
+                            .from("kdh_players")
+                            .update({ x: gx, y: gy })
+                            .eq("id", Number(id))
+                            .select();
+                        if (error) {
+                            console.error("❌ 좌표 저장 실패:", error);
+                            alert(`⚠️ 저장 실패: ${error.message}\nSupabase UPDATE 정책을 확인해주세요.`);
+                        } else {
+                            setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+                        }
                     }
                 }
             }
-            // 드래그 완료 → 이동 모드 해제
             playerDragRef.current = null;
             dragGamePosRef.current = null;
             setDragGamePos(null);
@@ -458,7 +546,6 @@ export default function KdhGrid() {
         }
         const dx = Math.abs(e.clientX - dragStart.current.x);
         const dy = Math.abs(e.clientY - dragStart.current.y);
-        // 구조물 커서 클릭 → 배치 확정
         if (structCursor && isAdmin && dx < 5 && dy < 5) {
             const cells = getStructCells(structCursor.gx, structCursor.gy, 3);
             if (cells.some(c => occupiedCells.has(c))) {
@@ -475,14 +562,12 @@ export default function KdhGrid() {
             isDragging.current = false;
             return;
         }
-        // 더블클릭 후 팝업 억제 플래그 확인
         if (suppressPopupRef.current) {
             suppressPopupRef.current = false;
             isDragging.current = false;
             return;
         }
-        // 셀 클릭 → 배치 타입 선택 팝업 (이동 모드 중이면 팝업 생략)
-        if (isAdmin && !isDragEditMode && !structCursor && !movingPlayerId && dx < 5 && dy < 5) {
+        if (isAdmin && !isDragEditMode && !structCursor && !movingPlayerId && !movingStructureId && dx < 5 && dy < 5) {
             const game = screenToGame(e.clientX, e.clientY);
             if (game) {
                 const existing = players.find(p =>
@@ -497,7 +582,9 @@ export default function KdhGrid() {
             isDragging.current = false;
             return;
         }
-        // 이동 모드 중 빈 공간 클릭 → 이동 모드 해제
+        if (movingStructureIdRef.current && dx < 5 && dy < 5) {
+            setMovingStructureIdSynced(null);
+        }
         if (movingPlayerIdRef.current && dx < 5 && dy < 5) {
             setMovingPlayerIdSynced(null);
         }
@@ -512,6 +599,11 @@ export default function KdhGrid() {
                 setMovingPlayerId(null);
                 playerDragRef.current = null;
                 setDragGamePos(null);
+                // 구조물 이동 모드도 취소
+                movingStructureIdRef.current = null;
+                setMovingStructureId(null);
+                structDragRef.current = null;
+                setDragStructPos(null);
             }
         };
         document.addEventListener("keydown", handler);
@@ -523,12 +615,16 @@ export default function KdhGrid() {
         if (!clickName.trim() || !placePopup) return;
         const cells = getMemberCells(placePopup.gx, placePopup.gy);
         if (cells.some(c => occupiedCells.has(c))) { alert("⚠️ 해당 위치에 이미 팀원/건물이 있습니다!"); return; }
-        const { data, error } = await supabase
-            .from("kdh_players")
-            .insert({ name: clickName.trim(), x: placePopup.gx, y: placePopup.gy, memo: clickMemo.trim() || null })
-            .select();
-        if (!error && data?.[0]) {
-            setPlayers(prev => [...prev, { id: String(data[0].id), name: data[0].name, x: data[0].x, y: data[0].y, memo: data[0].memo || "" }]);
+        if (isSim) {
+            setPlayers(prev => [...prev, { id: `sim_${Date.now()}`, name: clickName.trim(), x: placePopup.gx, y: placePopup.gy, memo: clickMemo.trim() }]);
+        } else {
+            const { data, error } = await supabase
+                .from("kdh_players")
+                .insert({ name: clickName.trim(), x: placePopup.gx, y: placePopup.gy, memo: clickMemo.trim() || null })
+                .select();
+            if (!error && data?.[0]) {
+                setPlayers(prev => [...prev, { id: String(data[0].id), name: data[0].name, x: data[0].x, y: data[0].y, memo: data[0].memo || "" }]);
+            }
         }
         setPlacePopup(null); setClickName(""); setClickMemo("");
     };
@@ -546,12 +642,22 @@ export default function KdhGrid() {
         return () => el.removeEventListener("wheel", onWheel);
     }, [onWheel]);
 
-    /* ── 터치 Pan + 핌치 Zoom ── */
+    /* ── 터치 Pan + 핑치 Zoom ── */
     const onTouchStart = (e: React.TouchEvent) => {
         if (e.touches.length === 1) {
             dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            // 구조물 이동 모드 중 → Pan 금지 + 구조물 드래그 시작
+            if (movingStructureIdRef.current) {
+                const ms = structures.find(s => s.id === movingStructureIdRef.current);
+                if (ms && ms.type !== "flag") {
+                    structDragRef.current = { id: ms.id, origGx: ms.x, origGy: ms.y, size: ms.size, type: ms.type, label: ms.label };
+                    setDragStructPosSynced({ id: ms.id, gx: ms.x, gy: ms.y });
+                    suppressPopupRef.current = true;
+                }
+                isDragging.current = false; // Pan 절대 금지
+                return;
+            }
             if (movingPlayerIdRef.current) {
-                // 이동 모드 중 → 터치로 드래그 시작 (Pan 금지)
                 const mp = players.find(p => p.id === movingPlayerIdRef.current);
                 if (mp) {
                     playerDragRef.current = {
@@ -564,7 +670,7 @@ export default function KdhGrid() {
                     setDragGamePos({ id: mp.id, gx: mp.x, gy: mp.y });
                     suppressPopupRef.current = true;
                 }
-                return; // Pan 금지
+                return;
             }
             isDragging.current = true;
             panStart.current = { ...pan };
@@ -576,13 +682,19 @@ export default function KdhGrid() {
         }
     };
     const onTouchMove = (e: React.TouchEvent) => {
-        // 터치 중 플레이어 드래그 중이면 위치 업데이트
+        // 구조물 드래그 중: 위치 업데이트
+        if (e.touches.length === 1 && structDragRef.current) {
+            const game = screenToGame(e.touches[0].clientX, e.touches[0].clientY);
+            if (game) setDragStructPosSynced({ id: structDragRef.current.id, ...game });
+            return;
+        }
+        if (movingStructureIdRef.current) return; // 구조물 이동 모드 중 Pan 절대 금지
+        // 플레이어 드래그 중: 위치 업데이트
         if (e.touches.length === 1 && playerDragRef.current) {
             const game = screenToGame(e.touches[0].clientX, e.touches[0].clientY);
             if (game) setDragGamePosSynced({ id: playerDragRef.current.id, ...game });
             return;
         }
-        // 이동 모드 중Pan 절대 금지
         if (movingPlayerIdRef.current) return;
         if (e.touches.length === 1 && isDragging.current) {
             setPan({
@@ -600,21 +712,47 @@ export default function KdhGrid() {
             lastTouchDist.current = dist;
         }
     };
+
     const onTouchEnd = () => {
         isDragging.current = false;
         lastTouchDist.current = 0;
-        // 터치 드래그 종료 시 플레이어 이동도 종료
+        // 구조물 드래그 종료 시 저장
+        if (structDragRef.current && dragStructPosRef.current) {
+            const { id, origGx, origGy, size, type, label } = structDragRef.current;
+            const { gx, gy } = dragStructPosRef.current;
+            const origStruct = structures.find(s => s.id === id);
+            if (origStruct && (origStruct.x !== gx || origStruct.y !== gy)) {
+                const selfCells = new Set(getStructCells(origGx, origGy, size));
+                const targetCells = getStructCells(gx, gy, size);
+                const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
+                if (!hasConflict) {
+                    upsertStructure({ id, label, x: gx, y: gy, size, type });
+                } else {
+                    alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
+                }
+            }
+            structDragRef.current = null;
+            dragStructPosRef.current = null;
+            setDragStructPos(null);
+            setMovingStructureIdSynced(null);
+            return;
+        }
+        // 플레이어 드래그 종료 시 저장
         if (playerDragRef.current && dragGamePosRef.current) {
             const { id } = playerDragRef.current;
-            const { gx, gy } = dragGamePosRef.current; // ref로 최신값 읽기
+            const { gx, gy } = dragGamePosRef.current;
             const origPlayer = players.find(p => p.id === id);
             if (origPlayer && (origPlayer.x !== gx || origPlayer.y !== gy)) {
                 const selfCells = new Set(getMemberCells(origPlayer.x, origPlayer.y));
                 const targetCells = getMemberCells(gx, gy);
                 const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
                 if (!hasConflict) {
-                    supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id))
-                        .then(({ error }) => { if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p)); });
+                    if (isSim) {
+                        setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p));
+                    } else {
+                        supabase.from("kdh_players").update({ x: gx, y: gy }).eq("id", parseInt(id))
+                            .then(({ error }) => { if (!error) setPlayers(prev => prev.map(p => p.id === id ? { ...p, x: gx, y: gy } : p)); });
+                    }
                 } else {
                     alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
                 }
@@ -632,11 +770,15 @@ export default function KdhGrid() {
         const x = parseInt(fX);
         const y = parseInt(fY);
         if (!name || isNaN(x) || isNaN(y)) return;
-        const { error } = await supabase.from("kdh_players").insert({ name, x, y, memo: fMemo.trim() || null });
-        if (error) { alert(t.kdhPage.addFailed + error.message); return; }
+        if (isSim) {
+            setPlayers(prev => [...prev, { id: `sim_${Date.now()}`, name, x, y, memo: fMemo.trim() }]);
+        } else {
+            const { error } = await supabase.from("kdh_players").insert({ name, x, y, memo: fMemo.trim() || null });
+            if (error) { alert(t.kdhPage.addFailed + error.message); return; }
+            fetchPlayers();
+        }
         setFName(""); setFX(""); setFY(""); setFMemo("");
         setShowModal(false);
-        fetchPlayers();
     };
 
     /* 2×2 좌표 검증: X 2개 × Y 2개가 연속 블록인지 확인 → x_min, y_min 반환 */
@@ -663,33 +805,45 @@ export default function KdhGrid() {
             alert("올바른 2×2 좌표 4개를 입력하세요.\n(연속된 X 2개 × Y 2개 조합)");
             return;
         }
-        const { error } = await supabase.from("kdh_players").insert({
-            name, x: result.x, y: result.y, memo: coordMemo.trim() || null,
-        });
-        if (error) { alert(t.kdhPage.addFailed + error.message); return; }
+        if (isSim) {
+            setPlayers(prev => [...prev, { id: `sim_${Date.now()}`, name, x: result.x, y: result.y, memo: coordMemo.trim() }]);
+        } else {
+            const { error } = await supabase.from("kdh_players").insert({
+                name, x: result.x, y: result.y, memo: coordMemo.trim() || null,
+            });
+            if (error) { alert(t.kdhPage.addFailed + error.message); return; }
+            fetchPlayers();
+        }
         setCoordName(""); setCoordMemo("");
         setCoordPairs([{ x: "", y: "" }, { x: "", y: "" }, { x: "", y: "" }, { x: "", y: "" }]);
         setShowCoordModal(false);
-        fetchPlayers();
     };
 
     /* 유저 삭제 (Supabase) */
     const deletePlayer = async (id: string) => {
         if (!window.confirm(t.kdhPage.deleteConfirm)) return;
-        const { error } = await supabase.from("kdh_players").delete().eq("id", parseInt(id));
-        if (error) { alert(t.kdhPage.deleteFailed + error.message); return; }
-        fetchPlayers();
+        if (isSim) {
+            setPlayers(prev => prev.filter(p => p.id !== id));
+        } else {
+            const { error } = await supabase.from("kdh_players").delete().eq("id", parseInt(id));
+            if (error) { alert(t.kdhPage.deleteFailed + error.message); return; }
+            fetchPlayers();
+        }
     };
 
     /* 유저 수정 (Supabase) */
     const updatePlayer = async (id: string, name: string, memo: string) => {
         if (!name.trim()) return;
-        const { error } = await supabase
-            .from("kdh_players")
-            .update({ name: name.trim(), memo: memo.trim() || null })
-            .eq("id", parseInt(id));
-        if (error) { alert("수정 실패: " + error.message); return; }
-        setPlayers(prev => prev.map(p => p.id === id ? { ...p, name: name.trim(), memo: memo.trim() } : p));
+        if (isSim) {
+            setPlayers(prev => prev.map(p => p.id === id ? { ...p, name: name.trim(), memo: memo.trim() } : p));
+        } else {
+            const { error } = await supabase
+                .from("kdh_players")
+                .update({ name: name.trim(), memo: memo.trim() || null })
+                .eq("id", parseInt(id));
+            if (error) { alert("수정 실패: " + error.message); return; }
+            setPlayers(prev => prev.map(p => p.id === id ? { ...p, name: name.trim(), memo: memo.trim() } : p));
+        }
         setPlacePopup(null);
     };
 
@@ -731,10 +885,18 @@ export default function KdhGrid() {
         }
         if (toInsert.length === 0) { alert(t.kdhPage.noValidData); return; }
         if (!window.confirm(t.kdhPage.uploadConfirm.replace("{n}", String(toInsert.length)))) return;
-        const { error } = await supabase.from("kdh_players").insert(toInsert);
-        if (error) { alert(t.kdhPage.uploadFailed + error.message); return; }
-        alert(t.kdhPage.uploadSuccess.replace("{n}", String(toInsert.length)));
-        fetchPlayers();
+        if (isSim) {
+            const newPlayers = toInsert.map((p, i) => ({
+                id: `sim_csv_${Date.now()}_${i}`, name: p.name, x: p.x, y: p.y, memo: p.memo || "",
+            }));
+            setPlayers(prev => [...prev, ...newPlayers]);
+            alert(t.kdhPage.uploadSuccess.replace("{n}", String(toInsert.length)));
+        } else {
+            const { error } = await supabase.from("kdh_players").insert(toInsert);
+            if (error) { alert(t.kdhPage.uploadFailed + error.message); return; }
+            alert(t.kdhPage.uploadSuccess.replace("{n}", String(toInsert.length)));
+            fetchPlayers();
+        }
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -838,9 +1000,146 @@ export default function KdhGrid() {
         return `M${cx},${cy - hh} L${cx + hw},${cy} L${cx},${cy + hh} L${cx - hw},${cy} Z`;
     };
 
+    /* ── 시뮬레이션: 변경분 계산 ── */
+    const computeChanges = useCallback((): SimChanges | null => {
+        if (!simInitialPlayers || !simInitialStructures) return null;
+        const initPMap = new Map(simInitialPlayers.map(p => [p.id, p]));
+        const curPMap = new Map(players.map(p => [p.id, p]));
+        const playersAdded = players.filter(p => !initPMap.has(p.id));
+        const playersDeleted = simInitialPlayers.filter(p => !curPMap.has(p.id)).map(p => p.id);
+        const playersUpdated = players.filter(p => {
+            const orig = initPMap.get(p.id);
+            return orig && (orig.x !== p.x || orig.y !== p.y || orig.name !== p.name || orig.memo !== p.memo);
+        });
+        const initSMap = new Map(simInitialStructures.map(s => [s.id, s]));
+        const curSMap = new Map(structures.map(s => [s.id, s]));
+        const structuresUpserted = structures.filter(s => {
+            const orig = initSMap.get(s.id);
+            return !orig || orig.x !== s.x || orig.y !== s.y;
+        });
+        const structuresDeleted = simInitialStructures.filter(s => !curSMap.has(s.id)).map(s => s.id);
+        return { playersAdded, playersUpdated, playersDeleted, structuresUpserted, structuresDeleted };
+    }, [players, structures, simInitialPlayers, simInitialStructures]);
+
+    const simChanges = isSim ? computeChanges() : null;
+    const simChangeCount = simChanges
+        ? simChanges.playersAdded.length + simChanges.playersUpdated.length + simChanges.playersDeleted.length
+        + simChanges.structuresUpserted.length + simChanges.structuresDeleted.length
+        : 0;
+
+    const resetSimulation = () => {
+        if (!simInitialPlayers || !simInitialStructures) return;
+        if (!window.confirm("시뮬레이션 변경 사항을 모두 초기화하시겠습니까?")) return;
+        setPlayers(structuredClone(simInitialPlayers));
+        setStructures(structuredClone(simInitialStructures));
+    };
+
+    /* ── 시뮬레이션 임시저장 ── */
+    const saveSimSnapshot = useCallback(() => {
+        try {
+            const snap = { players, structures, savedAt: new Date().toISOString() };
+            localStorage.setItem(SIM_SNAP_KEY, JSON.stringify(snap));
+            setSimLastSaved(new Date());
+        } catch (e) {
+            console.error("임시저장 실패:", e);
+            alert("임시저장에 실패했습니다.");
+        }
+    }, [players, structures]);
+
+    const clearSimSnapshot = useCallback(() => {
+        localStorage.removeItem(SIM_SNAP_KEY);
+        setSimLastSaved(null);
+    }, []);
+
+    /* 시뮬레이션 로딩 완료 후 임시저장 복원 제안 */
+    useEffect(() => {
+        if (!isSim || loading || simSnapRestored) return;
+        setSimSnapRestored(true);
+        const raw = localStorage.getItem(SIM_SNAP_KEY);
+        if (!raw) return;
+        try {
+            const snap = JSON.parse(raw) as { players: Player[]; structures: Structure[]; savedAt: string };
+            const savedAt = new Date(snap.savedAt);
+            const timeStr = savedAt.toLocaleString("ko-KR");
+            if (window.confirm(`💾 임시저장된 데이터가 있습니다.\n저장 시각: ${timeStr}\n\n복원하시겠습니까?`)) {
+                setPlayers(snap.players);
+                setStructures(snap.structures);
+                setSimLastSaved(savedAt);
+            }
+        } catch (e) {
+            console.error("임시저장 복원 실패:", e);
+            localStorage.removeItem(SIM_SNAP_KEY);
+        }
+    }, [isSim, loading, simSnapRestored, setPlayers, setStructures]);
+
+    const handleSimApply = async () => {
+        if (!simChanges || simChangeCount === 0) { alert("변경 사항이 없습니다."); return; }
+        if (!window.confirm(`${simChangeCount}건의 변경 사항을 실제 데이터에 적용하시겠습니까?`)) return;
+        if (onSimApply) {
+            await onSimApply(players, structures, simChanges);
+            // 적용 후 스냅샷 갱신 + 임시저장 삭제
+            setSimInitialPlayers(structuredClone(players));
+            setSimInitialStructures(structuredClone(structures));
+            clearSimSnapshot();
+        }
+    };
+
     return (
 
         <>
+            {/* ── 시뮬레이션 모드 배너 ── */}
+            {isSim && (
+                <div className="mb-3 rounded-xl px-4 py-2.5"
+                    style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.35)" }}>
+                    {/* 1줄: SIMULATION 뱃지 + 변경 건수 + 버튼들 */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-extrabold tracking-widest uppercase px-2 py-0.5 rounded"
+                                style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24" }}>SIMULATION</span>
+                            <span className="text-[11px] text-amber-200/70">
+                                {simChangeCount > 0 ? `${simChangeCount}건 변경 대기 중` : "변경 사항 없음"}
+                            </span>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            {/* 임시저장 */}
+                            <button onClick={saveSimSnapshot}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 active:scale-95"
+                                style={{ background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }}
+                                title="현재 시뮬레이션 상태를 브라우저에 임시저장">
+                                💾 임시저장
+                            </button>
+                            {/* 초기화 */}
+                            <button onClick={resetSimulation}
+                                className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 active:scale-95"
+                                style={{ background: "rgba(71,85,105,0.4)", border: "1px solid rgba(71,85,105,0.5)", color: "#94a3b8" }}>
+                                ↺ 초기화
+                            </button>
+                            {/* 적용 */}
+                            <button onClick={handleSimApply} disabled={simChangeCount === 0}
+                                className="px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                                style={{
+                                    background: "linear-gradient(135deg,#f59e0b,#ef4444)", color: "#fff",
+                                    boxShadow: simChangeCount > 0 ? "0 0 12px rgba(245,158,11,0.4)" : "none"
+                                }}>
+                                ✅ 실제 적용 ({simChangeCount})
+                            </button>
+                        </div>
+                    </div>
+                    {/* 2줄: 마지막 임시저장 시각 */}
+                    {simLastSaved && (
+                        <div className="mt-1.5 flex items-center justify-between">
+                            <span className="text-[10px] text-amber-300/50">
+                                💾 마지막 임시저장: {simLastSaved.toLocaleString("ko-KR")}
+                            </span>
+                            <button onClick={() => { if (window.confirm("임시저장 데이터를 삭제하시겠습니까?")) clearSimSnapshot(); }}
+                                className="text-[10px] text-slate-600 hover:text-red-400 transition-colors">
+                                🗑️ 삭제
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* ── 카드 래퍼 ── */}
             <div
                 className="mb-4 rounded-2xl border overflow-hidden"
@@ -1146,18 +1445,65 @@ export default function KdhGrid() {
                         {/* 건물 오버레이 — 특수건물 전부 노란색(amber) */}
                         {structures.map((s: Structure) => {
                             const isFlag = s.type === "flag";
-                            const center = toIso(s.x, s.y);
-                            // 툴팁 텍스트 생성
+                            const isMovingThis = movingStructureId === s.id;
+                            const isDraggingThis = dragStructPos?.id === s.id;
+                            // 드래그 중이면 dragStructPos 위치로 오버라이드
+                            const activeGx = isDraggingThis ? (dragStructPos?.gx ?? s.x) : s.x;
+                            const activeGy = isDraggingThis ? (dragStructPos?.gy ?? s.y) : s.y;
+                            const center = toIso(activeGx, activeGy);
                             let tipDetail = `${s.size}×${s.size} 건물`;
                             if (isFlag) tipDetail = "깃발 (1×1)";
                             return (
                                 <g key={s.id}
                                     onMouseEnter={e => { setHoveredStructureId(s.id); showTip(s.label, `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
                                     onMouseLeave={() => { setHoveredStructureId(null); hideTip(); }}
-                                    style={{ cursor: isAdmin ? "pointer" : "default" }}
+                                    onMouseDown={isAdmin && !isFlag ? (e) => {
+                                        const now = Date.now();
+                                        const last = lastStructClickRef.current;
+                                        if (last?.id === s.id && now - last.time < 350) {
+                                            // ✨ 더블클릭 → 이동 모드 토글
+                                            e.stopPropagation();
+                                            suppressPopupRef.current = true;
+                                            setPlacePopup(null);
+                                            const newId = movingStructureIdRef.current === s.id ? null : s.id;
+                                            movingStructureIdRef.current = newId;
+                                            setMovingStructureId(newId);
+                                            lastStructClickRef.current = null;
+                                            hideTip();
+                                        } else if (movingStructureIdRef.current === s.id) {
+                                            // 🟡 이동 모드 중 — 드래그 시작
+                                            e.stopPropagation();
+                                            suppressPopupRef.current = true;
+                                            hideTip();
+                                            dragStart.current = { x: e.clientX, y: e.clientY };
+                                            structDragRef.current = { id: s.id, origGx: s.x, origGy: s.y, size: s.size, type: s.type, label: s.label };
+                                            setDragStructPosSynced({ id: s.id, gx: s.x, gy: s.y });
+                                            lastStructClickRef.current = { id: s.id, time: now };
+                                        } else {
+                                            lastStructClickRef.current = { id: s.id, time: now };
+                                        }
+                                    } : undefined}
+                                    style={{ cursor: isAdmin && !isFlag ? (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer") : "default" }}
                                 >
+                                    {/* 이동 모드 — amber 펄스 테두리 */}
+                                    {isMovingThis && !isFlag && (
+                                        <>
+                                            <path d={diamondPath(center.px, center.py, s.size + 0.8)} fill="none"
+                                                stroke="#f59e0b" strokeWidth={2} opacity={0}>
+                                                <animate attributeName="opacity" values="0;0.8;0" dur="1s" repeatCount="indefinite" />
+                                            </path>
+                                            <path d={diamondPath(center.px, center.py, s.size + 0.4)} fill="none"
+                                                stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="6 2"
+                                                opacity={0.9} />
+                                            {/* 이름 위 상태 뱃지 */}
+                                            <text x={center.px} y={center.py - (s.size * 10) - 6}
+                                                fill="#fcd34d" fontSize={6.5} fontWeight={700}
+                                                textAnchor="middle" dominantBaseline="middle"
+                                                style={{ filter: "drop-shadow(0 0 3px rgba(245,158,11,0.8))" }}
+                                            >✥ 드래그로 이동</text>
+                                        </>
+                                    )}
                                     {isFlag ? (
-                                        /* 깃발: 작은 다이아몬드 — 노란색 */
                                         <path
                                             d={diamondPath(center.px, center.py, 1.2)}
                                             fill="rgba(251,191,36,0.4)"
@@ -1165,15 +1511,14 @@ export default function KdhGrid() {
                                             strokeWidth={2}
                                         />
                                     ) : (
-                                        /* 특수건물(HQ, trap): 노란색 계열 */
                                         <>
                                             <path
                                                 d={diamondPath(center.px, center.py, s.size)}
-                                                fill="rgba(251,191,36,0.18)"
-                                                stroke="#f59e0b"
-                                                strokeWidth={2}
+                                                fill={isDraggingThis ? "rgba(251,191,36,0.35)" : isMovingThis ? "rgba(251,191,36,0.25)" : "rgba(251,191,36,0.18)"}
+                                                stroke={isDraggingThis ? "#fbbf24" : "#f59e0b"}
+                                                strokeWidth={isMovingThis ? 2.5 : 2}
+                                                strokeDasharray={isDraggingThis ? "6 2" : undefined}
                                             />
-                                            {/* HQ 추가 강조 링 */}
                                             {s.type === "hq" && <path d={diamondPath(center.px, center.py, s.size)} fill="none" stroke="rgba(251,191,36,0.5)" strokeWidth={4} />}
                                         </>
                                     )}
@@ -1181,7 +1526,13 @@ export default function KdhGrid() {
                                         fill="#fde68a"
                                         fontSize={isFlag ? 9 : 10} fontWeight={700}
                                         textAnchor="middle" dominantBaseline="middle"
-                                    >{s.label}</text>
+                                    >
+                                        {s.type === "hq"
+                                            ? t.kdhPage.structHq
+                                            : s.id === "trap1"
+                                                ? t.kdhPage.structTrap1
+                                                : t.kdhPage.structTrap2}
+                                    </text>
                                 </g>
                             );
                         })}
@@ -1602,16 +1953,25 @@ export default function KdhGrid() {
                                                 placePopup.gy >= p.y && placePopup.gy <= p.y + 1
                                             );
                                             return (
-                                                <button onClick={() => existing ? updatePlayer(existing.id, clickName, clickMemo) : addMemberPlace()}
-                                                    disabled={!clickName.trim() || (existing ? false : conflict)}
-                                                    className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
-                                                    style={{
-                                                        background: existing ? "linear-gradient(135deg,#06b6d4,#3b82f6)" : "linear-gradient(135deg,#4f46e5,#7c3aed)",
-                                                        color: "#fff",
-                                                        boxShadow: !conflict && clickName.trim() ? "0 0 12px rgba(99,102,241,0.4)" : "none"
-                                                    }}>
-                                                    ✓ {existing ? "수정" : "등록"}
-                                                </button>
+                                                <>
+                                                    {existing && (
+                                                        <button onClick={() => { deletePlayer(existing.id); closePopup(); }}
+                                                            className="px-3 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95"
+                                                            style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}>
+                                                            🗑️
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => existing ? updatePlayer(existing.id, clickName, clickMemo) : addMemberPlace()}
+                                                        disabled={!clickName.trim() || (existing ? false : conflict)}
+                                                        className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                                                        style={{
+                                                            background: existing ? "linear-gradient(135deg,#06b6d4,#3b82f6)" : "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                                                            color: "#fff",
+                                                            boxShadow: !conflict && clickName.trim() ? "0 0 12px rgba(99,102,241,0.4)" : "none"
+                                                        }}>
+                                                        ✓ {existing ? "수정" : "등록"}
+                                                    </button>
+                                                </>
                                             );
                                         })()}
                                     </div>
@@ -1629,34 +1989,113 @@ export default function KdhGrid() {
                 const mp = players.find(p => p.id === movingPlayerId);
                 if (!mp) return null;
                 return (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl"
-                        style={{ background: "rgba(10,18,35,0.98)", border: "1px solid rgba(16,185,129,0.5)", boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(16,185,129,0.15)", backdropFilter: "blur(16px)" }}>
-                        <span className="text-sm font-bold" style={{ color: "#34d399" }}>✥ 이동 모드</span>
-                        <span className="font-semibold text-[12px] px-2 py-0.5 rounded-lg" style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
-                            {mp.name}
-                        </span>
-                        <span className="text-[11px] text-slate-500">연맹원을 드래그하여 이동하세요</span>
-                        <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(16,185,129,0.1)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.2)" }}>
-                            X:{mp.x} Y:{mp.y}
-                        </span>
-                        <span className="text-[10px] text-slate-600">더블클릭 또는 ESC로 취소</span>
-                        <button onClick={() => setMovingPlayerId(null)} className="ml-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>취소</button>
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                        style={{
+                            background: "rgba(10,18,35,0.98)",
+                            border: "1px solid rgba(16,185,129,0.5)",
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(16,185,129,0.15)",
+                            backdropFilter: "blur(16px)",
+                            minWidth: 240,
+                            maxWidth: "calc(100vw - 32px)",
+                            padding: "10px 16px",
+                        }}>
+                        {/* 1행: 이동 모드 뱃지 + 대상 이름 */}
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#34d399" }}>
+                                {t.kdhPage.moveModeTitle}
+                            </span>
+                            <span className="font-semibold text-[12px] px-2 py-0.5 rounded-lg truncate"
+                                style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
+                                {mp.name}
+                            </span>
+                            <span className="font-mono text-[10px] px-2 py-0.5 rounded whitespace-nowrap ml-auto"
+                                style={{ background: "rgba(16,185,129,0.1)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.2)" }}>
+                                X:{mp.x} Y:{mp.y}
+                            </span>
+                        </div>
+                        {/* 2행: 안내 텍스트 + 취소 버튼 */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
+                            <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
+                            <button
+                                onClick={() => setMovingPlayerId(null)}
+                                className="ml-auto px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors whitespace-nowrap"
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                            >{t.kdhPage.cancelBtn}</button>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ── 구조물 드래그 이동 모드 배너 ── */}
+            {movingStructureId && isAdmin && (() => {
+                const ms = structures.find(s => s.id === movingStructureId);
+                if (!ms) return null;
+                const structLabel = ms.type === "hq" ? t.kdhPage.structHq : ms.id === "trap1" ? t.kdhPage.structTrap1 : t.kdhPage.structTrap2;
+                return (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                        style={{
+                            background: "rgba(10,18,35,0.98)",
+                            border: "1px solid rgba(251,191,36,0.5)",
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(251,191,36,0.15)",
+                            backdropFilter: "blur(16px)",
+                            minWidth: 240,
+                            maxWidth: "calc(100vw - 32px)",
+                            padding: "10px 16px",
+                        }}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#fbbf24" }}>
+                                ✥ {structLabel}
+                            </span>
+                            <span className="font-mono text-[10px] px-2 py-0.5 rounded whitespace-nowrap ml-auto"
+                                style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
+                                X:{dragStructPos?.id === ms.id ? (dragStructPos?.gx ?? ms.x) : ms.x} Y:{dragStructPos?.id === ms.id ? (dragStructPos?.gy ?? ms.y) : ms.y}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
+                            <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
+                            <button
+                                onClick={() => setMovingStructureIdSynced(null)}
+                                className="ml-auto px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors whitespace-nowrap"
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                            >{t.kdhPage.cancelBtn}</button>
+                        </div>
                     </div>
                 );
             })()}
 
             {/* ── 구조물 배치 모드 배너 ── */}
             {structCursor && isAdmin && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-5 py-3 rounded-2xl"
-                    style={{ background: "rgba(10,18,35,0.96)", border: "1px solid rgba(251,191,36,0.5)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", backdropFilter: "blur(12px)" }}>
-                    <span className="text-sm font-bold" style={{ color: "#fbbf24" }}>
-                        {structCursor.structType === "hq" ? "🏰 본부" : "🪤 함정"} 배치 모드
-                    </span>
-                    <span className="text-[11px] text-slate-500">마우스를 이동하여 위치 결정 → 클릭으로 배치</span>
-                    <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
-                        ({structCursor.gx}, {structCursor.gy})
-                    </span>
-                    <button onClick={() => setStructCursor(null)} className="ml-1 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors" style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>취소</button>
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                    style={{
+                        background: "rgba(10,18,35,0.96)",
+                        border: "1px solid rgba(251,191,36,0.5)",
+                        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                        backdropFilter: "blur(12px)",
+                        minWidth: 240,
+                        maxWidth: "calc(100vw - 32px)",
+                        padding: "10px 16px",
+                    }}>
+                    {/* 1행: 배치 모드 제목 + 좌표 */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#fbbf24" }}>
+                            {structCursor.structType === "hq" ? t.kdhPage.structHq : t.kdhPage.structTrap1} 배치
+                        </span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 rounded ml-auto whitespace-nowrap"
+                            style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
+                            ({structCursor.gx}, {structCursor.gy})
+                        </span>
+                    </div>
+                    {/* 2행: 안내 + 취소 */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.structModeHint}</span>
+                        <button
+                            onClick={() => setStructCursor(null)}
+                            className="ml-auto px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors whitespace-nowrap"
+                            style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                        >{t.kdhPage.structModeCancel}</button>
+                    </div>
                 </div>
             )}
 

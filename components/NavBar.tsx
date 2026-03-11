@@ -285,6 +285,7 @@ function AuthMenuMobile() {
 export default function NavBar() {
     const pathname = usePathname();
     const { t } = useLocale();
+    const { user } = useAuth();
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const strategyRef = useRef<HTMLDivElement>(null);
@@ -313,6 +314,7 @@ export default function NavBar() {
 
     const NAV_EXTRA = [
         { href: "/event-attendance", label: "📋 연맹 이벤트" },
+        ...(user?.role === "admin" ? [{ href: "/kdh-grid-sim", label: "🧪 좌표 시뮬레이션" }] : []),
     ];
 
     return (
