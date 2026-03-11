@@ -1217,7 +1217,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                     }}
                                     onFocus={() => search && setShowDropdown(true)}
                                     placeholder={t.kdhPage.searchPlaceholder}
-                                    className="h-7 rounded-lg px-2.5 text-xs outline-none w-28 sm:w-40"
+                                    className="h-8 rounded-lg px-3 text-sm outline-none w-48 sm:w-72"
                                     style={{
                                         background: "rgba(7,13,26,0.8)",
                                         border: `1px solid ${search ? (searchMatches.length > 0 ? "rgba(34,211,238,0.5)" : "rgba(239,68,68,0.5)") : "rgba(6,182,212,0.3)"}`,
