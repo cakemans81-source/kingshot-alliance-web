@@ -478,6 +478,15 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             if (game) setDragGamePosSynced({ id: playerDragRef.current.id, ...game });
             return;
         }
+        if (movingStructureIdRef.current && !structDragRef.current) {
+            // 이동 모드인데 드래그가 아직 시작 안된 경우 → 자동 드래그 시작
+            const ms = structures.find(s => s.id === movingStructureIdRef.current);
+            if (ms) {
+                structDragRef.current = { id: ms.id, origGx: ms.x, origGy: ms.y, size: ms.size, type: ms.type, label: ms.label };
+                setDragStructPosSynced({ id: ms.id, gx: ms.x, gy: ms.y });
+            }
+            return;
+        }
         if (movingStructureIdRef.current) return; // 구조물 이동 모드 중 Pan 금지
         if (movingPlayerIdRef.current) return;
         if (!isDragging.current) return;
@@ -658,7 +667,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             // 구조물 이동 모드 중 → Pan 금지 + 구조물 드래그 시작
             if (movingStructureIdRef.current) {
                 const ms = structures.find(s => s.id === movingStructureIdRef.current);
-                if (ms && ms.type !== "flag") {
+                if (ms) {
                     structDragRef.current = { id: ms.id, origGx: ms.x, origGy: ms.y, size: ms.size, type: ms.type, label: ms.label };
                     setDragStructPosSynced({ id: ms.id, gx: ms.x, gy: ms.y });
                     suppressPopupRef.current = true;
@@ -973,7 +982,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 gridLines.push(
                     <path key={`f${c}_${r}`}
                         d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
-                        fill={isEven ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)"}
+                        fill={isEven ? "rgba(239,68,68,0.38)" : "rgba(239,68,68,0.24)"}
                         stroke="none"
                     />
                 );
