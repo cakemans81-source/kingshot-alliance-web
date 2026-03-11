@@ -937,30 +937,19 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         return cells;
     };
 
-    /* 깃발 중심 3×3 영역 Set 계산 */
+    /* 깃발 중심 — Manhattan distance ≤ 3 다이아몬드 영역 Set 계산 (총 25칸) */
     const flagZoneCells = useMemo(() => {
         const set = new Set<string>();
         structures.filter(s => s.type === "flag").forEach(f => {
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dy = -1; dy <= 1; dy++) {
-                    set.add(`${f.x + dx},${f.y + dy}`);
+            for (let dx = -3; dx <= 3; dx++) {
+                for (let dy = -3; dy <= 3; dy++) {
+                    if (Math.abs(dx) + Math.abs(dy) <= 3) {
+                        set.add(`${f.x + dx},${f.y + dy}`);
+                    }
                 }
             }
         });
         return set;
-    }, [structures]);
-
-    /* 깃발별 3×3 존 외곽 테두리 path 목록 */
-    const flagZoneBorders = useMemo(() => {
-        return structures.filter(s => s.type === "flag").map(f => {
-            // 3×3 존의 4 꼭짓점 (isometric 기준 외곽 정점)
-            // 게임 좌표: x는 f.x-1 ~ f.x+2, y는 f.y-1 ~ f.y+2
-            const top   = toIso(f.x,     f.y + 2); // 최상단 꼭짓점
-            const right = toIso(f.x + 2, f.y);     // 최우측 꼭짓점
-            const bot   = toIso(f.x + 1, f.y - 1); // 최하단 꼭짓점
-            const left  = toIso(f.x - 1, f.y + 1); // 최좌측 꼭짓점
-            return `M${top.px},${top.py} L${right.px},${right.py} L${bot.px},${bot.py} L${left.px},${left.py} Z`;
-        });
     }, [structures]);
 
     /* 마름모 그리드 라인 생성 — 5칸 단위 강조 + 일반 세선 */
@@ -1465,17 +1454,6 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         {/* 그리드 라인 */}
                         {gridLines}
 
-                        {/* 깃발 3×3 존 외곽 테두리 (단일 다이아몬드 경계선) */}
-                        {flagZoneBorders.map((d, i) => (
-                            <path key={`fzone${i}`}
-                                d={d}
-                                fill="none"
-                                stroke="rgba(239,68,68,0.7)"
-                                strokeWidth={1.5}
-                                strokeDasharray="6 3"
-                                pointerEvents="none"
-                            />
-                        ))}
 
                         {/* 좌표 라벨 (X축) — 5칸 간격, 배경 박스 포함 */}
                         {Array.from({ length: COLS + 1 }, (_, i) => i).filter(i => i % 5 === 0).map(i => {
