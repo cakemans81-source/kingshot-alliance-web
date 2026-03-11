@@ -950,10 +950,23 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         return set;
     }, [structures]);
 
+    /* 깃발별 3×3 존 외곽 테두리 path 목록 */
+    const flagZoneBorders = useMemo(() => {
+        return structures.filter(s => s.type === "flag").map(f => {
+            // 3×3 존의 4 꼭짓점 (isometric 기준 외곽 정점)
+            // 게임 좌표: x는 f.x-1 ~ f.x+2, y는 f.y-1 ~ f.y+2
+            const top   = toIso(f.x,     f.y + 2); // 최상단 꼭짓점
+            const right = toIso(f.x + 2, f.y);     // 최우측 꼭짓점
+            const bot   = toIso(f.x + 1, f.y - 1); // 최하단 꼭짓점
+            const left  = toIso(f.x - 1, f.y + 1); // 최좌측 꼭짓점
+            return `M${top.px},${top.py} L${right.px},${right.py} L${bot.px},${bot.py} L${left.px},${left.py} Z`;
+        });
+    }, [structures]);
+
     /* 마름모 그리드 라인 생성 — 5칸 단위 강조 + 일반 세선 */
     const gridLines: React.ReactNode[] = [];
 
-    // 셀 내부 체커보드 채우기 (깃발 3×3 영역은 붉은 배경 오버라이드)
+    // 셀 내부 체커보드 채우기 (깃발 3×3 영역은 붉은 배경 오버라이드, stroke 없음)
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS; r++) {
             const gx = MIN_X + c;
@@ -966,14 +979,13 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             const isFlagZone = flagZoneCells.has(cellKey);
 
             if (isFlagZone) {
-                // 깃발 영역 — 붉은 반투명 배경 (짝수셀 조금 더 진하게)
+                // 깃발 영역 — 붉은 반투명 배경만 (stroke 없음 → 내부 격자 잡음 제거)
                 const isEven = (c + r) % 2 === 0;
                 gridLines.push(
                     <path key={`f${c}_${r}`}
                         d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
                         fill={isEven ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)"}
-                        stroke="rgba(239,68,68,0.25)"
-                        strokeWidth={0.3}
+                        stroke="none"
                     />
                 );
             } else {
@@ -1454,6 +1466,18 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         </defs>
                         {/* 그리드 라인 */}
                         {gridLines}
+
+                        {/* 깃발 3×3 존 외곽 테두리 (단일 다이아몬드 경계선) */}
+                        {flagZoneBorders.map((d, i) => (
+                            <path key={`fzone${i}`}
+                                d={d}
+                                fill="none"
+                                stroke="rgba(239,68,68,0.7)"
+                                strokeWidth={1.5}
+                                strokeDasharray="6 3"
+                                pointerEvents="none"
+                            />
+                        ))}
 
                         {/* 좌표 라벨 (X축) — 5칸 간격, 배경 박스 포함 */}
                         {Array.from({ length: COLS + 1 }, (_, i) => i).filter(i => i % 5 === 0).map(i => {
