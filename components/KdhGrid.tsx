@@ -937,10 +937,23 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         return cells;
     };
 
+    /* 깃발 중심 3×3 영역 Set 계산 */
+    const flagZoneCells = useMemo(() => {
+        const set = new Set<string>();
+        structures.filter(s => s.type === "flag").forEach(f => {
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    set.add(`${f.x + dx},${f.y + dy}`);
+                }
+            }
+        });
+        return set;
+    }, [structures]);
+
     /* 마름모 그리드 라인 생성 — 5칸 단위 강조 + 일반 세선 */
     const gridLines: React.ReactNode[] = [];
 
-    // 셀 내부 체커보드 채우기
+    // 셀 내부 체커보드 채우기 (깃발 3×3 영역은 붉은 배경 오버라이드)
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS; r++) {
             const gx = MIN_X + c;
@@ -949,20 +962,36 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             const tr = toIso(gx + 1, gy + 1);
             const br = toIso(gx + 1, gy);
             const bl = toIso(gx, gy);
-            const isEven = (c + r) % 2 === 0;
-            const isAccX = c % 5 === 0;
-            const isAccY = r % 5 === 0;
-            const fillOpacity = isAccX && isAccY ? 0.07
-                : (isAccX || isAccY) ? 0.04
-                    : isEven ? 0.025 : 0;
-            if (fillOpacity > 0) {
+            const cellKey = `${gx},${gy}`;
+            const isFlagZone = flagZoneCells.has(cellKey);
+
+            if (isFlagZone) {
+                // 깃발 영역 — 붉은 반투명 배경 (짝수셀 조금 더 진하게)
+                const isEven = (c + r) % 2 === 0;
                 gridLines.push(
                     <path key={`f${c}_${r}`}
                         d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
-                        fill={isAccX && isAccY ? `rgba(6,182,212,${fillOpacity})` : `rgba(99,102,241,${fillOpacity})`}
-                        stroke="none"
+                        fill={isEven ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)"}
+                        stroke="rgba(239,68,68,0.25)"
+                        strokeWidth={0.3}
                     />
                 );
+            } else {
+                const isEven = (c + r) % 2 === 0;
+                const isAccX = c % 5 === 0;
+                const isAccY = r % 5 === 0;
+                const fillOpacity = isAccX && isAccY ? 0.07
+                    : (isAccX || isAccY) ? 0.04
+                        : isEven ? 0.025 : 0;
+                if (fillOpacity > 0) {
+                    gridLines.push(
+                        <path key={`f${c}_${r}`}
+                            d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
+                            fill={isAccX && isAccY ? `rgba(6,182,212,${fillOpacity})` : `rgba(99,102,241,${fillOpacity})`}
+                            stroke="none"
+                        />
+                    );
+                }
             }
         }
     }
