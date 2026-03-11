@@ -992,18 +992,16 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 const isEven = (c + r) % 2 === 0;
                 const isAccX = c % 5 === 0;
                 const isAccY = r % 5 === 0;
-                const fillOpacity = isAccX && isAccY ? 0.07
-                    : (isAccX || isAccY) ? 0.04
-                        : isEven ? 0.025 : 0;
-                if (fillOpacity > 0) {
-                    gridLines.push(
-                        <path key={`f${c}_${r}`}
-                            d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
-                            fill={isAccX && isAccY ? `rgba(6,182,212,${fillOpacity})` : `rgba(99,102,241,${fillOpacity})`}
-                            stroke="none"
-                        />
-                    );
-                }
+                const fillOpacity = isAccX && isAccY ? 0.10
+                    : (isAccX || isAccY) ? 0.07
+                        : isEven ? 0.05 : 0.02;
+                gridLines.push(
+                    <path key={`f${c}_${r}`}
+                        d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
+                        fill={isAccX && isAccY ? `rgba(6,182,212,${fillOpacity})` : `rgba(99,102,241,${fillOpacity})`}
+                        stroke="none"
+                    />
+                );
             }
         }
     }
@@ -1015,8 +1013,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         const isAcc = c % 5 === 0;
         gridLines.push(
             <line key={`c${c}`} x1={p1.px} y1={p1.py} x2={p2.px} y2={p2.py}
-                stroke={isAcc ? "rgba(6,182,212,0.35)" : "rgba(51,65,85,0.3)"}
-                strokeWidth={isAcc ? 0.8 : 0.4} />
+                stroke={isAcc ? "rgba(6,182,212,0.55)" : "rgba(71,85,105,0.45)"}
+                strokeWidth={isAcc ? 1.0 : 0.6} />
         );
     }
     // 가로 라인 (Y 방향)
@@ -1026,8 +1024,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         const isAcc = r % 5 === 0;
         gridLines.push(
             <line key={`r${r}`} x1={p1.px} y1={p1.py} x2={p2.px} y2={p2.py}
-                stroke={isAcc ? "rgba(6,182,212,0.35)" : "rgba(51,65,85,0.3)"}
-                strokeWidth={isAcc ? 0.8 : 0.4} />
+                stroke={isAcc ? "rgba(6,182,212,0.55)" : "rgba(71,85,105,0.45)"}
+                strokeWidth={isAcc ? 1.0 : 0.6} />
         );
     }
 
