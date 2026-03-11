@@ -1488,7 +1488,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             // 드래그 중이면 dragStructPos 위치로 오버라이드
                             const activeGx = isDraggingThis ? (dragStructPos?.gx ?? s.x) : s.x;
                             const activeGy = isDraggingThis ? (dragStructPos?.gy ?? s.y) : s.y;
-                            const center = toIso(activeGx, activeGy);
+                            const center = toIso(activeGx + 0.5, activeGy + 0.5);
                             let tipDetail = `${s.size}×${s.size} 건물`;
                             if (isFlag) tipDetail = "깃발 (1×1)";
                             return (
@@ -1783,7 +1783,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         {structCursor && (() => {
                             const isFlag = structCursor.structType === "flag";
                             const sz = isFlag ? 1 : 3;
-                            const center = toIso(structCursor.gx, structCursor.gy);
+                            const center = toIso(structCursor.gx + 0.5, structCursor.gy + 0.5);
                             const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, 3);
                             const conflict = cells.some((c: string) => occupiedCells.has(c));
                             const color = isFlag ? (conflict ? "#ef4444" : "#f87171") : (conflict ? "#ef4444" : "#fbbf24");
