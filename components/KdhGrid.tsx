@@ -436,7 +436,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         // 구조물 이동 모드 중 → Pan 금지 + 드래그 시작
         if (movingStructureIdRef.current) {
             const ms = structures.find(s => s.id === movingStructureIdRef.current);
-            if (ms && ms.type !== "flag") {
+            if (ms) {
                 structDragRef.current = { id: ms.id, origGx: ms.x, origGy: ms.y, size: ms.size, type: ms.type, label: ms.label };
                 setDragStructPosSynced({ id: ms.id, gx: ms.x, gy: ms.y });
                 suppressPopupRef.current = true;
@@ -1495,7 +1495,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                 <g key={s.id}
                                     onMouseEnter={e => { setHoveredStructureId(s.id); showTip(s.label, `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
                                     onMouseLeave={() => { setHoveredStructureId(null); hideTip(); }}
-                                    onMouseDown={isAdmin && !isFlag ? (e) => {
+                                    onMouseDown={isAdmin ? (e) => {
                                         const now = Date.now();
                                         const last = lastStructClickRef.current;
                                         if (last?.id === s.id && now - last.time < 350) {
@@ -1521,20 +1521,20 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                             lastStructClickRef.current = { id: s.id, time: now };
                                         }
                                     } : undefined}
-                                    style={{ cursor: isAdmin ? (isFlag ? "pointer" : (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer")) : "default" }}
+                                    style={{ cursor: isAdmin ? (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer") : "default" }}
                                 >
-                                    {/* 이동 모드 — amber 펄스 테두리 */}
-                                    {isMovingThis && !isFlag && (
+                                    {/* 이동 모드 — amber 펄스 테두리 (모든 구조물 공통) */}
+                                    {isMovingThis && (
                                         <>
-                                            <path d={diamondPath(center.px, center.py, s.size + 0.8)} fill="none"
+                                            <path d={diamondPath(center.px, center.py, (isFlag ? 1.2 : s.size) + 0.8)} fill="none"
                                                 stroke="#f59e0b" strokeWidth={2} opacity={0}>
                                                 <animate attributeName="opacity" values="0;0.8;0" dur="1s" repeatCount="indefinite" />
                                             </path>
-                                            <path d={diamondPath(center.px, center.py, s.size + 0.4)} fill="none"
+                                            <path d={diamondPath(center.px, center.py, (isFlag ? 1.2 : s.size) + 0.4)} fill="none"
                                                 stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="6 2"
                                                 opacity={0.9} />
                                             {/* 이름 위 상태 뱃지 */}
-                                            <text x={center.px} y={center.py - (s.size * 10) - 6}
+                                            <text x={center.px} y={center.py - ((isFlag ? 1.2 : s.size) * 10) - 6}
                                                 fill="#fcd34d" fontSize={6.5} fontWeight={700}
                                                 textAnchor="middle" dominantBaseline="middle"
                                                 style={{ filter: "drop-shadow(0 0 3px rgba(245,158,11,0.8))" }}
@@ -1545,14 +1545,13 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                         <>
                                             <path
                                                 d={diamondPath(center.px, center.py, 1.2)}
-                                                fill="rgba(251,191,36,0.4)"
-                                                stroke="#fbbf24"
-                                                strokeWidth={2}
-                                                onClick={isAdmin ? (e) => { e.stopPropagation(); deleteStructure(s.id); } : undefined}
-                                                style={{ cursor: isAdmin ? "pointer" : "default" }}
+                                                fill={isMovingThis ? "rgba(251,191,36,0.5)" : "rgba(251,191,36,0.4)"}
+                                                stroke={isMovingThis ? "#fbbf24" : "#fbbf24"}
+                                                strokeWidth={isMovingThis ? 2.5 : 2}
+                                                strokeDasharray={isDraggingThis ? "6 2" : undefined}
                                             />
-                                            {/* 호버 시 빨간 × 삭제 버튼 */}
-                                            {isAdmin && hoveredStructureId === s.id && (
+                                            {/* 호버 시 빨간 × 삭제 버튼 (이동 모드 아닐 때만) */}
+                                            {isAdmin && hoveredStructureId === s.id && !isMovingThis && (
                                                 <g
                                                     onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
                                                     style={{ cursor: "pointer" }}
@@ -1572,6 +1571,16 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                                 strokeDasharray={isDraggingThis ? "6 2" : undefined}
                                             />
                                             {s.type === "hq" && <path d={diamondPath(center.px, center.py, s.size)} fill="none" stroke="rgba(251,191,36,0.5)" strokeWidth={4} />}
+                                            {/* 호버 시 빨간 × 삭제 버튼 (이동 모드 아닐 때만) */}
+                                            {isAdmin && hoveredStructureId === s.id && !isMovingThis && (
+                                                <g
+                                                    onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
+                                                    style={{ cursor: "pointer" }}
+                                                >
+                                                    <circle cx={center.px + (s.size * 8)} cy={center.py - (s.size * 8)} r={7} fill="rgba(239,68,68,0.92)" stroke="#fff" strokeWidth={1.5} />
+                                                    <text x={center.px + (s.size * 8)} y={center.py - (s.size * 8)} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill="white" fontWeight={900}>×</text>
+                                                </g>
+                                            )}
                                         </>
                                     )}
                                     <text x={center.px} y={center.py + 1}
