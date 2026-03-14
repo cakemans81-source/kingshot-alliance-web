@@ -2167,11 +2167,18 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         <div className="flex items-center gap-2">
                             <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
                             <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
-                            <button
-                                onClick={() => setMovingStructureIdSynced(null)}
-                                className="ml-auto px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors whitespace-nowrap"
-                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
-                            >{t.kdhPage.cancelBtn}</button>
+                            <div className="ml-auto flex items-center gap-2">
+                                <button
+                                    onClick={() => { setMovingStructureIdSynced(null); deleteStructure(ms.id); }}
+                                    className="px-3 py-1 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap"
+                                    style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}
+                                >🗑️ 삭제</button>
+                                <button
+                                    onClick={() => setMovingStructureIdSynced(null)}
+                                    className="px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white transition-colors whitespace-nowrap"
+                                    style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                                >{t.kdhPage.cancelBtn}</button>
+                            </div>
                         </div>
                     </div>
                 );
