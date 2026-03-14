@@ -193,6 +193,21 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     useEffect(() => { panRef.current = pan; }, [pan]);
     useEffect(() => { scaleRef.current = scale; }, [scale]);
 
+    /* 화면 크기 반응형 (모바일 vs PC) */
+    const [isMobile, setIsMobile] = useState(false);
+    const [gridHeight, setGridHeight] = useState(380);
+    useEffect(() => {
+        const update = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            // 모바일: 화면 높이의 약 58% (네비바 + 컨트롤 영역 제외)
+            // PC: 고정 380px
+            setGridHeight(mobile ? Math.round(window.innerHeight * 0.58) : 380);
+        };
+        update();
+        window.addEventListener("resize", update);
+        return () => window.removeEventListener("resize", update);
+    }, []);
 
     /* Supabase에서 데이터 로드 */
     const fetchPlayers = useCallback(async () => {
@@ -1449,7 +1464,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                     ref={containerRef}
                     className="relative overflow-hidden select-none"
                     style={{
-                        height: 380,
+                        height: gridHeight,
                         cursor: isDragging.current ? "grabbing" : "grab",
                         background: "radial-gradient(ellipse at 50% 40%, rgba(6,182,212,0.07) 0%, rgba(99,102,241,0.04) 40%, rgba(7,13,26,0.95) 100%)",
                         touchAction: "none",
@@ -1855,7 +1870,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         ))}
                     </div>
 
-                    <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                    <div className={`flex flex-col gap-1.5 overflow-y-auto pr-1 ${isMobile ? "max-h-48" : "max-h-36"}`} style={{ scrollbarWidth: "thin" }}>
                         {filteredPlayers.length === 0 ? (
                             <p className="text-xs text-slate-600 text-center py-2">해당 구역에 유저 없음</p>
                         ) : filteredPlayers.map(p => {
@@ -1939,7 +1954,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                 <span className="text-[10px] font-bold text-amber-400/70">🏗️ 건물</span>
                                 <span className="text-[9px] text-slate-600">더블클릭 또는 ✥ 버튼으로 이동</span>
                             </div>
-                            <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                            <div className={`flex flex-col gap-1.5 overflow-y-auto pr-1 ${isMobile ? "max-h-44" : "max-h-28"}`} style={{ scrollbarWidth: "thin" }}>
                                 {structures.map(s => {
                                     const isMovingThis = movingStructureId === s.id;
                                     const typeIcon = s.type === "hq" ? "🏰" : s.type === "trap" ? "🪤" : "🚩";
