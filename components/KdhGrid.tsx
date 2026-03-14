@@ -2256,11 +2256,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             {/* ── 구조물 배치 모드 배너 ── */}
             {structCursor && isAdmin && (
                 <div
-                    className="fixed inset-0 z-[59] flex items-center justify-center"
+                    className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
                     onTouchStart={e => e.stopPropagation()}
-                    style={{ background: "rgba(0,0,0,0.3)", backdropFilter: "blur(2px)" }}
-                >
-                <div className="z-[60] rounded-2xl"
                     style={{
                         background: "rgba(10,18,35,0.96)",
                         border: "1px solid rgba(251,191,36,0.5)",
@@ -2289,7 +2286,6 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
                         >{t.kdhPage.structModeCancel}</button>
                     </div>
-                </div>
                 </div>
             )}
 
