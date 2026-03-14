@@ -687,6 +687,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         const oldScale = scaleRef.current;
         const newScale = Math.min(Math.max(0.4, oldScale + e.deltaY * -0.001), 3);
         const delta = newScale / oldScale;
+        scaleRef.current = newScale; // 다음 이벤트에서 즉시 읽을 수 있도록 동기 업데이트
         // 커서 위치를 기준으로 pan 보정
         setPan(p => ({
             x: mouseX - (mouseX - p.x) * delta,
@@ -785,6 +786,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 // scale 업데이트
                 const oldScale = scaleRef.current;
                 const newScale = Math.min(Math.max(0.4, oldScale * delta), 3);
+                scaleRef.current = newScale; // 다음 이벤트에서 즉시 읽을 수 있도록 동기 업데이트
                 // 손가락 중심점 기준으로 pan 보정
                 setPan(p => ({
                     x: curMidX - (curMidX - p.x) * (newScale / oldScale),
