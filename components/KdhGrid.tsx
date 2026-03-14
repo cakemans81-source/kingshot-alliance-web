@@ -42,7 +42,7 @@ const DEFAULT_STRUCTURES: Structure[] = [
     { id: "hq", label: "🏰 본부", x: 737, y: 757, size: 4, type: "hq" },
     { id: "trap1", label: "🪤 함정1", x: 730, y: 748, size: 4, type: "trap" },
     { id: "trap2", label: "🪤 함정2", x: 742, y: 752, size: 4, type: "trap" },
-    { id: "flag", label: "🚩 깃발", x: 738, y: 757, size: 1, type: "flag" },
+    { id: "flag1", label: "🚩 깃발1", x: 738, y: 757, size: 1, type: "flag" },
 ];
 
 const INIT_PLAYERS: Player[] = [
@@ -152,6 +152,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         setMovingStructureId(id);
     };
     const lastStructClickRef = useRef<{ id: string; time: number } | null>(null);
+    const structHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const structDragRef = useRef<{ id: string; origGx: number; origGy: number; size: number; type: "hq" | "trap" | "flag"; label: string } | null>(null);
     const [dragStructPos, setDragStructPos] = useState<{ id: string; gx: number; gy: number } | null>(null);
     const dragStructPosRef = useRef<{ id: string; gx: number; gy: number } | null>(null);
@@ -234,8 +235,9 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             .select("*");
         if (!error && data && data.length > 0) {
             const mapped = data.map((d: { struct_id: string; struct_type: string; label: string; x: number; y: number; size: number }) => ({
-                id: d.struct_id,
-                label: d.label,
+                // 레거시 id="flag" → "flag1" 마이그레이션
+                id: d.struct_id === "flag" ? "flag1" : d.struct_id,
+                label: d.label === "🚩 깃발" ? "🚩 깃발1" : d.label,
                 x: d.x,
                 y: d.y,
                 size: d.size,
@@ -247,7 +249,11 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             // Supabase 테이블 없음 → localStorage에서 복원
             const stored = loadStructures();
             if (stored !== null) {
-                setStructures(stored);
+                // 레거시 id="flag" → "flag1" 마이그레이션
+                const migrated = stored.map(s =>
+                    s.id === "flag" ? { ...s, id: "flag1", label: "🚩 깃발1" } : s
+                );
+                setStructures(migrated);
             }
             // 없으면 DEFAULT_STRUCTURES 유지
         }
@@ -500,10 +506,17 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         if (structDragRef.current && dragStructPosRef.current) {
             const { id, origGx, origGy, size, type, label } = structDragRef.current;
             const { gx, gy } = dragStructPosRef.current;
-            const origStruct = structures.find(s => s.id === id);
-            if (origStruct && (origStruct.x !== gx || origStruct.y !== gy)) {
-                const selfCells = new Set(getStructCells(origGx, origGy, size));
-                const targetCells = getStructCells(gx, gy, size);
+            // origGx/origGy는 드래그 시작 시점의 좌표 (stale closure 없이 ref에서 직접 사용)
+            if (origGx !== gx || origGy !== gy) {
+                // 자기 자신의 원래 위치 셀을 제외하고 충돌 체크
+                const selfCells = new Set(
+                    size === 1
+                        ? [`${origGx},${origGy}`]
+                        : getStructCells(origGx, origGy, size)
+                );
+                const targetCells = size === 1
+                    ? [`${gx},${gy}`]
+                    : getStructCells(gx, gy, size);
                 const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
                 if (hasConflict) {
                     alert("⚠️ 해당 위치에 이미 건물/연맹원이 있습니다.");
@@ -563,9 +576,14 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 alert("⚠️ 해당 위치에 이미 건물/플레이어가 있습니다.");
             } else {
                 if (isFlag) {
-                    const flagIds = new Set(structures.filter(s => s.type === "flag").map(s => s.id));
+                    // 기존 깃발 번호 목록 ("flag" 기본 id 제외, "flag1"~"flagN" 형태)에서 다음 번호 결정
+                    const flagNums = new Set(
+                        structures
+                            .filter(s => s.type === "flag")
+                            .map(s => { const m = s.id.match(/^flag(\d+)$/); return m ? parseInt(m[1]) : 0; })
+                    );
                     let nextNum = 1;
-                    while (flagIds.has(`flag${nextNum}`)) nextNum++;
+                    while (flagNums.has(nextNum)) nextNum++;
                     const flagId = `flag${nextNum}`;
                     await upsertStructure({ id: flagId, label: `🚩 깃발${nextNum}`, x: structCursor.gx, y: structCursor.gy, size: 1, type: "flag" });
                 } else {
@@ -735,14 +753,19 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     const onTouchEnd = () => {
         isDragging.current = false;
         lastTouchDist.current = 0;
-        // 구조물 드래그 종료 시 저장
+        // 구조물 드래그 종료 시 저장 (터치)
         if (structDragRef.current && dragStructPosRef.current) {
             const { id, origGx, origGy, size, type, label } = structDragRef.current;
             const { gx, gy } = dragStructPosRef.current;
-            const origStruct = structures.find(s => s.id === id);
-            if (origStruct && (origStruct.x !== gx || origStruct.y !== gy)) {
-                const selfCells = new Set(getStructCells(origGx, origGy, size));
-                const targetCells = getStructCells(gx, gy, size);
+            if (origGx !== gx || origGy !== gy) {
+                const selfCells = new Set(
+                    size === 1
+                        ? [`${origGx},${origGy}`]
+                        : getStructCells(origGx, origGy, size)
+                );
+                const targetCells = size === 1
+                    ? [`${gx},${gy}`]
+                    : getStructCells(gx, gy, size);
                 const hasConflict = targetCells.some(c => occupiedCells.has(c) && !selfCells.has(c));
                 if (!hasConflict) {
                     upsertStructure({ id, label, x: gx, y: gy, size, type });
@@ -947,25 +970,29 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         return cells;
     };
 
-    /* 깃발 중심 — Manhattan distance ≤ 3 다이아몬드 영역 Set 계산 (총 25칸) */
+    /* 깃발 중심 — 7×7 정사각형 범위 Map 계산 (총 49칸)
+       아이소메트릭 그리드에서 게임 좌표 7×7 정사각형 → 화면에서 마름모(다이아몬드) 형태로 표시
+       Map 값 = 해당 셀을 덮는 깃발 개수 (1: 단독 빨강, 2+: 겹침 주황) */
     const flagZoneCells = useMemo(() => {
-        const set = new Set<string>();
+        const map = new Map<string, number>();
         structures.filter(s => s.type === "flag").forEach(f => {
             for (let dx = -3; dx <= 3; dx++) {
                 for (let dy = -3; dy <= 3; dy++) {
-                    if (Math.abs(dx) + Math.abs(dy) <= 3) {
-                        set.add(`${f.x + dx},${f.y + dy}`);
-                    }
+                    const key = `${f.x + dx},${f.y + dy}`;
+                    map.set(key, (map.get(key) ?? 0) + 1);
                 }
             }
         });
-        return set;
+        return map;
     }, [structures]);
 
     /* 마름모 그리드 라인 생성 — 5칸 단위 강조 + 일반 세선 */
     const gridLines: React.ReactNode[] = [];
 
-    // 셀 내부 체커보드 채우기 (깃발 3×3 영역은 붉은 배경 오버라이드, stroke 없음)
+    // 셀 내부 체커보드 채우기
+    // ㆍ깃발 단독 영역: 빨간 단색 (rgba(220,38,38,0.55))
+    // ㆍ깃발 겹침 영역: 주황 단색 (rgba(249,115,22,0.70)) — 2개 이상 깃발이 커버
+    // ㆍ일반 영역: 체커보드 패턴
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS; r++) {
             const gx = MIN_X + c;
@@ -975,15 +1002,23 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             const br = toIso(gx + 1, gy);
             const bl = toIso(gx, gy);
             const cellKey = `${gx},${gy}`;
-            const isFlagZone = flagZoneCells.has(cellKey);
+            const flagCount = flagZoneCells.get(cellKey) ?? 0;
 
-            if (isFlagZone) {
-                // 깃발 영역 — 붉은 반투명 배경만 (stroke 없음 → 내부 격자 잡음 제거)
-                const isEven = (c + r) % 2 === 0;
+            if (flagCount >= 2) {
+                // 겹침 영역 — 주황 단색 (두 깃발 구역이 교차)
                 gridLines.push(
                     <path key={`f${c}_${r}`}
                         d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
-                        fill={isEven ? "rgba(239,68,68,0.38)" : "rgba(239,68,68,0.24)"}
+                        fill="rgba(249,115,22,0.75)"
+                        stroke="none"
+                    />
+                );
+            } else if (flagCount === 1) {
+                // 단독 깃발 영역 — 빨간 단색
+                gridLines.push(
+                    <path key={`f${c}_${r}`}
+                        d={`M${tl.px},${tl.py} L${tr.px},${tr.py} L${br.px},${br.py} L${bl.px},${bl.py} Z`}
+                        fill="rgba(220,38,38,0.55)"
                         stroke="none"
                     />
                 );
@@ -1441,8 +1476,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             if (isFlag) tipDetail = "깃발 (1×1)";
                             return (
                                 <g key={s.id}
-                                    onMouseEnter={e => { setHoveredStructureId(s.id); showTip(s.label, `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
-                                    onMouseLeave={() => { setHoveredStructureId(null); hideTip(); }}
+                                    onMouseEnter={e => { if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); showTip(s.label, `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
+                                    onMouseLeave={() => { structHoverTimerRef.current = setTimeout(() => { setHoveredStructureId(null); hideTip(); }, 150); }}
                                     onMouseDown={isAdmin ? (e) => {
                                         const now = Date.now();
                                         const last = lastStructClickRef.current;
@@ -1501,6 +1536,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                             {/* 호버 시 빨간 × 삭제 버튼 (이동 모드 아닐 때만) */}
                                             {isAdmin && hoveredStructureId === s.id && !isMovingThis && (
                                                 <g
+                                                    onMouseEnter={e => { e.stopPropagation(); if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); }}
+                                                    onMouseDown={e => { e.stopPropagation(); }}
                                                     onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
                                                     style={{ cursor: "pointer" }}
                                                 >
@@ -1522,6 +1559,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                             {/* 호버 시 빨간 × 삭제 버튼 (이동 모드 아닐 때만) */}
                                             {isAdmin && hoveredStructureId === s.id && !isMovingThis && (
                                                 <g
+                                                    onMouseEnter={e => { e.stopPropagation(); if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); }}
+                                                    onMouseDown={e => { e.stopPropagation(); }}
                                                     onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
                                                     style={{ cursor: "pointer" }}
                                                 >
@@ -2057,7 +2096,9 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             {movingStructureId && isAdmin && (() => {
                 const ms = structures.find(s => s.id === movingStructureId);
                 if (!ms) return null;
-                const structLabel = ms.type === "hq" ? t.kdhPage.structHq : ms.id === "trap1" ? t.kdhPage.structTrap1 : t.kdhPage.structTrap2;
+                const structLabel = ms.type === "hq" ? t.kdhPage.structHq
+                    : ms.type === "flag" ? ms.label
+                    : ms.id === "trap1" ? t.kdhPage.structTrap1 : t.kdhPage.structTrap2;
                 return (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
                         style={{
