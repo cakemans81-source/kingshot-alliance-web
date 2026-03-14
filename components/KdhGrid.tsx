@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -1015,6 +1015,19 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     /* 필터링된 플레이어 목록 (현재는 구역 필터 없이 전체 표시) */
     const filteredPlayers = players;
 
+    /* 구조물 라벨 번역 헬퍼: type + id의 번호를 추출해 i18n 라벨 반환 */
+    const getStructLabel = (s: Structure): string => {
+        const emoji = s.type === "hq" ? "🏰" : s.type === "trap" ? "🪤" : "🚩";
+        if (s.type === "hq") return `${emoji} ${t.kdhPage.structHq.replace(/^.+? /, "")}`;
+        if (s.type === "trap") {
+            const num = s.id.match(/(\d+)$/)?.[1] ?? "";
+            return `${emoji} ${t.kdhPage.structTrap1.replace(/^.+? /, "").replace(/\d+$/, "")}${num}`;
+        }
+        // flag
+        const num = s.id.match(/(\d+)$/)?.[1] ?? "";
+        return `🚩 깃발${num}`;
+    };
+
     /* ── 겹침 체크 헬퍼 ── */
     const occupiedCells = useMemo(() => {
         const set = new Set<string>();
@@ -1541,7 +1554,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             if (isFlag) tipDetail = "깃발 (1×1)";
                             return (
                                 <g key={s.id}
-                                    onMouseEnter={e => { if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); showTip(s.label, `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
+                                    onMouseEnter={e => { if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); showTip(getStructLabel(s), `X:${s.x} Y:${s.y}`, tipDetail, e.clientX, e.clientY); }}
                                     onMouseLeave={() => { structHoverTimerRef.current = setTimeout(() => { setHoveredStructureId(null); hideTip(); }, 150); }}
                                     onMouseDown={isAdmin ? (e) => {
                                         const now = Date.now();
@@ -1618,7 +1631,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                         fontSize={isFlag ? 9 : 10} fontWeight={700}
                                         textAnchor="middle" dominantBaseline="middle"
                                     >
-                                        {s.label}
+                                        {getStructLabel(s)}
                                     </text>
                                 </g>
                             );
