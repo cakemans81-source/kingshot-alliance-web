@@ -2158,7 +2158,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 const mp = players.find(p => p.id === movingPlayerId);
                 if (!mp) return null;
                 return (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                        onTouchStart={e => e.stopPropagation()}
                         style={{
                             background: "rgba(10,18,35,0.98)",
                             border: "1px solid rgba(16,185,129,0.5)",
@@ -2202,7 +2203,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 if (!ms) return null;
                 const structLabel = ms.label;
                 return (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                        onTouchStart={e => e.stopPropagation()}
                         style={{
                             background: "rgba(10,18,35,0.98)",
                             border: "1px solid rgba(251,191,36,0.5)",
@@ -2243,7 +2245,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
 
             {/* ── 구조물 배치 모드 배너 ── */}
             {structCursor && isAdmin && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                    onTouchStart={e => e.stopPropagation()}
                     style={{
                         background: "rgba(10,18,35,0.96)",
                         border: "1px solid rgba(251,191,36,0.5)",
