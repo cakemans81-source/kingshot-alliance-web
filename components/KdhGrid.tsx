@@ -1533,18 +1533,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                                 strokeWidth={isMovingThis ? 2.5 : 2}
                                                 strokeDasharray={isDraggingThis ? "6 2" : undefined}
                                             />
-                                            {/* 호버 시 빨간 × 삭제 버튼 (이동 모드 아닐 때만) */}
-                                            {isAdmin && hoveredStructureId === s.id && !isMovingThis && (
-                                                <g
-                                                    onMouseEnter={e => { e.stopPropagation(); if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); }}
-                                                    onMouseDown={e => { e.stopPropagation(); }}
-                                                    onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
-                                                    style={{ cursor: "pointer" }}
-                                                >
-                                                    <circle cx={center.px + 8} cy={center.py - 8} r={6} fill="rgba(239,68,68,0.92)" stroke="#fff" strokeWidth={1} />
-                                                    <text x={center.px + 8} y={center.py - 8} textAnchor="middle" dominantBaseline="middle" fontSize={9} fill="white" fontWeight={900}>×</text>
-                                                </g>
-                                            )}
+
                                         </>
                                     ) : (
                                         <>
@@ -1556,18 +1545,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                                 strokeDasharray={isDraggingThis ? "6 2" : undefined}
                                             />
                                             {s.type === "hq" && <path d={diamondPath(center.px, center.py, s.size)} fill="none" stroke="rgba(251,191,36,0.5)" strokeWidth={4} />}
-                                            {/* 호버 시 빨간 × 삭제 버튼 (이동 모드 아닐 때만) */}
-                                            {isAdmin && hoveredStructureId === s.id && !isMovingThis && (
-                                                <g
-                                                    onMouseEnter={e => { e.stopPropagation(); if (structHoverTimerRef.current) clearTimeout(structHoverTimerRef.current); setHoveredStructureId(s.id); }}
-                                                    onMouseDown={e => { e.stopPropagation(); }}
-                                                    onClick={(e) => { e.stopPropagation(); deleteStructure(s.id); }}
-                                                    style={{ cursor: "pointer" }}
-                                                >
-                                                    <circle cx={center.px + (s.size * 8)} cy={center.py - (s.size * 8)} r={7} fill="rgba(239,68,68,0.92)" stroke="#fff" strokeWidth={1.5} />
-                                                    <text x={center.px + (s.size * 8)} y={center.py - (s.size * 8)} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill="white" fontWeight={900}>×</text>
-                                                </g>
-                                            )}
+
                                         </>
                                     )}
                                     <text x={center.px} y={center.py + 1}
@@ -1909,6 +1887,73 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             );
                         })}
                     </div>
+
+                    {/* ── 건물 목록 (특수건물) ── */}
+                    {structures.length > 0 && (
+                        <>
+                            <div className="flex items-center gap-2 mt-3 mb-1.5">
+                                <span className="text-[10px] font-bold text-amber-400/70">🏗️ 건물</span>
+                                <span className="text-[9px] text-slate-600">더블클릭 또는 ✥ 버튼으로 이동</span>
+                            </div>
+                            <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                                {structures.map(s => {
+                                    const isMovingThis = movingStructureId === s.id;
+                                    const typeIcon = s.type === "hq" ? "🏰" : s.type === "trap" ? "🪤" : "🚩";
+                                    const h = Math.floor(s.size / 2);
+                                    const coordStr = s.size === 1
+                                        ? `X:${s.x} · Y:${s.y}`
+                                        : `X:${s.x - h}~${s.x + h} · Y:${s.y - h}~${s.y + h}`;
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            className="rounded-xl transition-all"
+                                            style={{
+                                                background: isMovingThis ? "rgba(245,158,11,0.08)" : "rgba(15,23,42,0.5)",
+                                                border: `1px solid ${isMovingThis ? "rgba(245,158,11,0.5)" : "rgba(51,65,85,0.3)"}`,
+                                                boxShadow: isMovingThis ? "0 0 10px rgba(245,158,11,0.12)" : "none",
+                                                padding: "6px 10px",
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    {isMovingThis && (
+                                                        <span className="text-[9px] font-bold px-1 py-0.5 rounded flex-shrink-0"
+                                                            style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.3)" }}>
+                                                            ✥
+                                                        </span>
+                                                    )}
+                                                    <span className="text-xs font-bold flex-shrink-0" style={{ color: isMovingThis ? "#fde68a" : "#fcd34d" }}>
+                                                        {typeIcon} {s.label.replace(/^[\S]+ /, "")}
+                                                    </span>
+                                                    <span className="text-[9px] font-mono text-slate-500 truncate">{coordStr}</span>
+                                                </div>
+                                                {isAdmin && (
+                                                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const newId = movingStructureId === s.id ? null : s.id;
+                                                                setMovingStructureIdSynced(newId);
+                                                            }}
+                                                            className="text-[11px] transition-colors"
+                                                            style={{ color: isMovingThis ? "#fbbf24" : "#64748b" }}
+                                                            title={isMovingThis ? "이동 모드 해제" : "이동 모드 (더블클릭과 동일)"}
+                                                        >✥</button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => deleteStructure(s.id)}
+                                                            className="text-[11px] text-slate-700 hover:text-red-400 transition-colors"
+                                                            title="삭제"
+                                                        >✕</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
