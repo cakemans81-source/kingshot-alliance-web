@@ -587,12 +587,20 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                     const flagId = `flag${nextNum}`;
                     await upsertStructure({ id: flagId, label: `🚩 깃발${nextNum}`, x: structCursor.gx, y: structCursor.gy, size: 1, type: "flag" });
                 } else {
-                    const trapIds = structures.filter(s => s.type === "trap").map(s => s.id);
-                    const structId = structCursor.structType === "hq" ? "hq"
-                        : !trapIds.includes("trap1") ? "trap1" : "trap2";
-                    const label = structCursor.structType === "hq" ? "🏰 본부"
-                        : structId === "trap1" ? "🪤 함정1" : "🪤 함정2";
-                    await upsertStructure({ id: structId, label, x: structCursor.gx, y: structCursor.gy, size: sz, type: structCursor.structType });
+                    if (structCursor.structType === "hq") {
+                        await upsertStructure({ id: "hq", label: "🏰 본부", x: structCursor.gx, y: structCursor.gy, size: sz, type: "hq" });
+                    } else {
+                        // 깃발과 동일한 번호제: trap1~trapN
+                        const trapNums = new Set(
+                            structures
+                                .filter(s => s.type === "trap")
+                                .map(s => { const m = s.id.match(/^trap(\d+)$/); return m ? parseInt(m[1]) : 0; })
+                        );
+                        let nextNum = 1;
+                        while (trapNums.has(nextNum)) nextNum++;
+                        const trapId = `trap${nextNum}`;
+                        await upsertStructure({ id: trapId, label: `🪤 함정${nextNum}`, x: structCursor.gx, y: structCursor.gy, size: sz, type: "trap" });
+                    }
                 }
                 setStructCursor(null);
             }
@@ -1553,13 +1561,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                         fontSize={isFlag ? 9 : 10} fontWeight={700}
                                         textAnchor="middle" dominantBaseline="middle"
                                     >
-                                        {s.type === "hq"
-                                            ? t.kdhPage.structHq
-                                            : s.type === "flag"
-                                                ? s.label
-                                                : s.id === "trap1"
-                                                    ? t.kdhPage.structTrap1
-                                                    : t.kdhPage.structTrap2}
+                                        {s.label}
                                     </text>
                                 </g>
                             );
@@ -2141,9 +2143,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             {movingStructureId && isAdmin && (() => {
                 const ms = structures.find(s => s.id === movingStructureId);
                 if (!ms) return null;
-                const structLabel = ms.type === "hq" ? t.kdhPage.structHq
-                    : ms.type === "flag" ? ms.label
-                    : ms.id === "trap1" ? t.kdhPage.structTrap1 : t.kdhPage.structTrap2;
+                const structLabel = ms.label;
                 return (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
                         style={{
