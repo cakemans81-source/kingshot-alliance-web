@@ -177,8 +177,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     const dragStart = useRef({ x: 0, y: 0 });
     const panStart = useRef({ x: 0, y: 0 });
     const lastTouchDist = useRef(0);
+    const lastTouchMid = useRef({ x: 0, y: 0 }); // 핀치 중심점 추적
 
-    /* 플레이어 드래그 (관리자 전용) */
     const playerDragRef = useRef<{ id: string; startClientX: number; startClientY: number; origGx: number; origGy: number } | null>(null);
     const [dragGamePos, setDragGamePos] = useState<{ id: string; gx: number; gy: number } | null>(null);
     const dragGamePosRef = useRef<{ id: string; gx: number; gy: number } | null>(null); // stale closure 방지
@@ -192,6 +192,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     const scaleRef = useRef(scale);
     useEffect(() => { panRef.current = pan; }, [pan]);
     useEffect(() => { scaleRef.current = scale; }, [scale]);
+
 
     /* Supabase에서 데이터 로드 */
     const fetchPlayers = useCallback(async () => {
@@ -674,10 +675,24 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         setPlacePopup(null); setClickName(""); setClickMemo("");
     };
 
-    /* ── 마우스 휠 Zoom ── */
+    /* ── 마우스 휠 Zoom (커서 위치 기준) ── */
     const onWheel = useCallback((e: WheelEvent) => {
         e.preventDefault();
-        setScale(s => Math.min(Math.max(0.4, s + e.deltaY * -0.001), 3));
+        const el = containerRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        // 컨테이너 내부 커서 위치
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const oldScale = scaleRef.current;
+        const newScale = Math.min(Math.max(0.4, oldScale + e.deltaY * -0.001), 3);
+        const delta = newScale / oldScale;
+        // 커서 위치를 기준으로 pan 보정
+        setPan(p => ({
+            x: mouseX - (mouseX - p.x) * delta,
+            y: mouseY - (mouseY - p.y) * delta,
+        }));
+        setScale(newScale);
     }, []);
 
     useEffect(() => {
@@ -724,6 +739,15 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             lastTouchDist.current = Math.sqrt(dx * dx + dy * dy);
+            // 두 손가락 중심점 기록
+            const el = containerRef.current;
+            if (el) {
+                const rect = el.getBoundingClientRect();
+                lastTouchMid.current = {
+                    x: ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left,
+                    y: ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top,
+                };
+            }
         }
     };
     const onTouchMove = (e: React.TouchEvent) => {
@@ -752,7 +776,23 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (lastTouchDist.current > 0) {
                 const delta = dist / lastTouchDist.current;
-                setScale(s => Math.min(Math.max(0.4, s * delta), 3));
+                const el = containerRef.current;
+                const mid = lastTouchMid.current;
+                const rect = el?.getBoundingClientRect();
+                // 현재 두 손가락 중심점
+                const curMidX = rect ? ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left : mid.x;
+                const curMidY = rect ? ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top : mid.y;
+                // scale 업데이트
+                const oldScale = scaleRef.current;
+                const newScale = Math.min(Math.max(0.4, oldScale * delta), 3);
+                // 손가락 중심점 기준으로 pan 보정
+                setPan(p => ({
+                    x: curMidX - (curMidX - p.x) * (newScale / oldScale),
+                    y: curMidY - (curMidY - p.y) * (newScale / oldScale),
+                }));
+                setScale(newScale);
+                // 중심점 업데이트
+                lastTouchMid.current = { x: curMidX, y: curMidY };
             }
             lastTouchDist.current = dist;
         }
