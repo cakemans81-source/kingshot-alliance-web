@@ -1874,6 +1874,96 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             );
                         })()}
                     </svg>
+
+                    {/* ── 연맹원 이동 모드 배너 (맵 내부 하단 고정) ── */}
+                    {movingPlayerId && isAdmin && (() => {
+                        const mp = players.find(p => p.id === movingPlayerId);
+                        if (!mp) return null;
+                        return (
+                            <div
+                                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl"
+                                onTouchStart={e => e.stopPropagation()}
+                                style={{
+                                    background: "rgba(10,18,35,0.98)",
+                                    border: "1px solid rgba(16,185,129,0.5)",
+                                    boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(16,185,129,0.15)",
+                                    backdropFilter: "blur(16px)",
+                                    minWidth: 240,
+                                    maxWidth: "calc(100% - 24px)",
+                                    padding: "10px 16px",
+                                }}>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#34d399" }}>
+                                        {t.kdhPage.moveModeTitle}
+                                    </span>
+                                    <span className="font-semibold text-[12px] px-2 py-0.5 rounded-lg truncate"
+                                        style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
+                                        {mp.name}
+                                    </span>
+                                    <span className="font-mono text-[10px] px-2 py-0.5 rounded whitespace-nowrap ml-auto"
+                                        style={{ background: "rgba(16,185,129,0.1)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.2)" }}>
+                                        X:{mp.x} Y:{mp.y}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
+                                    <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
+                                    <button
+                                        onClick={() => setMovingPlayerId(null)}
+                                        className="ml-auto px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors whitespace-nowrap"
+                                        style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                                    >{t.kdhPage.cancelBtn}</button>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* ── 구조물 이동 모드 배너 (맵 내부 하단 고정) ── */}
+                    {movingStructureId && isAdmin && (() => {
+                        const ms = structures.find(s => s.id === movingStructureId);
+                        if (!ms) return null;
+                        const structLabel = ms.label;
+                        return (
+                            <div
+                                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl"
+                                onTouchStart={e => e.stopPropagation()}
+                                style={{
+                                    background: "rgba(10,18,35,0.98)",
+                                    border: "1px solid rgba(251,191,36,0.5)",
+                                    boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(251,191,36,0.15)",
+                                    backdropFilter: "blur(16px)",
+                                    minWidth: 240,
+                                    maxWidth: "calc(100% - 24px)",
+                                    padding: "10px 16px",
+                                }}>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#fbbf24" }}>
+                                        ✥ {structLabel}
+                                    </span>
+                                    <span className="font-mono text-[10px] px-2 py-0.5 rounded whitespace-nowrap ml-auto"
+                                        style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
+                                        X:{dragStructPos?.id === ms.id ? (dragStructPos?.gx ?? ms.x) : ms.x} Y:{dragStructPos?.id === ms.id ? (dragStructPos?.gy ?? ms.y) : ms.y}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
+                                    <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
+                                    <div className="ml-auto flex items-center gap-2">
+                                        <button
+                                            onClick={() => { setMovingStructureIdSynced(null); deleteStructure(ms.id); }}
+                                            className="px-3 py-1 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap"
+                                            style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}
+                                        >🗑️ 삭제</button>
+                                        <button
+                                            onClick={() => setMovingStructureIdSynced(null)}
+                                            className="px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white transition-colors whitespace-nowrap"
+                                            style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
+                                        >{t.kdhPage.cancelBtn}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -2025,95 +2115,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 );
             })()}
 
-            {/* ── 연맹원 드래그 이동 모드 배너 ── */}
-            {movingPlayerId && isAdmin && (() => {
-                const mp = players.find(p => p.id === movingPlayerId);
-                if (!mp) return null;
-                return (
-                    <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
-                        onTouchStart={e => e.stopPropagation()}
-                        style={{
-                            background: "rgba(10,18,35,0.98)",
-                            border: "1px solid rgba(16,185,129,0.5)",
-                            boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(16,185,129,0.15)",
-                            backdropFilter: "blur(16px)",
-                            minWidth: 240,
-                            maxWidth: "calc(100vw - 32px)",
-                            padding: "10px 16px",
-                        }}>
-                        {/* 1행: 이동 모드 뱃지 + 대상 이름 */}
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#34d399" }}>
-                                {t.kdhPage.moveModeTitle}
-                            </span>
-                            <span className="font-semibold text-[12px] px-2 py-0.5 rounded-lg truncate"
-                                style={{ background: "rgba(16,185,129,0.15)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.3)" }}>
-                                {mp.name}
-                            </span>
-                            <span className="font-mono text-[10px] px-2 py-0.5 rounded whitespace-nowrap ml-auto"
-                                style={{ background: "rgba(16,185,129,0.1)", color: "#6ee7b7", border: "1px solid rgba(16,185,129,0.2)" }}>
-                                X:{mp.x} Y:{mp.y}
-                            </span>
-                        </div>
-                        {/* 2행: 안내 텍스트 + 취소 버튼 */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
-                            <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
-                            <button
-                                onClick={() => setMovingPlayerId(null)}
-                                className="ml-auto px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-red-400 transition-colors whitespace-nowrap"
-                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
-                            >{t.kdhPage.cancelBtn}</button>
-                        </div>
-                    </div>
-                );
-            })()}
 
-            {/* ── 구조물 드래그 이동 모드 배너 ── */}
-            {movingStructureId && isAdmin && (() => {
-                const ms = structures.find(s => s.id === movingStructureId);
-                if (!ms) return null;
-                const structLabel = ms.label;
-                return (
-                    <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
-                        onTouchStart={e => e.stopPropagation()}
-                        style={{
-                            background: "rgba(10,18,35,0.98)",
-                            border: "1px solid rgba(251,191,36,0.5)",
-                            boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(251,191,36,0.15)",
-                            backdropFilter: "blur(16px)",
-                            minWidth: 240,
-                            maxWidth: "calc(100vw - 32px)",
-                            padding: "10px 16px",
-                        }}>
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#fbbf24" }}>
-                                ✥ {structLabel}
-                            </span>
-                            <span className="font-mono text-[10px] px-2 py-0.5 rounded whitespace-nowrap ml-auto"
-                                style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
-                                X:{dragStructPos?.id === ms.id ? (dragStructPos?.gx ?? ms.x) : ms.x} Y:{dragStructPos?.id === ms.id ? (dragStructPos?.gy ?? ms.y) : ms.y}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400 whitespace-nowrap">{t.kdhPage.moveModeHint}</span>
-                            <span className="text-[10px] text-slate-600 whitespace-nowrap">{t.kdhPage.moveModeCancel}</span>
-                            <div className="ml-auto flex items-center gap-2">
-                                <button
-                                    onClick={() => { setMovingStructureIdSynced(null); deleteStructure(ms.id); }}
-                                    className="px-3 py-1 rounded-lg text-[11px] font-bold transition-all hover:brightness-110 active:scale-95 whitespace-nowrap"
-                                    style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}
-                                >🗑️ 삭제</button>
-                                <button
-                                    onClick={() => setMovingStructureIdSynced(null)}
-                                    className="px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white transition-colors whitespace-nowrap"
-                                    style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}
-                                >{t.kdhPage.cancelBtn}</button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })()}
 
             {/* ── 구조물 배치 모드 배너 ── */}
             {structCursor && isAdmin && (
