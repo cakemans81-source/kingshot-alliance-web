@@ -1882,7 +1882,12 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         return (
                             <div
                                 className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl"
+                                onMouseDown={e => e.stopPropagation()}
+                                onMouseMove={e => e.stopPropagation()}
+                                onMouseUp={e => e.stopPropagation()}
                                 onTouchStart={e => e.stopPropagation()}
+                                onTouchMove={e => e.stopPropagation()}
+                                onTouchEnd={e => e.stopPropagation()}
                                 style={{
                                     background: "rgba(10,18,35,0.98)",
                                     border: "1px solid rgba(16,185,129,0.5)",
@@ -1926,7 +1931,12 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         return (
                             <div
                                 className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl"
+                                onMouseDown={e => e.stopPropagation()}
+                                onMouseMove={e => e.stopPropagation()}
+                                onMouseUp={e => e.stopPropagation()}
                                 onTouchStart={e => e.stopPropagation()}
+                                onTouchMove={e => e.stopPropagation()}
+                                onTouchEnd={e => e.stopPropagation()}
                                 style={{
                                     background: "rgba(10,18,35,0.98)",
                                     border: "1px solid rgba(251,191,36,0.5)",
