@@ -22,7 +22,7 @@ export interface Structure {
     x: number;   // 중심 X
     y: number;   // 중심 Y
     size: number; // 4=4×4 건물, 1=깃발
-    type: "hq" | "trap" | "flag";
+    type: "hq" | "trap" | "flag" | "quarry";
 }
 
 export interface SimChanges {
@@ -128,7 +128,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         { x: "", y: "" }, { x: "", y: "" },
     ]);
     /* 특수건물 입력 */
-    const [structTarget, setStructTarget] = useState<"hq" | "trap1" | "trap2" | "flag">("hq");
+    const [structTarget, setStructTarget] = useState<"hq" | "trap1" | "trap2" | "flag" | "quarry">("hq");
     const [structXmin, setStructXmin] = useState("");
     const [structYmin, setStructYmin] = useState("");
 
@@ -136,7 +136,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     const [placePopup, setPlacePopup] = useState<{ gx: number; gy: number; sx: number; sy: number } | null>(null);
     const [placeStep, setPlaceStep] = useState<"select" | "member">("select");
     /* 구조물 커서 배치 모드 (마우스 따라가는 3×3 미리보기) */
-    const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq" | "flag"; gx: number; gy: number } | null>(null);
+    const [structCursor, setStructCursor] = useState<{ structType: "trap" | "hq" | "flag" | "quarry"; gx: number; gy: number } | null>(null);
     /* 연맹원 이동 모드 — 더블클릭으로 활성화, 드래그로 이동 */
     const [movingPlayerId, setMovingPlayerId] = useState<string | null>(null);
     const movingPlayerIdRef = useRef<string | null>(null);
@@ -153,7 +153,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
     };
     const lastStructClickRef = useRef<{ id: string; time: number } | null>(null);
     const structHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const structDragRef = useRef<{ id: string; origGx: number; origGy: number; size: number; type: "hq" | "trap" | "flag"; label: string } | null>(null);
+    const structDragRef = useRef<{ id: string; origGx: number; origGy: number; size: number; type: "hq" | "trap" | "flag" | "quarry"; label: string } | null>(null);
     const [dragStructPos, setDragStructPos] = useState<{ id: string; gx: number; gy: number } | null>(null);
     const dragStructPosRef = useRef<{ id: string; gx: number; gy: number } | null>(null);
     const setDragStructPosSynced = (pos: { id: string; gx: number; gy: number } | null) => {
@@ -257,7 +257,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 x: d.x,
                 y: d.y,
                 size: d.size,
-                type: d.struct_type as "hq" | "trap" | "flag",
+                type: d.struct_type as "hq" | "trap" | "flag" | "quarry",
             }));
             setStructures(mapped);
             saveStructures(mapped); // Supabase 데이터 → localStorage 동기화
@@ -605,6 +605,17 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 } else {
                     if (structCursor.structType === "hq") {
                         await upsertStructure({ id: "hq", label: "🏰 본부", x: structCursor.gx, y: structCursor.gy, size: sz, type: "hq" });
+                    } else if (structCursor.structType === "quarry") {
+                        // 채석장 번호제: quarry1~quarryN
+                        const quarryNums = new Set(
+                            structures
+                                .filter(s => s.type === "quarry")
+                                .map(s => { const m = s.id.match(/^quarry(\d+)$/); return m ? parseInt(m[1]) : 0; })
+                        );
+                        let nextNum = 1;
+                        while (quarryNums.has(nextNum)) nextNum++;
+                        const quarryId = `quarry${nextNum}`;
+                        await upsertStructure({ id: quarryId, label: `⛏️ 채석장${nextNum}`, x: structCursor.gx, y: structCursor.gy, size: sz, type: "quarry" });
                     } else {
                         // 깃발과 동일한 번호제: trap1~trapN
                         const trapNums = new Set(
@@ -1017,11 +1028,15 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
 
     /* 구조물 라벨 번역 헬퍼: type + id의 번호를 추출해 i18n 라벨 반환 */
     const getStructLabel = (s: Structure): string => {
-        const emoji = s.type === "hq" ? "🏰" : s.type === "trap" ? "🪤" : "🚩";
+        const emoji = s.type === "hq" ? "🏰" : s.type === "trap" ? "🪤" : s.type === "quarry" ? "⛏️" : "🚩";
         if (s.type === "hq") return `${emoji} ${t.kdhPage.structHq.replace(/^.+? /, "")}`;
         if (s.type === "trap") {
             const num = s.id.match(/(\d+)$/)?.[1] ?? "";
             return `${emoji} ${t.kdhPage.structTrap1.replace(/^.+? /, "").replace(/\d+$/, "")}${num}`;
+        }
+        if (s.type === "quarry") {
+            const num = s.id.match(/(\d+)$/)?.[1] ?? "";
+            return `⛏️ 채석장${num}`;
         }
         // flag
         const num = s.id.match(/(\d+)$/)?.[1] ?? "";
@@ -1918,6 +1933,17 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                     </div>
                                     <span className="ml-auto text-slate-600 text-xs">→</span>
                                 </button>
+                                {/* 채석장 */}
+                                <button onClick={() => { closePopup(); setStructCursor({ structType: "quarry", gx: placePopup.gx, gy: placePopup.gy }); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-110 active:scale-[0.98]"
+                                    style={{ background: "rgba(120,113,76,0.1)", border: "1px solid rgba(161,140,60,0.35)" }}>
+                                    <div style={{ width: 24, height: 16, background: "rgba(161,140,60,0.25)", border: "1.5px solid #ca9a1c", borderRadius: 2, transform: "rotate(45deg)", flexShrink: 0 }} />
+                                    <div>
+                                        <div className="text-xs font-bold" style={{ color: "#e5c96a" }}>⛏️ 채석장</div>
+                                        <div className="text-[10px] text-slate-500">3×3 · 마우스로 이동 후 클릭 배치</div>
+                                    </div>
+                                    <span className="ml-auto text-slate-600 text-xs">→</span>
+                                </button>
                                 {/* 깃발 */}
                                 <button onClick={() => { closePopup(); setStructCursor({ structType: "flag", gx: placePopup.gx, gy: placePopup.gy }); }}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-110 active:scale-[0.98]"
@@ -2002,7 +2028,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 const mp = players.find(p => p.id === movingPlayerId);
                 if (!mp) return null;
                 return (
-                    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                    <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
                         onTouchStart={e => e.stopPropagation()}
                         style={{
                             background: "rgba(10,18,35,0.98)",
@@ -2047,7 +2073,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 if (!ms) return null;
                 const structLabel = ms.label;
                 return (
-                    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
+                    <div className="fixed bottom-36 left-1/2 -translate-x-1/2 z-[60] rounded-2xl"
                         onTouchStart={e => e.stopPropagation()}
                         style={{
                             background: "rgba(10,18,35,0.98)",
@@ -2102,8 +2128,8 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                     }}>
                     {/* 1행: 배치 모드 제목 + 좌표 */}
                     <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-sm font-bold whitespace-nowrap" style={{ color: structCursor.structType === "flag" ? "#f87171" : "#fbbf24" }}>
-                            {structCursor.structType === "hq" ? t.kdhPage.structHq : structCursor.structType === "flag" ? "🚩 깃발" : t.kdhPage.structTrap1} 배치
+                        <span className="text-sm font-bold whitespace-nowrap" style={{ color: structCursor.structType === "flag" ? "#f87171" : structCursor.structType === "quarry" ? "#e5c96a" : "#fbbf24" }}>
+                            {structCursor.structType === "hq" ? t.kdhPage.structHq : structCursor.structType === "flag" ? "🚩 깃발" : structCursor.structType === "quarry" ? "⛏️ 채석장" : t.kdhPage.structTrap1} 배치
                         </span>
                         <span className="font-mono text-[10px] px-2 py-0.5 rounded ml-auto whitespace-nowrap"
                             style={{ background: "rgba(251,191,36,0.1)", color: "#fcd34d", border: "1px solid rgba(251,191,36,0.25)" }}>
@@ -2293,8 +2319,9 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         {coordTab === "structure" && (() => {
                             const STRUCT_OPTS = [
                                 { id: "hq" as const, label: "🏰 평원 본부", type: "hq" as const, size: 4 },
-                                { id: "trap1" as const, label: "🩤 곰덟 함정숴1", type: "trap" as const, size: 4 },
-                                { id: "trap2" as const, label: "🩤 곰덟 함정숴2", type: "trap" as const, size: 4 },
+                                { id: "trap1" as const, label: "🪤 함정1", type: "trap" as const, size: 4 },
+                                { id: "trap2" as const, label: "🪤 함정2", type: "trap" as const, size: 4 },
+                                { id: "quarry" as const, label: "⛏️ 채석장", type: "quarry" as const, size: 4 },
                                 { id: "flag" as const, label: "🚩 깃발", type: "flag" as const, size: 1 },
                             ];
                             const sel = STRUCT_OPTS.find(o => o.id === structTarget)!;
@@ -2309,9 +2336,23 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
 
                             const save = async () => {
                                 if (!validInputs) return;
+                                let saveId: string = sel.id;
+                                let saveLabel = sel.label;
+                                // 채석장: 번호 자동 증가 (quarry1~quarryN)
+                                if (sel.type === "quarry") {
+                                    const quarryNums = new Set(
+                                        structures
+                                            .filter(s => s.type === "quarry")
+                                            .map(s => { const m = s.id.match(/^quarry(\d+)$/); return m ? parseInt(m[1]) : 0; })
+                                    );
+                                    let nextNum = 1;
+                                    while (quarryNums.has(nextNum)) nextNum++;
+                                    saveId = `quarry${nextNum}`;
+                                    saveLabel = `⛏️ 채석장${nextNum}`;
+                                }
                                 const ok = await upsertStructure({
-                                    id: sel.id,
-                                    label: sel.label,
+                                    id: saveId,
+                                    label: saveLabel,
                                     x: cx,
                                     y: cy,
                                     size: sel.size,
