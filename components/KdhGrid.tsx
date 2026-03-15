@@ -152,7 +152,10 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         setMovingStructureId(id);
     };
     const lastStructClickRef = useRef<{ id: string; time: number } | null>(null);
+    const structSingleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const structHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /* 특수건물 단일 클릭 팝업 */
+    const [structPopup, setStructPopup] = useState<{ id: string; label: string; x: number; y: number; sx: number; sy: number } | null>(null);
     const structDragRef = useRef<{ id: string; origGx: number; origGy: number; size: number; type: "hq" | "trap" | "flag" | "quarry"; label: string } | null>(null);
     const [dragStructPos, setDragStructPos] = useState<{ id: string; gx: number; gy: number } | null>(null);
     const dragStructPosRef = useRef<{ id: string; gx: number; gy: number } | null>(null);
@@ -1576,7 +1579,9 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                         const now = Date.now();
                                         const last = lastStructClickRef.current;
                                         if (last?.id === s.id && now - last.time < 350) {
-                                            // ✨ 더블클릭 → 이동 모드 토글
+                                            // ✨ 더블클릭 → 이동 모드 토글 (단일클릭 타이머 취소)
+                                            if (structSingleClickTimerRef.current) { clearTimeout(structSingleClickTimerRef.current); structSingleClickTimerRef.current = null; }
+                                            setStructPopup(null);
                                             e.stopPropagation();
                                             suppressPopupRef.current = true;
                                             setPlacePopup(null);
@@ -1595,7 +1600,16 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                             setDragStructPosSynced({ id: s.id, gx: s.x, gy: s.y });
                                             lastStructClickRef.current = { id: s.id, time: now };
                                         } else {
+                                            // 단일 클릭 → 350ms 타이머 후 팝업 표시
+                                            e.stopPropagation();
+                                            suppressPopupRef.current = true;
                                             lastStructClickRef.current = { id: s.id, time: now };
+                                            if (structSingleClickTimerRef.current) clearTimeout(structSingleClickTimerRef.current);
+                                            structSingleClickTimerRef.current = setTimeout(() => {
+                                                if (!movingStructureIdRef.current) {
+                                                    setStructPopup({ id: s.id, label: s.label, x: s.x, y: s.y, sx: e.clientX, sy: e.clientY });
+                                                }
+                                            }, 320);
                                         }
                                     } : undefined}
                                     style={{ cursor: isAdmin ? (isMovingThis ? (isDraggingThis ? "grabbing" : "grab") : "pointer") : "default" }}
@@ -1977,7 +1991,59 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                 </div>
             </div>
 
+            {/* ── 특수건물 정보 팝업 (단일 클릭) ── */}
+            {structPopup && isAdmin && (() => {
+                const closePopup = () => setStructPopup(null);
+                const popLeft = Math.min(structPopup.sx + 8, window.innerWidth - 260);
+                const popTop = Math.min(structPopup.sy + 12, window.innerHeight - 220);
+                const currentStruct = structures.find(s => s.id === structPopup.id);
+                if (!currentStruct) { closePopup(); return null; }
+                return (
+                    <div className="fixed z-[60]" style={{ left: popLeft, top: popTop, width: 250,
+                        background: "rgba(10,18,35,0.98)", border: "1px solid rgba(251,191,36,0.4)",
+                        borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.7)", backdropFilter: "blur(16px)", padding: "16px" }}>
+                        {/* 헤더 */}
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[12px] font-bold" style={{ color: "#fbbf24" }}>
+                                    {currentStruct.label}
+                                </span>
+                            </div>
+                            <button onClick={closePopup} className="text-slate-600 hover:text-red-400 text-sm font-bold transition-colors">✕</button>
+                        </div>
+                        {/* 좌표 */}
+                        <div className="flex items-center gap-2 mb-4 px-2.5 py-2 rounded-lg text-[11px]"
+                            style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#fcd34d" }}>
+                            <span className="font-mono">X:{currentStruct.x} &nbsp; Y:{currentStruct.y}</span>
+                            <span className="ml-auto text-slate-500">{currentStruct.size}×{currentStruct.size}</span>
+                        </div>
+                        {/* 안내 */}
+                        <p className="text-[10px] text-slate-600 mb-4 text-center">더블클릭으로 이동 모드 전환</p>
+                        {/* 버튼 */}
+                        <div className="flex gap-2">
+                            <button onClick={closePopup}
+                                className="px-3 py-2 rounded-xl text-[11px] text-slate-400 hover:text-white transition-colors"
+                                style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(51,65,85,0.4)" }}>
+                                ← 닫기
+                            </button>
+                            <button onClick={() => { closePopup(); deleteStructure(currentStruct.id); }}
+                                className="px-3 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95"
+                                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}>
+                                🗑️
+                            </button>
+                            <button
+                                onClick={() => { closePopup(); if (structSingleClickTimerRef.current) { clearTimeout(structSingleClickTimerRef.current); } setMovingStructureIdSynced(structPopup.id); }}
+                                className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-all hover:brightness-110 active:scale-95"
+                                style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)", color: "#fff" }}>
+                                ✥ 이동
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* ── 배치 선택 팝업 (셀 클릭 시) ── */}
+
             {placePopup && isAdmin && (() => {
                 const closePopup = () => { setPlacePopup(null); setClickName(""); setClickMemo(""); };
                 const popLeft = Math.min(placePopup.sx + 8, window.innerWidth - 290);
