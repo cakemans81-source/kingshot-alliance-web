@@ -586,8 +586,9 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
         const dy = Math.abs(e.clientY - dragStart.current.y);
         if (structCursor && isAdmin && dx < 5 && dy < 5) {
             const isFlag = structCursor.structType === "flag";
-            const sz = isFlag ? 1 : 3;
-            const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, 3);
+            const isQuarry = structCursor.structType === "quarry";
+            const sz = isFlag ? 1 : isQuarry ? 2 : 3;
+            const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, sz);
             if (cells.some(c => occupiedCells.has(c))) {
                 alert("⚠️ 해당 위치에 이미 건물/플레이어가 있습니다.");
             } else {
@@ -1857,9 +1858,10 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                         {/* 구조물 커서 미리보기 (깃발 1×1 / 건물 3×3) */}
                         {structCursor && (() => {
                             const isFlag = structCursor.structType === "flag";
-                            const sz = isFlag ? 1 : 3;
+                            const isQuarry = structCursor.structType === "quarry";
+                            const sz = isFlag ? 1 : isQuarry ? 2 : 3;
                             const center = toIso(structCursor.gx + 0.5, structCursor.gy + 0.5);
-                            const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, 3);
+                            const cells = isFlag ? [`${structCursor.gx},${structCursor.gy}`] : getStructCells(structCursor.gx, structCursor.gy, sz);
                             const conflict = cells.some((c: string) => occupiedCells.has(c));
                             const color = isFlag ? (conflict ? "#ef4444" : "#f87171") : (conflict ? "#ef4444" : "#fbbf24");
                             return (
@@ -2321,7 +2323,7 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                                 { id: "hq" as const, label: "🏰 평원 본부", type: "hq" as const, size: 4 },
                                 { id: "trap1" as const, label: "🪤 함정1", type: "trap" as const, size: 4 },
                                 { id: "trap2" as const, label: "🪤 함정2", type: "trap" as const, size: 4 },
-                                { id: "quarry" as const, label: "⛏️ 채석장", type: "quarry" as const, size: 4 },
+                                { id: "quarry" as const, label: "⛏️ 채석장", type: "quarry" as const, size: 2 },
                                 { id: "flag" as const, label: "🚩 깃발", type: "flag" as const, size: 1 },
                             ];
                             const sel = STRUCT_OPTS.find(o => o.id === structTarget)!;
@@ -2329,10 +2331,11 @@ export default function KdhGrid({ mode = "live", onSimApply }: KdhGridProps = {}
                             const xn = parseInt(structXmin);
                             const yn = parseInt(structYmin);
                             const validInputs = !isNaN(xn) && !isNaN(yn);
-                            // 4×4 건물: 중심 = xmin+2, ymin+2
+                            // 건물: 중심 = xmin + floor(size/2)
                             // 깃발: 중심 = xmin, ymin
-                            const cx = isFlag ? xn : xn + 2;
-                            const cy = isFlag ? yn : yn + 2;
+                            const h = Math.floor(sel.size / 2);
+                            const cx = isFlag ? xn : xn + h;
+                            const cy = isFlag ? yn : yn + h;
 
                             const save = async () => {
                                 if (!validInputs) return;
